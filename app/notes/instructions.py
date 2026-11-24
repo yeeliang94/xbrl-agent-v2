@@ -121,8 +121,20 @@ TOOLS = {
 }
 
 
-def instructions(session: str, guidance: str = "") -> str:
-    return INSTRUCTIONS.format(tools=TOOLS[session]) + (f"\n{guidance}\n" if guidance else "")
+# Said only when the workbench is on, so a run without it reads exactly as before.
+WORKBENCH = {
+    "placing": ("You also have a code workbench: the provider's code sandbox, for any calculation or check you "
+                "want to run. Nothing from the document is in it, so type in what you work on. It is a workbench "
+                "only: notes are placed through place_note and nowhere else."),
+    "numeric": ("You also have a code workbench: the provider's code sandbox, for calculation. Nothing from the "
+                "document is in it, so type in the numbers you work on. It is a workbench only: figures are saved "
+                "through save_figures and nowhere else."),
+}
+
+
+def instructions(session: str, guidance: str = "", *, workbench_on: bool = False) -> str:
+    tools = TOOLS[session] + (" " + WORKBENCH[session] if workbench_on and session in WORKBENCH else "")
+    return INSTRUCTIONS.format(tools=tools) + (f"\n{guidance}\n" if guidance else "")
 
 
 SESSIONS = {

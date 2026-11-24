@@ -289,3 +289,23 @@ async def test_a_stop_ends_every_session_between_steps():
     assert sorted(sessions) == ["numeric", "placing"] and all(s["status"] == "stopped" for s in sessions.values())
     assert sessions["numeric"]["steps"] < 20
 
+
+
+def test_the_placing_and_numeric_sessions_get_the_workbench_and_the_look_session_does_not(monkeypatch):
+    from app.agents import workbench
+    from app.notes import agent as notes_agent_mod, instructions as notes_instructions_mod
+
+    run_id = confirmed_notes_run()
+    on = workbench.Workbench(True, "The code workbench is on.")
+    for session in ("placing", "numeric", "look"):
+        deps, _ = notes_agent_mod.build_deps(run_id, session)
+        wanted = session in notes_agent_mod.WORKBENCH_SESSIONS
+        bench = workbench.decide("gpt-5.4", wanted=wanted, settings={"code_workbench": True})
+        assert bench.on is wanted
+        spec = notes_agent_mod.spec("gpt-5.4", deps, bench=bench)
+        assert spec.code_tool is wanted
+        assert ("code workbench" in spec.instructions) is wanted
+    # Switched off, the instructions read exactly as they did before the workbench.
+    assert notes_instructions_mod.instructions("numeric") == notes_instructions_mod.instructions(
+        "numeric", workbench_on=False)
+    assert "code workbench" in notes_instructions_mod.instructions("numeric", workbench_on=on.on)
