@@ -1,0 +1,27 @@
+.switch {
+  width: var(--switch-w);
+  height: var(--switch-h);
+  border-radius: var(--radius-pill);
+  border: 0;
+  background: var(--edge);
+  position: relative;
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+  transition: background var(--fast);
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  left: var(--switch-inset);
+  top: var(--switch-inset);
+  width: var(--switch-knob);
+  height: var(--switch-knob);
+  border-radius: var(--radius-round);
+  background: var(--panel);
+  transition: transform var(--knob) var(--ease);
+}
+.switch.on { background: var(--ink); }
+.switch.on::after { transform: translateX(var(--switch-travel)); }
+.switch:disabled { opacity: .4; cursor: default; }
+.switch:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: var(--focus-ring); }

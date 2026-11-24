@@ -1,0 +1,11 @@
+.drop {
+  border: var(--drop-border) dashed var(--edge);
+  border-radius: var(--radius);
+  height: var(--drop-h);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  transition: background var(--fast), border-color var(--fast);
+}
+.drop.over { background: var(--tint); border-color: var(--ink); }
+.drop > div { display: flex; flex-direction: column; gap: var(--space-4); align-items: center; }

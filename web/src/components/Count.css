@@ -1,0 +1,15 @@
+.cnt {
+  min-width: var(--count-h);
+  height: var(--count-h);
+  padding: 0 var(--count-pad);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--count-h);
+  text-align: center;
+  flex: none;
+}
+.nav .cnt { background: none; color: var(--nav-accent); padding: 0; min-width: 0; }
+.nav .spin { color: var(--nav-accent); }

@@ -1,0 +1,50 @@
+.qc { border-radius: var(--radius); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); background: var(--panel); animation: pop .3s var(--ease); }
+.qc.inset { background: var(--tint); }
+.ev { display: flex; flex-direction: column; gap: var(--space-2); }
+.ev div { display: flex; align-items: baseline; gap: var(--space-3); }
+.qc .lk { border: 0; background: none; padding: 0; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: var(--underline-offset); white-space: nowrap; font: inherit; }
+.qc .lk:hover { color: var(--ink); }
+.opts { display: flex; flex-direction: column; gap: var(--space-2); }
+.opt {
+  display: grid;
+  grid-template-columns: var(--kbd) 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border: var(--hairline) solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background var(--fast), border-color var(--fast);
+}
+.opt:hover { border-color: var(--edge); }
+.opt:disabled { cursor: default; opacity: .4; }
+.opt .sub { display: block; color: var(--muted); }
+.qc kbd {
+  width: var(--kbd);
+  height: var(--kbd);
+  border-radius: var(--kbd-radius);
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1;
+  color: var(--muted);
+}
+.own {
+  display: grid;
+  grid-template-columns: var(--kbd) 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--own-pad) var(--own-pad) var(--own-pad) var(--space-4);
+  border-radius: var(--radius);
+  border: var(--hairline) solid var(--line);
+  background: var(--panel);
+}
+.own textarea { border: 0; outline: none; resize: none; height: var(--kbd); padding: var(--own-text-pad) 0; background: none; line-height: var(--leading); font: inherit; }
+.qfoot { color: var(--muted); font-size: var(--text-md); }
+.opt:focus-visible, .qc .lk:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: var(--focus-ring); }

@@ -1,0 +1,17 @@
+.tbl { border-collapse: collapse; width: 100%; }
+.tbl th {
+  font-weight: var(--weight-regular);
+  color: var(--muted);
+  text-align: left;
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border-bottom: var(--hairline) solid var(--line);
+}
+.tbl td { height: var(--row-h); padding: 0 var(--space-3); border-bottom: var(--hairline) solid var(--line); }
+.tbl tr:last-child td { border-bottom: 0; }
+/* Only a row that opens something looks clickable. */
+.tbl tbody tr.click { cursor: pointer; }
+.tbl tbody tr.click:hover td { background: var(--tint); }
+.tbl th.r, .tbl td.r { text-align: right; }
+.tbl td.nw { white-space: nowrap; }
+.tbl tr.tbl-empty td { height: auto; padding: 0; }

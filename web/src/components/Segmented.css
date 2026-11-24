@@ -1,0 +1,14 @@
+.seg { display: inline-flex; background: var(--bg); border-radius: var(--radius-pill); padding: var(--space-1); }
+.seg button {
+  height: var(--control-sm-h);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  transition: background var(--fast), color var(--fast);
+}
+.seg button.on { background: var(--panel); color: var(--ink); }
+.seg button:disabled { cursor: default; }
+.seg button:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: 0; }

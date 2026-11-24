@@ -1,0 +1,42 @@
+{
+  "_about": "Digests of v1's catalogue tables (v1 commit 4bb9c6bf bootstrap of the 38 statement and 8 numeric-note templates). Each is sha256 of the sorted rows as JSON.",
+  "queries": {
+    "concept_nodes": "select concept_uuid, template_id, parent_uuid, kind, canonical_label, render_sheet, render_row, render_col, matrix_col, matrix_col_label, is_current from concept_nodes",
+    "concept_edges": "select parent_uuid, child_uuid, coefficient from concept_edges",
+    "concept_targets": "select concept_uuid, entity_scope, period, target_sheet, target_row, target_col from concept_targets",
+    "concept_render_aliases": "select concept_uuid, alias_sheet, alias_row, alias_col from concept_render_aliases",
+    "concept_semantic_addresses": "select concept_uuid, primary_concept, dimensions_json, taxonomy_version, address_version from concept_semantic_addresses",
+    "taxonomy_concepts": "select source_element_id, taxonomy_version, namespace_uri, local_name, abstract, concept_role, data_type, period_type, balance, substitution_group from taxonomy_concepts",
+    "template_slots": "select target_id, canonical_target_id, template_id, sheet, row, col, label, slot_role, value_kind, taxonomy_element_id, dimensions_json, mapping_source, manifest_version, workbook_fingerprint, validation_status, exception_code from template_slots"
+  },
+  "tables": {
+    "concept_nodes": {
+      "rows": 6592,
+      "sha256": "244bbdb428cccbc64e33612f483b07695190fd54451b8a2646ad4242a9f4002f"
+    },
+    "concept_edges": {
+      "rows": 6386,
+      "sha256": "ce4df62a1bb20b68acfe7b9dc288a8ae730e2c23ae8253c31ee981d5b6800d15"
+    },
+    "concept_targets": {
+      "rows": 16968,
+      "sha256": "da40b7f0891ba63017b1ad581a348369e119544f653175905280251812c32bec"
+    },
+    "concept_render_aliases": {
+      "rows": 206,
+      "sha256": "c24d40b3bd5bf9e5f05cf8fd109e38279f38c238341b523638a88f0cde3aa489"
+    },
+    "concept_semantic_addresses": {
+      "rows": 6578,
+      "sha256": "69ab0b9a56cf55218c755d7338e0addc1039a72d9b67c2a1c25470c052c2fe4f"
+    },
+    "taxonomy_concepts": {
+      "rows": 1934,
+      "sha256": "2554afae87b6312d16fbf01bda611d4a91cda5123272107ff75956340164723a"
+    },
+    "template_slots": {
+      "rows": 9314,
+      "sha256": "a7c459ad81a3ed1e9694cfe90db359fbf0f87c18d113256e858c1e4a90f02494"
+    }
+  }
+}

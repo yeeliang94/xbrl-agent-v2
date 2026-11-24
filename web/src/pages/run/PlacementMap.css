@@ -1,0 +1,74 @@
+/* The placement map, as prototypes/notes-placement-prototype-v2.html with quiet flags. */
+.pmap .prow {
+  display: grid;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--grid-row-h);
+  padding: 0 var(--space-2);
+  border-bottom: var(--hairline) solid var(--line);
+  transition: background var(--fast);
+}
+.pmap.report .prow { grid-template-columns: var(--icon) var(--note-no-w) minmax(0, 1fr) minmax(0, 1fr) var(--grid-status-w); }
+.pmap.mtool .prow { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+.pmap .prow.pth { position: sticky; top: 0; z-index: 1; background: var(--panel); color: var(--muted); min-height: var(--grid-head-h); border-bottom: 0; }
+.pmap .prow.phd { grid-template-columns: minmax(0, 1fr) auto; font-weight: var(--weight-medium); font-size: var(--text-md); background: var(--tint); border-bottom: 0; border-radius: var(--radius-sm); min-height: var(--grid-head-h); margin-top: var(--space-3); }
+.pmap .prow.phd .meta { font-weight: var(--weight-regular); }
+.pmap .pnote, .pmap .pchip { cursor: pointer; user-select: none; }
+.pmap .pnote[draggable="true"], .pmap .pchip[draggable="true"] { cursor: grab; }
+.pmap .pnote:hover, .pmap .psplit:hover, .pmap .pfield:hover { background: var(--tint); }
+.pmap .prow.sel, .pmap .prow.sel:hover { background: var(--accent-soft); }
+.pmap .pnote:focus-visible, .pmap .pchip:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: calc(-1 * var(--focus-ring)); }
+.pmap .pno { font: var(--weight-regular) var(--text-md) / var(--leading) var(--font-mono); color: var(--muted); white-space: nowrap; }
+.pmap .pt, .pmap .pf { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmap .pf.none { color: var(--faint); }
+.pmap .pst { justify-self: end; }
+/* Quiet flags: Confirmed steps back so Check is what the eye finds. */
+.pmap .status.finished, .pside .status.finished { color: var(--muted); }
+.pmap .status.finished .status-dot, .pside .status.finished .status-dot { background: var(--faint); }
+.pmap .pchev { width: var(--icon); height: var(--icon); border: 0; background: none; padding: 0; cursor: pointer; color: var(--muted); display: grid; place-items: center; }
+.pmap .pchev svg { width: var(--icon); height: var(--icon); stroke: currentColor; fill: none; stroke-width: 1.6; transition: transform var(--knob) var(--ease); }
+.pmap .pchev.open svg { transform: rotate(90deg); }
+.pmap .pchev:focus-visible { outline: var(--focus-ring) solid var(--ink); border-radius: var(--radius-xs); }
+
+.pmap .pfield { align-items: start; padding-top: var(--space-2); padding-bottom: var(--space-2); }
+.pmap .pfield .pl { min-width: 0; line-height: var(--status-h); }
+.pmap .pfield .pl .meta { font-size: var(--text-md); margin-left: var(--space-2); }
+.pmap .pfield.over { background: var(--accent-soft); box-shadow: inset 0 0 0 var(--dot-ring) var(--accent); border-radius: var(--radius-sm); }
+.pmap .pchips { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.pmap .pchip { display: flex; align-items: center; gap: var(--space-2); min-height: var(--status-h); padding: 0 var(--space-2); border-radius: var(--radius-sm); background: var(--tint); min-width: 0; }
+.pmap .pchip.sel { background: var(--accent-soft); }
+.pmap .pchip .pt { flex: 1; }
+.pmap .ploose { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-2); }
+.pmap .ploose .pchips { width: 100%; }
+
+.pdone { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-5) var(--space-3); }
+.pdone > span { flex: 0 1 auto; min-width: 0; }
+.pbar { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); padding: 0 var(--space-5) var(--space-3); color: var(--muted); }
+
+.pside .pacts { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pside .plist { display: flex; flex-direction: column; }
+.pside .plist h4 { font-weight: var(--weight-regular); color: var(--muted); font-size: var(--text-md); margin-bottom: var(--space-1); }
+.pside .plist .fold { min-height: var(--control-sm-h); }
+.ptarget {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-h);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background var(--fast);
+}
+.ptarget .pt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ptarget .meta { flex: none; font-size: var(--text-md); }
+.ptarget:hover:not(:disabled) { background: var(--tint); }
+.ptarget:disabled { cursor: default; }
+.ptarget.over { background: var(--accent-soft); box-shadow: inset 0 0 0 var(--dot-ring) var(--accent); }
+.ptarget:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: calc(-1 * var(--focus-ring)); }
+.pmap .ploose.over { background: var(--accent-soft); box-shadow: inset 0 0 0 var(--dot-ring) var(--accent); border-radius: var(--radius-sm); }
+.pside .ptarget { width: 100%; }

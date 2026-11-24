@@ -1,0 +1,12 @@
+.spin {
+  width: var(--spinner);
+  height: var(--spinner);
+  border-radius: var(--radius-round);
+  border: var(--spinner-ring) solid currentColor;
+  border-top-color: transparent;
+  display: inline-block;
+  flex: none;
+  animation: rot .8s linear infinite;
+  color: var(--accent);
+}
+.spin.sm { width: var(--spinner-sm); height: var(--spinner-sm); }

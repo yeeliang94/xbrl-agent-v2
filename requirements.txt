@@ -1,0 +1,26 @@
+# Top-level packages. Every version is pinned by constraints.txt, which holds
+# only packages v1 already pins, at v1's versions. The line below applies it
+# to every plain `pip install -r requirements.txt`.
+-c constraints.txt
+fastapi
+uvicorn
+# The agent library, with only the OpenAI and Anthropic connections (no Google).
+pydantic-ai-slim[openai,anthropic]
+openai
+anthropic
+# argon2id password hashing.
+argon2-cffi
+# Trust the operating system's certificate store (the Windows company certificates).
+truststore
+python-multipart
+httpx
+python-dotenv
+# Reading the SSM template workbooks into the template catalogue.
+openpyxl
+# Reading uploaded PDFs and drawing page pictures.
+PyMuPDF
+# Styling notes HTML for mTool and drawing the note preview.
+beautifulsoup4
+# Tests.
+pytest
+pytest-asyncio

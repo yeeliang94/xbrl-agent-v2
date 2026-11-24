@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Placement map v2</title>
+<!-- Prototype for the owner (24 November 2026), second version. One list shows every note beside the
+     mTool field it sits in. The side panel is a field finder: it suggests the closest fields, searches
+     all 198 and takes a dropped note. Empty fields stay out of the way until asked for.
+     Look and tokens follow review-prototype-v4.html. The field list is mTool's real MFRS list. Not app code. -->
+<style>
+:root{
+  --bg:#EEEFF1; --panel:#FFFFFF; --tint:#F5F7F8; --line:#DFE3E6; --edge:#CBD1D6; --ink:#111111; --muted:#6B7280; --faint:#B5BCC4;
+  --nav:#000000; --nav-ink:#FFFFFF; --nav-muted:#9AA1A9; --nav-on:#1F1F1F;
+  --accent:#FD5108; --accent-text:#D64000; --accent-soft:#FFF5ED; --accent-mid:#FFE8D4;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:400 14px/20px -apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-width:1280px}
+h1,h2,h3,p{margin:0}
+h1{font-weight:500;font-size:22px;line-height:28px;letter-spacing:-.015em}
+h2{font-weight:500;font-size:16px;line-height:24px;letter-spacing:-.005em}
+h3{font-weight:500;font-size:14px;line-height:20px}
+button,input{font:inherit;color:inherit}
+.mono{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.app{height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr)}
+.nav{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding:16px 12px;overflow:auto}
+.brand{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;margin-bottom:16px;font-weight:500}
+.brand i{width:14px;height:14px;border-radius:3px;background:var(--accent);display:block}
+.nav a{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 12px;border-radius:8px;cursor:pointer;color:var(--nav-muted)}
+.nav a:hover{color:var(--nav-ink)}
+.nav a.on{background:var(--nav-on);color:var(--nav-ink)}
+.nav a.sub{padding-left:24px}
+.nav .grp{color:#6B7280;font-size:12px;padding:24px 12px 4px}
+.nav .cnt{color:#FE7C39;font:400 12px/20px var(--mono)}
+main{min-width:0;min-height:0;display:flex;flex-direction:column;padding:0 24px 24px}
+.ph{display:flex;align-items:center;gap:12px;height:80px;flex:none}
+.sp{flex:1}
+.meta{color:var(--muted)}
+.panel{background:var(--panel);border-radius:12px;min-height:0}
+.btn{height:36px;padding:0 16px;border-radius:999px;border:1px solid transparent;background:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;transition:transform .12s var(--ease),background .15s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.primary:hover{background:#2B2B2B}
+.btn.outline{border-color:var(--edge)}
+.btn.outline:hover{background:var(--tint)}
+.btn.quiet{padding:0 8px;color:var(--muted)}
+.btn.quiet:hover{color:var(--ink)}
+.btn.sm{height:28px;padding:0 12px;font-size:13px}
+.btn span{overflow:hidden;text-overflow:ellipsis}
+.icon{width:20px;height:20px;border-radius:6px;border:0;background:none;cursor:pointer;display:grid;place-items:center;color:var(--muted);padding:0;transition:transform .15s var(--ease)}
+.icon svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.icon.open{transform:rotate(90deg)}
+.pill{display:inline-flex;align-items:center;gap:6px;height:22px;font-size:13px;white-space:nowrap;color:var(--ink)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--faint);flex:none}
+.pill.ok::before{background:var(--ink);box-shadow:none}
+.pill.amber::before{background:var(--accent);box-shadow:none}
+.pill.red{background:var(--accent-text);color:#fff;padding:0 8px;border-radius:999px;font-size:12px}
+.pill.red::before{display:none}
+.seg{display:inline-flex;background:var(--bg);border-radius:999px;padding:4px;flex:none}
+.seg button{height:28px;padding:0 12px;border:0;border-radius:999px;background:none;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.seg button.on{background:#fff;color:var(--ink)}
+.seg .n{font:400 12px/20px var(--mono);color:var(--muted)}
+.in{width:100%;height:36px;padding:0 12px;border:0;border-radius:12px;background:var(--bg);outline:none;flex:none}
+.in:focus{box-shadow:0 0 0 2px var(--ink)}
+.switch{width:36px;height:20px;border-radius:999px;border:0;background:var(--edge);position:relative;cursor:pointer;flex:none}
+.switch::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .18s var(--ease)}
+.switch.on{background:var(--ink)}
+.switch.on::after{transform:translateX(16px)}
+
+/* the run page */
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 368px;gap:16px}
+.work,.side{display:flex;flex-direction:column;overflow:hidden}
+.wh{flex:none;height:64px;display:flex;align-items:center;gap:12px;padding:0 24px}
+.wh h2{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb{flex:1;min-height:0;overflow:auto;padding:0 24px 24px}
+.empty{color:var(--muted);padding:48px 0;text-align:center}
+
+/* the map: one row per note (report order) or per field (mTool order) */
+.row{display:grid;align-items:center;gap:12px;min-height:36px;padding:0 8px;border-bottom:1px solid var(--line);transition:background .15s}
+.map.rep .row{grid-template-columns:20px 36px minmax(0,1fr) minmax(0,1fr) 100px;gap:8px}
+.map.mt .row{grid-template-columns:minmax(0,5fr) minmax(0,6fr)}
+.row.th{position:sticky;top:0;background:#fff;z-index:2;color:var(--muted);min-height:32px;border-bottom:0}
+.row.hd{font-weight:500;font-size:13px;background:var(--tint);border-bottom:0;border-radius:8px;min-height:32px;margin-top:12px;grid-template-columns:minmax(0,1fr) auto !important}
+.row.hd .meta{font-weight:400}
+.row.sh{color:var(--muted);font-size:13px;border-bottom:0;min-height:28px;grid-template-columns:1fr !important}
+.row.note,.row.grp,.row.need{cursor:pointer}
+.row.note{cursor:grab;user-select:none}
+.row.note:hover,.row.grp:hover,.row.need:hover,.row.fr:hover{background:var(--tint)}
+.row.sel,.row.sel:hover{background:var(--accent-soft)}
+.row .no{font:400 13px/20px var(--mono);color:var(--muted);white-space:nowrap}
+.row .t,.row .f{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .f.bad{color:var(--accent-text)}
+/* Flags stay quiet (owner, 24 November 2026): field text stays black, a hollow orange ring and one grey word.
+   Only "Not placed" keeps the filled failure label. */
+.row .f.bad{color:inherit}
+.pill.amber{color:var(--muted)}
+.pill.amber::before{background:none;box-shadow:inset 0 0 0 1.5px var(--accent)}
+.pill.ok::before{background:var(--faint)}
+.pill.ok{color:var(--muted)}
+.row .f.none{color:var(--faint)}
+.row .st{justify-self:end}
+.row.kid .t{padding-left:0}
+.row.dragging{opacity:.35}
+.row.fr{align-items:start;padding-top:7px;padding-bottom:7px}
+.row.fr .lab{min-width:0;line-height:22px;cursor:pointer}
+.row.fr .lab .meta{font-size:13px;margin-left:8px}
+.row.fr.none .lab{color:var(--muted)}
+.row.fr.d2 .lab{padding-left:16px}
+.row.fr .dash{color:var(--faint);line-height:22px}
+.row.over{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent);border-radius:8px;border-bottom-color:transparent}
+.chips{display:flex;flex-direction:column;gap:4px;min-width:0}
+.chip{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:8px;background:var(--bg);cursor:grab;user-select:none;min-width:0;font-size:13px;transition:background .15s,opacity .15s}
+.chip:hover{background:#E6E9EC}
+.chip.sel{background:var(--accent-mid)}
+.chip.dragging{opacity:.35}
+.chip .no{font:400 12px/20px var(--mono);color:var(--muted);flex:none}
+.chip .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .pill{flex:none}
+.dropline{height:2px;background:var(--accent);border-radius:2px;margin:-3px 0}
+.tools{display:flex;align-items:center;gap:8px;justify-self:end;color:var(--muted)}
+
+/* side panel: the note, then the field finder */
+.sb{flex:1;min-height:0;display:flex;flex-direction:column;gap:16px;padding:0 24px 0}
+.sb>*{flex:none}
+.kv{display:grid;grid-template-columns:64px 1fr;gap:4px 12px;align-items:baseline}
+.kv>span:nth-child(odd){color:var(--muted)}
+.quote{background:var(--tint);border-radius:12px;padding:12px 16px;font-size:13px;line-height:20px;color:#333;cursor:pointer}
+.quote.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding-bottom:0;border-bottom:12px solid var(--tint)}
+.why{color:var(--muted)}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.bar .btn{max-width:100%}
+.finder{flex:1 1 0 !important;min-height:0;overflow:auto;margin:-4px -12px 0;padding:0 0 12px}
+.opt{display:flex;align-items:center;gap:8px;min-height:36px;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;line-height:20px;transition:background .15s}
+.opt:hover,.opt.hi{background:var(--tint)}
+.opt .nm{flex:1;min-width:0}
+.opt .meta{flex:none;font-size:12px}
+.opt.one .nm,.opt.one .meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt.one .meta{flex:0 1 auto;max-width:50%}
+.opt.cur{cursor:default;color:var(--muted)}
+.opt.cur:hover{background:none}
+.opt.in2{padding-left:24px}
+.opt.tp{color:var(--ink)}
+.opt.over{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.opt mark{background:var(--accent-mid);color:inherit;border-radius:3px}
+.g{color:var(--muted);font-size:12px;padding:12px 12px 4px}
+.foot{border-top:1px solid var(--line);margin:0 -24px;padding:8px 12px}
+body.carrying,body.carrying *{cursor:grabbing !important}
+body.carrying .opt:not(.cur):not(.tp){background:var(--tint)}
+body.carrying .opt.over{background:var(--accent-soft)}
+
+/* toast and drag picture */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:999px;min-height:44px;padding:0 8px 0 20px;display:flex;align-items:center;gap:12px;z-index:50;animation:up .25s var(--ease);max-width:720px}
+.toast .btn{color:#fff;height:32px}
+.toast .btn:hover{background:#2B2B2B}
+.toast.err{background:var(--accent-text)}
+.toast.err .btn:hover{background:#B83700}
+.toast.plain{padding-right:20px}
+@keyframes up{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+.ghost{position:fixed;pointer-events:none;z-index:70;background:#fff;border-radius:10px;padding:6px 12px;box-shadow:0 8px 24px rgba(0,0,0,.16);font-size:13px;max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="nav">
+    <div class="brand"><i></i>XBRL agent</div>
+    <a>Runs</a><a>Settings</a>
+    <div class="grp">Seri Maju Trading</div>
+    <a class="sub">Balance sheet</a><a class="sub">Income statement</a><a class="sub">Cash flows</a>
+    <a class="sub">Checks</a>
+    <a class="sub on"><span>Placement map</span><span class="cnt" id="nav-cnt"></span></a>
+    <div class="grp">Notes</div>
+    <a class="sub">List of notes</a><a class="sub">Accounting policies</a><a class="sub">Corporate information</a>
+  </nav>
+  <main>
+    <div class="ph"><h1>Seri Maju Trading</h1><span class="sp"></span><button class="btn quiet" id="demo">Show a failed save</button><button class="btn primary">Prepare mTool file</button></div>
+    <div class="cols">
+      <section class="panel work">
+        <div class="wh"><h2>Placement map</h2>
+          <div class="seg" id="order"></div>
+          <span class="sp"></span>
+          <div class="seg" id="filter"></div>
+        </div>
+        <div class="wb scroll" id="body"></div>
+      </section>
+      <aside class="panel side">
+        <div class="wh"><h2 id="side-h"></h2><span class="sp"></span><span id="side-st"></span></div>
+        <div class="sb" id="side"></div>
+      </aside>
+    </div>
+  </main>
+</div>
+<div id="layer"></div>
+<script>
+/* ---------------- mTool's note fields for an MFRS company filing, in mTool order ----------------
+   [label, flag, depth]. Flags: H heading (holds no note), * mandatory, C catch-all. */
+const RAW = {
+  CORP: [["Corporate information","H",1],["Disclosure of corporate information","C",2],["Financial reporting status","H",1],["Explanation of reasons for the restatement of previous financial statements figures","",2],["Explanation of reasons for the reclassification of previous financial statements figures","",2],["Explanation of reasons for using longer or shorter reporting period","",2]],
+  POL: [["Disclosure of material accounting policy information","*",1],["Description of accounting policy for biological assets","",2],["Description of accounting policy for borrowing costs","",2],["Description of accounting policy for borrowings","",2],["Description of accounting policy for business combinations","",2],["Description of accounting policy for cash and cash equivalents","",2],["Description of accounting policy for commodity future and forward contracts","",2],["Description of accounting policy for construction contracts","",2],["Description of accounting policy for construction in progress","",2],["Description of accounting policy for contingent liabilities and contingent assets","",2],["Description of accounting policy for customer loyalty programmes","",2],["Description of accounting policy for decommissioning, restoration and rehabilitation provisions","",2],["Description of accounting policy for deferred income tax","",2],["Description of accounting policy for depreciation expense","",2],["Description of accounting policy for discontinued operations","",2],["Description of accounting policy for dividend income","",2],["Description of accounting policy for earnings per share","",2],["Description of accounting policy for emission rights","",2],["Description of accounting policy for employee benefits","",2],["Description of accounting policy for equity instruments","",2],["Description of accounting policy for exploration and development expenditures","",2],["Description of accounting policy for fair value measurement","",2],["Description of accounting policy for finance income and costs","",2],["Description of accounting policy for financial instruments","",2],["Description of accounting policy for foreign currencies","",2],["Description of accounting policy for goodwill","",2],["Description of accounting policy for government grants","",2],["Description of accounting policy for impairment of financial assets","",2],["Description of accounting policy for impairment of other assets","",2],["Description of accounting policy for income tax","",2],["Description of accounting policy for intangible assets other than goodwill","",2],["Description of accounting policy for interest income and expense","",2],["Description of accounting policy for inventories","",2],["Description of accounting policy for investment in associates","",2],["Description of accounting policy for investment property","",2],["Description of accounting policy for investments in joint arrangements","",2],["Description of accounting policy for investments in subsidiaries","",2],["Description of accounting policy for irredeemable convertible unsecured loan stocks (“ICULS”)","",2],["Description of accounting policy for leases","",2],["Description of accounting policy for loss of control","",2],["Description of accounting policy for non-current assets or disposal groups classified as held for sale","",2],["Description of accounting policy for operating segment reporting","",2],["Description of accounting policy for other provisions","",2],["Description of accounting policy for property development costs","",2],["Description of accounting policy for property, plant and equipment","",2],["Description of accounting policy for recognition of revenue and other income","",2],["Description of accounting policy for research and development expense","",2],["Description of accounting policy for share capital","",2],["Description of accounting policy for share-based payment transactions","",2],["Description of accounting policy for transactions with non-controlling interests","",2],["Description of accounting policy for transactions with related parties","",2],["Description of accounting policy for treasury shares","",2],["Description of accounting policy for warrants","",2],["Description of other material accounting policies relevant to understanding of financial statements","C",2]],
+  LIST: [["Disclosure of accrued expenses and other liabilities","",1],["Disclosure of acquisitions and disposals","",1],["Disclosure of allowance for credit losses","",1],["Disclosure of amendments to MFRS and pronouncements issued by MASB","",1],["Disclosure of auditors' remuneration","",1],["Disclosure of authorisation of financial statements","",1],["Disclosure of basis of preparation of financial statements","",1],["Disclosure of biological assets","",1],["Disclosure of bonds","",1],["Disclosure of borrowings","",1],["Disclosure of business combinations","",1],["Disclosure of capital and other commitments","",1],["Disclosure of capital management","",1],["Disclosure of cash and bank balances at central banks","",1],["Disclosure of cash and cash equivalents","",1],["Disclosure of cash flow reconciliation","",1],["Disclosure of cash held under housing development accounts","",1],["Disclosure of changes in accounting policies, accounting estimates and errors","",1],["Disclosure of claims and benefits paid","",1],["Disclosure of collateral","",1],["Disclosure of commodity price risk","",1],["Disclosure of comparative figures","",1],["Disclosure of construction contracts","",1],["Disclosure of contingent assets and contingent liabilities","",1],["Disclosure of corporate proposals","",1],["Disclosure of cost of sales","",1],["Disclosure of credit risk","",1],["Disclosure of critical accounting estimates and judgements","",1],["Disclosure of deferred income","",1],["Disclosure of deferred tax assets/(liabilities)","",1],["Disclosure of deposits from banks","",1],["Disclosure of deposits with financial institutions","",1],["Disclosure of depreciation and amortisation expense","",1],["Disclosure of derivative financial assets/liabilities","",1],["Disclosure of development expenditures","",1],["Disclosure of discontinued operations","",1],["Disclosure of disposal of subsidiaries","",1],["Disclosure of dividends","",1],["Disclosure of earnings (loss) per share","",1],["Disclosure of effect of changes in foreign exchange rates","",1],["Disclosure of employee benefits expense","",1],["Disclosure of employment termination benefits","",1],["Disclosure of entity's operating segments","",1],["Disclosure of equity price risk","",1],["Disclosure of events after reporting period","",1],["Disclosure of fair value information","",1],["Disclosure of fair value measurement","",1],["Disclosure of fair value of financial instruments","",1],["Disclosure of fee and commission income (expense)","",1],["Disclosure of fees for non-audit services provided by the Company's auditor and its member firms","",1],["Disclosure of finance costs","",1],["Disclosure of finance income","",1],["Disclosure of financial assets at fair value through other comprehensive income","",1],["Disclosure of financial guarantees","",1],["Disclosure of financial instrument measured at amortised cost","",1],["Disclosure of financial instruments","",1],["Disclosure of financial instruments at fair value through profit or loss","",1],["Disclosure of financial instruments held for trading","",1],["Disclosure of financial liabilities measured at amortised cost","",1],["Disclosure of first-time adoption","",1],["Disclosure of foreign currency translation reserve","",1],["Disclosure of general information about financial statements","",1],["Disclosure of going concern","",1],["Disclosure of grants and contributions","",1],["Disclosure of gross profit","",1],["Disclosure of held to maturity investment","",1],["Disclosure of holding companies","",1],["Disclosure of income tax expense","",1],["Disclosure of intangible assets and goodwill","",1],["Disclosure of interest in joint operation","",1],["Disclosure of interests in unconsolidated structured entities","",1],["Disclosure of interest rate risk","",1],["Disclosure of inventories","",1],["Disclosure of investment property","",1],["Disclosure of investments in associates","",1],["Disclosure of investments in joint ventures","",1],["Disclosure of investments in subsidiary companies","",1],["Disclosure of irredeemable convertible unsecured loan stocks","",1],["Disclosure of islamic financing facilities","",1],["Disclosure of issued capital","",1],["Disclosure of key management personnel compensation","",1],["Disclosure of land held for development","",1],["Disclosure of lease prepayments","",1],["Disclosure of leases","",1],["Disclosure of liquidity risk","",1],["Disclosure of list of subsidiaries, joint ventures and associates","",1],["Disclosure of loans and advances to banks","",1],["Disclosure of loans and receivables","",1],["Disclosure of long term payables","",1],["Disclosure of long term receivables","",1],["Disclosure of maturity analysis under liquidity risk","",1],["Disclosure of net asset value attributable to unit-holders","",1],["Disclosure of net gains and losses arising from financial instruments","",1],["Disclosure of non-controlling interests","",1],["Disclosure of non-current assets or disposal groups classified as held for sale and discontinued operations","",1],["Disclosure of non-derivative financial instruments","",1],["Disclosure of non-executive director's fees","",1],["Disclosure of other current assets","",1],["Disclosure of other current liabilities","",1],["Disclosure of other financial risk management","",1],["Disclosure of other gains and losses","",1],["Disclosure of other guarantees","",1],["Disclosure of other income","",1],["Disclosure of other investments","",1],["Disclosure of other long term employment benefits","",1],["Disclosure of other market risk","",1],["Disclosure of other non-current assets","",1],["Disclosure of other non-current liabilities","",1],["Disclosure of other notes to accounts","C",1],["Disclosure of other operating expenses","",1],["Disclosure of other operating income","",1],["Disclosure of other provisions","",1],["Disclosure of other reserves","",1],["Disclosure of perpetual sukuk","",1],["Disclosure of post employment benefit obligation","",1],["Disclosure of price risk","",1],["Disclosure of prior year adjustments","",1],["Disclosure of profit after tax","",1],["Disclosure of profit before tax","",1],["Disclosure of progress billings and others","",1],["Disclosure of property development costs","",1],["Disclosure of property, plant and equipment","",1],["Disclosure of research and development expense","",1],["Disclosure of revenue from contract customers","",1],["Disclosure of service concession arrangements","",1],["Disclosure of share capital","",1],["Disclosure of share-based payment arrangements","",1],["Disclosure of short term investments","",1],["Disclosure of significant events during the financial year","",1],["Disclosure of statement of compliance","",1],["Disclosure of supplementary financial information on the breakdown of realised and unrealised profits or losses","",1],["Disclosure of tax receivables and payables","",1],["Disclosure of tax supplementary information","",1],["Disclosure of the new or revised financial reporting standards not yet effective","",1],["Disclosure of trade and other inventories","",1],["Disclosure of trade and other payables","",1],["Disclosure of trade and other receivables","",1],["Disclosure of treasury shares","",1]],
+  CAP: [["Disclosure of classes of share capital","*",0]],
+  RP: [["Disclosure of transactions between related parties","*",0]]
+};
+const TPL = [["CORP","Corporate information"],["POL","Accounting policies"],["LIST","List of notes"],["CAP","Issued capital"],["RP","Related parties"]];
+const TNAME = Object.fromEntries(TPL);
+
+/* Words people use that mTool's label does not. A short list kept in the app; no model call. */
+const ALSO = {
+  "LIST|Cash and cash equivalents":"cash and bank balances fixed deposits",
+  "LIST|Leases":"right-of-use assets lease liabilities hire purchase",
+  "LIST|Key management personnel compensation":"directors remuneration",
+  "LIST|Revenue from contract customers":"sales turnover",
+  "LIST|Borrowings":"term loans overdraft",
+  "LIST|Trade and other receivables":"debtors",
+  "LIST|Trade and other payables":"creditors",
+  "LIST|Income tax expense":"taxation",
+  "LIST|Events after reporting period":"subsequent events",
+  "RP|Transactions between related parties":"related party disclosures",
+  "POL|Impairment of other assets":"non-financial assets",
+  "POL|Leases":"right-of-use assets",
+};
+function shortName(l){
+  const s = l.replace(/^Disclosure of /,"").replace(/^Description of accounting policy for /,"")
+    .replace(/^Description of other material accounting policies.*/,"Other material accounting policies")
+    .replace(/^Explanation of reasons for /,"Reasons for ");
+  return s[0].toUpperCase() + s.slice(1);
+}
+const STOP = new Set("of and the to for in on a an or from under at its by with".split(" "));
+const stem = w => w.replace(/ies$/,"y").replace(/([^s])s$/,"$1");
+const toks = s => [...new Set(s.toLowerCase().replace(/[^a-z\- ]/g," ").split(/\s+/).filter(w=>w && !STOP.has(w)).map(stem))];
+
+const FIELDS = [], FIELD = {};
+TPL.forEach(([tpl]) => RAW[tpl].forEach(([label,flag,depth],i) => {
+  const short = shortName(label), also = ALSO[tpl+"|"+short] || "";
+  const f = {id:tpl+"-"+i, tpl, label, short, depth, head:flag==="H", mand:flag==="*" || (flag==="C" && tpl==="CORP"),
+             catchAll:flag==="C" && tpl!=="CORP", also, tok:toks(short), alsoTok:toks(also)};
+  FIELDS.push(f); FIELD[f.id] = f;
+}));
+const F = (tpl, short) => { const f = FIELDS.find(x=>x.tpl===tpl && !x.head && x.short===short); if(!f) console.error("No field", tpl, short); return f.id; };
+const L = s => F("LIST", s), P = s => F("POL", s);
+
+/* ---------------- the report's notes ----------------
+   part: a first-level sub-section placed on its own. unsure/why: the agent's own certainty, stored today.
+   confirmed: a person has checked the placement. pol: part of the accounting policies note. */
+let NOTES = [
+  {no:"1",title:"Corporate information",pages:"14",field:F("CORP","Corporate information"),text:"The Company is a private limited liability company, incorporated and domiciled in Malaysia. The registered office is at Level 8, Menara Seri, Jalan Sultan Ismail, 50250 Kuala Lumpur. The principal activity is wholesale trading of building materials. There has been no significant change in the nature of this activity during the financial year."},
+  {no:"2",title:"Basis of preparation",pages:"14–15",field:L("Basis of preparation of financial statements"),text:"The financial statements of the Company have been prepared in accordance with Malaysian Financial Reporting Standards, International Financial Reporting Standards and the requirements of the Companies Act 2016 in Malaysia. They are presented in Ringgit Malaysia, which is the Company's functional currency."},
+  {no:"3",part:"",title:"Material accounting policies",partTitle:"Opening paragraph",match:"Material accounting policies",pol:1,pages:"15",field:P("Material accounting policy information"),text:"The accounting policies set out below have been applied consistently to the periods presented in these financial statements, unless otherwise stated."},
+  {no:"3",part:"a",title:"Material accounting policies",partTitle:"Property, plant and equipment",pol:1,pages:"15–16",field:P("Property, plant and equipment"),text:"Items of property, plant and equipment are measured at cost less accumulated depreciation and any accumulated impairment losses. Depreciation is recognised on a straight-line basis over the estimated useful lives of each component."},
+  {no:"3",part:"b",title:"Material accounting policies",partTitle:"Leases",pol:1,pages:"16–17",field:P("Leases"),text:"At inception of a contract, the Company assesses whether the contract is, or contains, a lease. The Company recognises a right-of-use asset and a lease liability at the lease commencement date."},
+  {no:"3",part:"c",title:"Material accounting policies",partTitle:"Inventories",pol:1,pages:"17",field:P("Inventories"),text:"Inventories are measured at the lower of cost and net realisable value. Cost is determined on the weighted average basis."},
+  {no:"3",part:"d",title:"Material accounting policies",partTitle:"Financial instruments",pol:1,pages:"17–18",field:P("Financial instruments"),text:"A financial asset or a financial liability is recognised in the statement of financial position when, and only when, the Company becomes a party to the contractual provisions of the instrument."},
+  {no:"3",part:"e",title:"Material accounting policies",partTitle:"Impairment of financial assets",pol:1,pages:"18–19",field:P("Impairment of financial assets"),text:"The Company recognises loss allowances for expected credit losses on financial assets measured at amortised cost. Loss allowances for trade receivables are measured at an amount equal to lifetime expected credit losses."},
+  {no:"3",part:"f",title:"Material accounting policies",partTitle:"Impairment of non-financial assets",pol:1,pages:"19",field:P("Impairment of other assets"),text:"The carrying amounts of non-financial assets are reviewed at the end of each reporting period to determine whether there is any indication of impairment."},
+  {no:"3",part:"g",title:"Material accounting policies",partTitle:"Cash and cash equivalents",pol:1,pages:"19",field:P("Cash and cash equivalents"),text:"Cash and cash equivalents consist of cash in hand, balances and deposits with banks which have an insignificant risk of changes in fair value."},
+  {no:"3",part:"h",title:"Material accounting policies",partTitle:"Provisions",pol:1,pages:"19",field:P("Other provisions"),text:"A provision is recognised if, as a result of a past event, the Company has a present legal or constructive obligation that can be estimated reliably."},
+  {no:"3",part:"i",title:"Material accounting policies",partTitle:"Revenue and other income",pol:1,pages:"20",field:P("Recognition of revenue and other income"),text:"Revenue is measured based on the consideration specified in a contract with a customer. The Company recognises revenue when it transfers control over a product to the customer."},
+  {no:"3",part:"j",title:"Material accounting policies",partTitle:"Employee benefits",pol:1,pages:"20",field:P("Employee benefits"),text:"Short-term employee benefit obligations in respect of salaries, annual bonuses and paid annual leave are measured on an undiscounted basis and are expensed as the related service is provided."},
+  {no:"3",part:"k",title:"Material accounting policies",partTitle:"Borrowing costs",pol:1,pages:"21",field:P("Borrowings"),text:"Borrowing costs that are not directly attributable to the acquisition or construction of a qualifying asset are recognised in profit or loss using the effective interest method."},
+  {no:"3",part:"l",title:"Material accounting policies",partTitle:"Income tax",pol:1,pages:"21–22",field:P("Income tax"),text:"Income tax expense comprises current and deferred tax. Current tax is the expected tax payable on the taxable income for the year, using tax rates enacted at the end of the reporting period."},
+  {no:"3",part:"m",title:"Material accounting policies",partTitle:"Foreign currencies",pol:1,pages:"22",field:P("Foreign currencies"),text:"Transactions in foreign currencies are translated to Ringgit Malaysia at exchange rates at the dates of the transactions."},
+  {no:"4",title:"Property, plant and equipment",pages:"23",field:L("Property, plant and equipment"),text:"Buildings with a carrying amount of RM2,496,000 are pledged as security for the term loan disclosed in Note 10. Motor vehicles with a carrying amount of RM318,400 are held under hire purchase arrangements."},
+  {no:"5",title:"Right-of-use assets and lease liabilities",pages:"24",field:L("Leases"),text:"The Company leases a warehouse in Shah Alam for a term of five years, with an option to renew for a further three years."},
+  {no:"6",title:"Inventories",pages:"24",field:L("Inventories"),text:"Trading goods are stated at the lower of cost and net realisable value. Inventories recognised as cost of sales during the year amounted to RM18,204,600."},
+  {no:"7",title:"Trade and other receivables",pages:"25",field:L("Trade and other receivables"),text:"The normal trade credit terms granted by the Company range from 30 to 90 days."},
+  {no:"8",title:"Cash and bank balances",pages:"25",field:L("Cash and cash equivalents"),text:"Cash and bank balances comprise cash in hand and balances with licensed banks. Fixed deposits bear interest at 2.6% per annum."},
+  {no:"9",title:"Share capital",pages:"26",field:L("Share capital"),text:"Issued and fully paid: 500,000 ordinary shares with no par value. The holders of ordinary shares are entitled to receive dividends as declared from time to time."},
+  {no:"10",title:"Borrowings",pages:"26–27",field:L("Borrowings"),unsure:1,why:"The note covers a term loan and hire purchase payables. The agent was not sure the hire purchase part belongs under borrowings and not leases.",text:"The term loan is secured by a charge over the buildings and is repayable in 60 monthly instalments. Hire purchase payables bear interest at rates between 2.4% and 3.1% per annum."},
+  {no:"11",title:"Deferred tax liabilities",pages:"27",field:L("Deferred tax assets/(liabilities)"),text:"Deferred tax liabilities arise from temporary differences between the carrying amounts of property, plant and equipment and their tax bases."},
+  {no:"12",title:"Trade and other payables",pages:"27",field:L("Trade and other payables"),text:"The normal trade credit terms granted to the Company range from 30 to 60 days."},
+  {no:"13",title:"Revenue",pages:"28",field:L("Revenue from contract customers"),text:"Revenue from the sale of goods is recognised at the point in time when control of the goods passes to the customer, generally on delivery."},
+  {no:"14",title:"Other income",pages:"28",field:L("Revenue from contract customers"),text:"Other income comprises rental income from a sublet unit of RM48,000, interest income on fixed deposits of RM13,300 and a gain on disposal of a motor vehicle of RM6,200."},
+  {no:"15",title:"Finance costs",pages:"28",field:L("Finance costs"),text:"Interest expense on the term loan, hire purchase payables and lease liabilities."},
+  {no:"16",title:"Profit before tax",pages:"29",field:L("Profit before tax"),text:"Profit before tax is arrived at after charging auditors' remuneration, depreciation of property, plant and equipment and depreciation of right-of-use assets."},
+  {no:"17",title:"Directors' remuneration",pages:"29",field:L("Key management personnel compensation"),confirmed:1,text:"Directors' fees of RM120,000 and other emoluments of RM486,000 were paid to the directors of the Company during the financial year."},
+  {no:"18",title:"Employee benefits expense",pages:"29",field:L("Employee benefits expense"),text:"Salaries, wages and bonuses, and contributions to the Employees Provident Fund."},
+  {no:"19",title:"Income tax expense",pages:"30",field:L("Income tax expense"),text:"Malaysian income tax is calculated at the statutory rate of 24% of the estimated assessable profit for the financial year."},
+  {no:"20",title:"Dividends",pages:"30",field:L("Dividends"),text:"A first and final single-tier dividend of RM0.40 per ordinary share in respect of the previous financial year was paid on 18 June 2025."},
+  {no:"21",title:"Related party disclosures",pages:"31",field:F("RP","Transactions between related parties"),text:"The Company has related party relationships with its directors and with a company in which a director has a substantial financial interest."},
+  {no:"22",part:"a",title:"Financial instruments",partTitle:"Categories of financial instruments",pages:"32",field:L("Financial instruments"),text:"The table below analyses the financial instruments of the Company by category: financial assets and financial liabilities measured at amortised cost."},
+  {no:"22",part:"b",title:"Financial instruments",partTitle:"Financial risk management",pages:"32–34",field:L("Other financial risk management"),text:"The Company is exposed to credit risk, liquidity risk and interest rate risk arising from its operations and its use of financial instruments."},
+  {no:"22",part:"c",title:"Financial instruments",partTitle:"Fair value of financial instruments",pages:"35",field:L("Fair value of financial instruments"),text:"The carrying amounts of cash and bank balances, short-term receivables and payables approximate their fair values because of the short-term nature of these instruments."},
+  {no:"23",title:"Capital management",pages:"35",field:L("Other notes to accounts"),text:"The Company manages its capital to ensure that it can continue as a going concern while maintaining an optimal debt-to-equity ratio."},
+  {no:"24",title:"Capital commitments",pages:"36",field:L("Capital and other commitments"),text:"Capital expenditure approved and contracted for but not provided for in the financial statements: purchase of racking equipment, RM240,000."},
+  {no:"25",title:"Contingent liabilities",pages:"36",field:L("Contingent assets and contingent liabilities"),text:"The Company has given a bank guarantee of RM150,000 to a supplier as security for the supply of goods."},
+  {no:"26",title:"Events after the reporting period",pages:"36",field:null,text:"On 15 February 2026 the Company entered into a sale and purchase agreement to acquire a parcel of industrial land in Klang for a cash consideration of RM3,200,000."},
+  {no:"27",title:"Comparative figures",pages:"37",field:L("Comparative figures"),text:"Certain comparative figures have been reclassified to conform with the current year's presentation."},
+  {no:"28",title:"Authorisation of financial statements",pages:"37",field:L("Authorisation of financial statements"),text:"The financial statements were authorised for issue by the Board of Directors on 27 March 2026."},
+];
+NOTES.forEach((n,i) => { n.id = i+1; n.pos = i; });
+const NOTE = id => NOTES.find(n=>n.id===id);
+const isPart = n => n.part!==undefined;
+const ref = n => n.no + (n.part ? `(${n.part})` : "");
+const name = n => `${ref(n)} ${n.partTitle || n.title}`;
+const inField = id => NOTES.filter(n=>n.field===id).sort((a,b)=>a.pos-b.pos);
+
+/* ---------------- "which field reads closest?" ----------------
+   Shared words between the note's title and the field's name, as a share of all their words.
+   Parts of the policies note are matched to policy fields only, and other notes to the rest.
+   Free and instant: no model call. It ranks suggestions and raises the "Check field" flag. */
+function score(n, f){
+  if(f.head || f.catchAll) return 0;
+  const t = toks(n.match || n.partTitle || n.title);
+  const plain = t.filter(w=>f.tok.includes(w)).length / new Set([...t, ...f.tok]).size;
+  const viaAlso = f.alsoTok.length && t.every(w=>f.alsoTok.includes(w) || f.tok.includes(w)) ? 1 : 0;
+  const s = Math.max(plain, viaAlso);
+  return (f.tpl==="POL") === !!n.pol ? s : 0;
+}
+const catchAllFor = n => FIELDS.find(f=>f.catchAll && f.tpl===(n.pol?"POL":"LIST"));
+function suggest(n, k=4){
+  const top = FIELDS.map(f=>({f, s:score(n,f)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,k);
+  return top;
+}
+function state(n){
+  if(!n.field) return {key:"none", label:"Not placed", cls:"red", why:"This note is in no field, so it would be left out of the mTool file."};
+  if(n.confirmed) return {key:"ok", label:"Confirmed", cls:"ok"};
+  const f = FIELD[n.field], best = suggest(n,1)[0], cur = score(n,f);
+  if(f.catchAll && best && best.s>=.5) return {key:"check", label:"Catch-all", cls:"amber", better:best.f, why:`This sits in the catch-all field, but mTool has a field named ${best.f.short}.`};
+  if(!f.catchAll && best && best.f!==f && best.s>=.5 && best.s>=cur+.25) return {key:"check", label:"Check field", cls:"amber", better:best.f, why:`The title reads closer to ${best.f.short} than to ${f.short}.`};
+  if(!f.catchAll && cur===0) return {key:"check", label:"Check field", cls:"amber", why:"The note's title and the field's name share no words."};
+  if(n.unsure) return {key:"check", label:"Agent unsure", cls:"amber", why:n.why};
+  return {key:"ok", label:"Placed", cls:"ok"};
+}
+const emptyMand = () => FIELDS.filter(f=>f.mand && !inField(f.id).length);
+
+/* ---------------- state and drawing ---------------- */
+const S = {order:"report", filter:"all", sel:null, open:new Set(["22"]), empty:false, q:"", browse:null, hi:-1, full:false, toast:null};
+let history = [];
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const CHEV = '<svg viewBox="0 0 12 12"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg>';
+const pill = (s, full) => `<span class="pill ${s.cls}">${!full && s.key==="check" ? "Check" : s.label}</span>`;
+const selNote = () => S.sel && S.sel.note ? NOTE(S.sel.note) : null;
+const selField = () => S.sel && S.sel.field ? FIELD[S.sel.field] : null;
+const look = n => state(n).key!=="ok";
+const lookCount = () => NOTES.filter(look).length + emptyMand().length;
+function select(sel){ S.sel = sel; S.q = ""; S.browse = null; S.hi = -1; S.full = false; }
+
+function draw(){
+  const nLook = lookCount();
+  $("#nav-cnt").textContent = nLook || "";
+  $("#order").innerHTML = [["report","Report order"],["mtool","mTool order"]].map(([k,l])=>`<button data-o="${k}" class="${S.order===k?"on":""}">${l}</button>`).join("");
+  $("#filter").innerHTML = [["all","All",NOTES.length],["look","Needs a look",nLook]].map(([k,l,n])=>`<button data-f="${k}" class="${S.filter===k?"on":""}">${l}<span class="n">${n}</span></button>`).join("");
+  const body = $("#body"), keep = body.scrollTop;
+  body.innerHTML = S.order==="report" ? reportMap() : mtoolMap();
+  body.scrollTop = keep;
+  drawSide(); drawLayer();
+}
+
+/* the field a note sits in, as short as it can be said. The template shows only when it is not the usual one. */
+function fieldCell(n, s){
+  if(!n.field) return `<span class="f none">–</span>`;
+  const f = FIELD[n.field], usual = n.pol ? "POL" : "LIST";
+  return `<span class="f ${s.key==="check"&&s.label!=="Agent unsure"?"bad":""}" title="${esc(f.label)}">${esc(f.short)}${f.tpl!==usual&&TNAME[f.tpl]!==f.short?` <span class="meta">· ${TNAME[f.tpl]}</span>`:""}</span>`;
+}
+function noteRow(n, kid){
+  const s = state(n), on = S.sel && S.sel.note===n.id;
+  return `<div class="row note ${kid?"kid":""} ${on?"sel":""}" data-drag="${n.id}"><span></span><span class="no">${kid ? (n.part?`(${n.part})`:"") : ref(n)}</span><span class="t">${esc(kid||!isPart(n) ? (n.partTitle||n.title) : n.partTitle)}</span>${fieldCell(n,s)}<span class="st">${s.key==="ok"&&!n.confirmed?"":pill(s)}</span></div>`;
+}
+function needRow(f){
+  return `<div class="row need ${S.sel&&S.sel.field===f.id?"sel":""}" data-pick="${f.id}" data-field="${f.id}"><span></span><span class="no"></span><span class="t meta">No note</span><span class="f" title="${esc(f.label)}">${esc(f.short)} <span class="meta">· ${TNAME[f.tpl]}</span></span><span class="st"><span class="pill amber">Empty</span></span></div>`;
+}
+function reportMap(){
+  const head = `<div class="row th"><span></span><span></span><span>Note in the report</span><span>mTool field</span><span></span></div>`;
+  const need = emptyMand();
+  let h = "";
+  if(S.filter==="look"){
+    const list = NOTES.filter(look);
+    if(!list.length && !need.length) return `<div class="empty">Nothing needs a look</div>`;
+    h = list.map(n=>noteRow(n)).join("");
+  } else {
+    const groups = []; NOTES.forEach(n => { const g = groups.find(g=>g.no===n.no); g ? g.items.push(n) : groups.push({no:n.no, items:[n]}); });
+    h = groups.map(g => {
+      if(g.items.length===1 && !isPart(g.items[0])) return noteRow(g.items[0]);
+      const open = S.open.has(g.no), bad = g.items.filter(look).length;
+      const tpls = [...new Set(g.items.filter(n=>n.field).map(n=>FIELD[n.field].tpl))];
+      const sum = `${g.items.length} parts`;
+      return `<div class="row grp ${!open&&g.items.some(n=>S.sel&&S.sel.note===n.id)?"sel":""}" data-grp="${g.no}"><button class="icon ${open?"open":""}" title="${open?"Hide parts":"Show parts"}">${CHEV}</button><span class="no">${g.no}</span><span class="t">${esc(g.items[0].title)}</span><span class="f meta">${sum}${tpls.length===1&&tpls[0]!=="LIST"?` · ${TNAME[tpls[0]]}`:""}</span><span class="st">${bad?`<span class="pill amber">${bad} to check</span>`:""}</span></div>`
+        + (open ? g.items.map(n=>noteRow(n,true)).join("") : "");
+    }).join("");
+  }
+  if(need.length) h += `<div class="row hd"><span>Mandatory fields with no note</span><span></span></div>` + need.map(needRow).join("");
+  return `<div class="map rep">${head}${h}</div>`;
+}
+function chip(n){
+  const s = state(n);
+  return `<div class="chip ${S.sel&&S.sel.note===n.id?"sel":""}" data-drag="${n.id}"><span class="no">${ref(n)}</span><span class="t">${esc(n.partTitle||n.title)}</span>${s.key==="ok"&&!n.confirmed?"":pill(s)}</div>`;
+}
+function mtoolMap(){
+  const total = FIELDS.filter(f=>!f.head).length, usedAll = FIELDS.filter(f=>!f.head && inField(f.id).length).length;
+  const head = `<div class="row th"><span>mTool field</span><span class="tools"><span>Empty fields</span><button class="switch ${S.empty?"on":""}" data-a="empty" title="Show the ${total-usedAll} empty fields"></button></span></div>`;
+  const none = NOTES.filter(n=>!n.field);
+  let h = "";
+  if(none.length || S.filter==="all") h += `<div class="row fr ${none.length?"":"none"}" data-field=""><span class="lab">Not placed</span>${none.length?`<div class="chips">${none.map(chip).join("")}</div>`:'<span class="dash">–</span>'}</div>`;
+  let any = none.length>0;
+  TPL.forEach(([tpl,tname]) => {
+    const fs = FIELDS.filter(f=>f.tpl===tpl), real = fs.filter(f=>!f.head), used = real.filter(f=>inField(f.id).length).length;
+    const rows = fs.filter(f => {
+      const here = f.head ? [] : inField(f.id);
+      if(S.filter==="look") return !f.head && (here.some(look) || (f.mand && !here.length));
+      if(f.head) return S.empty;
+      return S.empty || here.length || f.mand;
+    });
+    if(!rows.length) return;
+    any = true;
+    h += `<div class="row hd"><span>${tname}</span><span class="meta">${used} of ${real.length} used</span></div>`;
+    h += rows.map(f => {
+      if(f.head) return `<div class="row sh"><span>${esc(f.label)}</span></div>`;
+      const here = inField(f.id);
+      return `<div class="row fr ${here.length?"":"none"} ${S.empty&&f.depth>1?"d2":""} ${S.sel&&S.sel.field===f.id?"sel":""}" data-field="${f.id}"><span class="lab" data-pick="${f.id}" title="${esc(f.label)}">${esc(f.short)}${f.mand?'<span class="meta">Mandatory</span>':""}${f.catchAll?'<span class="meta">Catch-all</span>':""}</span>${here.length?`<div class="chips">${here.map(chip).join("")}</div>`:(f.mand?'<span class="pill amber">Empty</span>':'<span class="dash">–</span>')}</div>`;
+    }).join("");
+  });
+  if(S.filter==="look" && !any) return `<div class="empty">Nothing needs a look</div>`;
+  return `<div class="map mt">${head}${h}</div>`;
+}
+
+/* ---------------- side panel: the note, then the field finder ---------------- */
+function drawSide(){
+  const side = $("#side"), n = selNote(), f = selField();
+  $("#side-st").innerHTML = "";
+  if(!n && !f){ $("#side-h").textContent = "Note"; side.innerHTML = `<div class="empty">Pick a note to see its field and move it</div>`; return; }
+  if(f){
+    const here = inField(f.id);
+    $("#side-h").textContent = f.short;
+    $("#side-st").innerHTML = here.length ? "" : (f.mand ? '<span class="pill amber">Empty</span>' : "");
+    side.innerHTML = `<div class="kv"><span>Field</span><span>${esc(f.label)}</span><span>Template</span><span>${TNAME[f.tpl]}${f.mand?" · mandatory":""}</span></div>
+      ${here.length?`<div class="chips">${here.map(chip).join("")}</div>`:""}
+      <input class="in" id="find" placeholder="Find a note to put here" autocomplete="off" value="${esc(S.q)}">
+      <div class="finder scroll" id="finder"></div>`;
+    drawFinder(); return;
+  }
+  const s = state(n), cf = n.field && FIELD[n.field];
+  $("#side-h").textContent = name(n);
+  $("#side-st").innerHTML = pill(s, true);
+  const acts = [];
+  if(s.better) acts.push(`<button class="btn outline sm" data-to="${s.better.id}"><span>Move to ${esc(s.better.short)}</span></button>`);
+  if(s.key==="check") acts.push(`<button class="btn outline sm" data-a="keep">Field is right</button>`);
+  if(s.key==="ok" && !n.confirmed) acts.push(`<button class="btn outline sm" data-a="keep">Confirm</button>`);
+  side.innerHTML = `${s.why?`<p class="why">${esc(s.why)}</p>`:""}
+    ${acts.length?`<div class="bar">${acts.join("")}</div>`:""}
+    <div class="kv"><span>Field</span><span>${cf?esc(cf.label):"–"}</span><span>Template</span><span>${cf?TNAME[cf.tpl]:"–"}</span><span>Pages</span><span>${n.pages}${isPart(n)?` · part of note ${n.no}, ${esc(n.title)}`:""}</span></div>
+    <div class="quote ${S.full?"":"clamp"}" data-a="full" title="${S.full?"Show less":"Show all"}">${esc(n.text)}</div>
+    <input class="in" id="find" placeholder="Find a field" autocomplete="off" value="${esc(S.q)}">
+    <div class="finder scroll" id="finder"></div>
+    ${n.field?`<div class="foot"><div class="opt" data-field="" data-to="">Take out of its field</div></div>`:""}`;
+  drawFinder();
+}
+const hl = (text, q) => { if(!q) return esc(text); const i = text.toLowerCase().indexOf(q); return i<0 ? esc(text) : esc(text.slice(0,i)) + "<mark>" + esc(text.slice(i,i+q.length)) + "</mark>" + esc(text.slice(i+q.length)); };
+function searchFields(q){
+  const parts = q.split(/\s+/).filter(Boolean);
+  return FIELDS.filter(f=>!f.head).map(f => {
+    const s = f.short.toLowerCase(), a = f.also;
+    if(!parts.every(p => s.includes(p) || a.includes(p))) return null;
+    const rank = s.startsWith(q) ? 0 : parts.every(p=>new RegExp("(^|[^a-z])"+p.replace(/[^a-z0-9\- ]/g,"")).test(s)) ? 1 : parts.every(p=>s.includes(p)) ? 2 : 1;
+    return {f, rank};
+  }).filter(Boolean).sort((a,b)=>a.rank-b.rank);
+}
+function drawFinder(){
+  const box = $("#finder"); if(!box) return;
+  const n = selNote(), f = selField(), q = S.q.trim().toLowerCase();
+  let h = "";
+  if(n){
+    const held = x => { const here = inField(x.id).filter(m=>m.id!==n.id); return here.length ? `<span class="meta">${here.length>2?here.length+" notes":"Holds "+here.map(ref).join(", ")}</span>` : ""; };
+    const usual = n.pol ? "POL" : "LIST";
+    const opt = (x, o={}) => x.id===n.field
+      ? `<div class="opt cur ${o.in2?"in2":""}"><span class="nm">${hl(x.short,q)}</span><span class="meta">Here now</span></div>`
+      : `<div class="opt ${o.in2?"in2":""}" data-field="${x.id}" data-to="${x.id}" title="${esc(x.label)}"><span class="nm">${hl(x.short,q)}${o.tpl&&x.tpl!==usual?` <span class="meta">· ${TNAME[x.tpl]}</span>`:""}${x.also&&q&&!x.short.toLowerCase().includes(q)?` <span class="meta">· also ${esc(x.also)}</span>`:""}</span>${held(x)}</div>`;
+    if(!q){
+      const sug = suggest(n).map(x=>x.f), ca = catchAllFor(n);
+      h += `<div class="g">Closest by name</div>` + (sug.length ? sug.map(x=>opt(x,{tpl:1})).join("") : "") + opt(ca,{tpl:1});
+      h += `<div class="g">All ${FIELDS.filter(x=>!x.head).length} fields</div>` + TPL.map(([tpl,tname]) => {
+        const fs = FIELDS.filter(x=>x.tpl===tpl && !x.head), open = S.browse===tpl;
+        return `<div class="opt tp" data-browse="${tpl}"><button class="icon ${open?"open":""}">${CHEV}</button><span class="nm">${tname}</span><span class="meta mono">${fs.length}</span></div>` + (open ? fs.map(x=>opt(x,{in2:1})).join("") : "");
+      }).join("");
+    } else {
+      const hits = searchFields(q);
+      if(!hits.length) h = `<div class="g nohit">No field has those words</div>` + opt(catchAllFor(n),{tpl:1});
+      else [usual, ...TPL.map(t=>t[0]).filter(t=>t!==usual)].forEach(tpl => { const m = hits.filter(x=>x.f.tpl===tpl); if(m.length) h += `<div class="g">${TNAME[tpl]}</div>` + m.map(x=>opt(x.f)).join(""); });
+    }
+  } else if(f){
+    const row = m => `<div class="opt one" data-put="${m.id}"><span class="nm">${hl(name(m),q)}</span><span class="meta">${m.field?esc(FIELD[m.field].short):"Not placed"}</span></div>`;
+    const others = NOTES.filter(m=>m.field!==f.id);
+    if(!q){
+      const sug = others.map(m=>({m, s:score(m,f)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,4).map(x=>x.m);
+      if(sug.length) h += `<div class="g">Closest by name</div>` + sug.map(row).join("");
+      h += `<div class="g">All notes</div>` + others.filter(m=>!sug.includes(m)).map(row).join("");
+    } else {
+      const m = others.filter(x=>name(x).toLowerCase().includes(q));
+      h = m.length ? m.map(row).join("") : `<div class="g nohit">No note has those words</div>`;
+    }
+  }
+  box.innerHTML = h;
+  const opts = [...box.querySelectorAll(".opt[data-to],.opt[data-put]")];
+  if(S.hi>=opts.length) S.hi = opts.length-1;
+  if(S.hi>=0 && opts[S.hi]){ opts[S.hi].classList.add("hi"); opts[S.hi].scrollIntoView({block:"nearest"}); }
+}
+
+/* ---------------- toast ---------------- */
+function drawLayer(){
+  const t = S.toast;
+  $("#layer").innerHTML = t ? `<div class="toast ${t.err?"err":""} ${t.undo||t.retry?"":"plain"}"><span>${esc(t.text)}</span>${t.undo?`<button class="btn sm" data-a="undo">Undo</button>`:""}${t.retry?`<button class="btn sm" data-a="retry">Try again</button>`:""}</div>` : "";
+}
+let toastTimer;
+function toast(text, opts={}){ S.toast = {text, ...opts}; clearTimeout(toastTimer); toastTimer = setTimeout(()=>{S.toast=null; drawLayer();}, 7000); drawLayer(); }
+
+/* ---------------- changes (each one maps to a route the server already has) ---------------- */
+const snap = () => history.push({notes:JSON.parse(JSON.stringify(NOTES)), sel:S.sel});
+function nextLook(after){ // in "Needs a look", carry on to the next one once this one is settled
+  if(S.filter!=="look") return;
+  const n = NOTE(after); if(n && look(n)) return;
+  const list = NOTES.filter(look), nx = list.find(x=>x.pos>(n?n.pos:-1)) || list[0], em = emptyMand()[0];
+  select(nx ? {note:nx.id} : em ? {field:em.id} : null);
+}
+function moveNote(id, fieldId, before, stay){
+  // POST /api/runs/{run}/notes/{id}/field {node_uuid, position}; a null node_uuid takes it out.
+  const n = NOTE(id); if(!n) return;
+  fieldId = fieldId || null;
+  if(n.field===fieldId && before==null) return;
+  if(before===id) return;
+  snap();
+  n.field = fieldId; n.unsure = 0; n.confirmed = fieldId ? 1 : 0;      // a person chose this field
+  if(fieldId){
+    const here = inField(fieldId).filter(x=>x!==n), at = before!=null ? here.findIndex(x=>x.id===before) : -1;
+    if(at>=0){ here.splice(at,0,n); const ps = here.map(x=>x.pos).sort((a,b)=>a-b); here.forEach((x,i)=>x.pos=ps[i]); }
+  }
+  if(!stay){ select({note:id}); nextLook(id); }
+  toast(fieldId ? `Note ${ref(n)} moved to ${FIELD[fieldId].short}.` : `Note ${ref(n)} taken out of its field.`, {undo:true});
+  draw();
+}
+function confirmNote(id){
+  // POST /api/runs/{run}/notes/{id}/confirm
+  const n = NOTE(id); snap(); n.confirmed = 1; n.unsure = 0;
+  nextLook(id);
+  toast(`Note ${ref(n)} confirmed in ${FIELD[n.field].short}.`, {undo:true}); draw();
+}
+function undo(){
+  const last = history.pop(); if(!last) return;
+  NOTES = last.notes; S.toast = null; select(last.sel); draw();
+}
+
+/* ---------------- drag and drop (pointer events) ----------------
+   A note row or a note card is picked up. Any field takes it: a field row in mTool order, or a row
+   of the field finder on the right, which shows the closest fields for the note being carried. */
+let drag = null;
+document.addEventListener("pointerdown", e => {
+  if(e.button!==0) return;
+  const src = e.target.closest("[data-drag]"); if(!src) return;
+  drag = {note:+src.dataset.drag, x:e.clientX, y:e.clientY, src, live:false};
+});
+document.addEventListener("pointermove", e => {
+  if(!drag) return;
+  if(!drag.live && Math.hypot(e.clientX-drag.x, e.clientY-drag.y) < 5) return;
+  if(!drag.live){
+    drag.live = true; drag.src.classList.add("dragging"); document.body.classList.add("carrying");
+    drag.ghost = Object.assign(document.createElement("div"), {className:"ghost", textContent:name(NOTE(drag.note))}); document.body.append(drag.ghost);
+    if(!S.sel || S.sel.note!==drag.note){ select({note:drag.note}); drawSide(); document.querySelectorAll("#body .sel").forEach(x=>x.classList.remove("sel")); }   // the finder now suggests for this note
+  }
+  drag.ghost.style.left = Math.min(e.clientX+12, innerWidth-drag.ghost.offsetWidth-8)+"px"; drag.ghost.style.top = e.clientY+12+"px";
+  drag.px = e.clientX; drag.py = e.clientY; autoScroll();
+  document.querySelectorAll(".over").forEach(x=>x.classList.remove("over"));
+  document.querySelectorAll(".dropline").forEach(x=>x.remove());
+  drag.target = undefined; drag.before = null;
+  const el = document.elementFromPoint(e.clientX, e.clientY), f = el && el.closest("[data-field]");
+  if(!f) return;
+  f.classList.add("over"); drag.target = f.dataset.field;
+  const c = el.closest(".chip");            // a line shows where it lands among the field's notes
+  if(c && +c.dataset.drag!==drag.note && f.classList.contains("fr")){ const line = document.createElement("div"); line.className = "dropline"; c.before(line); drag.before = +c.dataset.drag; }
+});
+/* near the top or bottom edge of a list, the list scrolls by itself */
+function autoScroll(){
+  if(!drag || !drag.live || drag.scrolling) return;
+  const step = () => {
+    if(!drag || !drag.live) return;
+    const col = [...document.querySelectorAll(".scroll")].find(c => { const r = c.getBoundingClientRect(); return drag.px>=r.left && drag.px<=r.right && drag.py>=r.top-40 && drag.py<=r.bottom+40; });
+    let dy = 0;
+    if(col){ const r = col.getBoundingClientRect(), edge = 48;
+      if(drag.py < r.top+edge) dy = -Math.ceil((r.top+edge-drag.py)/4);
+      else if(drag.py > r.bottom-edge) dy = Math.ceil((drag.py-(r.bottom-edge))/4); }
+    if(dy){ col.scrollTop += dy; drag.scrolling = requestAnimationFrame(step); } else drag.scrolling = null;
+  };
+  drag.scrolling = requestAnimationFrame(step);
+}
+function endDrag(e, cancel){
+  if(!drag) return;
+  const d = drag; drag = null;
+  d.ghost && d.ghost.remove(); document.body.classList.remove("carrying");
+  document.querySelectorAll(".dragging,.over").forEach(x=>x.classList.remove("dragging","over"));
+  document.querySelectorAll(".dropline").forEach(x=>x.remove());
+  if(cancel) return;
+  if(!d.live){ select({note:d.note}); draw(); return; }           // a click: pick it
+  if(d.target===undefined) return;
+  moveNote(d.note, d.target || null, d.before);
+}
+document.addEventListener("pointerup", e => endDrag(e));
+document.addEventListener("pointercancel", e => endDrag(e, true));
+document.addEventListener("dragstart", e => e.preventDefault());
+
+/* ---------------- clicks, the finder, keys ---------------- */
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-o],[data-f],[data-a],[data-to],[data-put],[data-browse],[data-grp],[data-pick]"); if(!t) return;
+  const d = t.dataset;
+  if(d.o){ S.order = d.o; $("#body").scrollTop = 0; draw(); return; }
+  if(d.f){ S.filter = d.f; if(d.f==="look" && !(selNote() && look(selNote())) && !(selField() && emptyMand().includes(selField()))) nextLook(null); $("#body").scrollTop = 0; draw(); return; }
+  if(d.to!==undefined){ const n = selNote(); if(n) moveNote(n.id, d.to); return; }
+  if(d.put){ moveNote(+d.put, S.sel.field, null, true); return; }
+  if(d.browse){ S.browse = S.browse===d.browse ? null : d.browse; drawFinder(); return; }
+  if(d.grp){ S.open.has(d.grp) ? S.open.delete(d.grp) : S.open.add(d.grp); draw(); return; }
+  if(d.pick){ select({field:d.pick}); draw(); return; }
+  const a = d.a;
+  if(a==="undo") undo();
+  if(a==="retry"){ const r = S.toast.retry; S.toast = null; r(); }
+  if(a==="keep") confirmNote(S.sel.note);
+  if(a==="empty"){ S.empty = !S.empty; draw(); }
+  if(a==="full"){ S.full = !S.full; drawSide(); $("#find").value = S.q; }
+});
+document.addEventListener("input", e => { if(e.target.id!=="find") return; S.q = e.target.value; S.hi = S.q.trim() ? 0 : -1; drawFinder();
+  if(document.querySelector("#finder .g.nohit")){ S.hi = -1; drawFinder(); }   // Enter never drops a note in the catch-all by accident
+});
+document.addEventListener("keydown", e => {
+  const inFind = e.target.id==="find";
+  if((e.metaKey||e.ctrlKey) && e.key==="z" && !(inFind && S.q)){ e.preventDefault(); undo(); return; }
+  if(inFind){
+    const opts = [...document.querySelectorAll("#finder .opt[data-to],#finder .opt[data-put]")];
+    if(e.key==="ArrowDown" || e.key==="ArrowUp"){ e.preventDefault(); if(!opts.length) return; S.hi = (S.hi + (e.key==="ArrowDown"?1:-1) + opts.length) % opts.length; drawFinder(); }
+    if(e.key==="Enter" && opts[S.hi]) opts[S.hi].click();
+    if(e.key==="Escape"){ if(S.q){ S.q = ""; e.target.value = ""; S.hi = -1; drawFinder(); } else e.target.blur(); }
+    return;
+  }
+  if(e.key==="Escape" && drag){ endDrag(e, true); return; }
+  if(e.key==="/"){ const f = $("#find"); if(f){ e.preventDefault(); f.focus(); } return; }
+  if(e.key==="ArrowDown" || e.key==="ArrowUp"){   // walk the notes shown on the left
+    const ids = [...new Set([...document.querySelectorAll("#body [data-drag]")].map(x=>+x.dataset.drag))]; if(!ids.length) return;
+    e.preventDefault();
+    const i = S.sel && S.sel.note ? ids.indexOf(S.sel.note) : -1, j = Math.max(0, Math.min(ids.length-1, i + (e.key==="ArrowDown"?1:-1)));
+    select({note:ids[j]}); draw();
+    const el = document.querySelector(`#body [data-drag="${ids[j]}"]`); el && el.scrollIntoView({block:"nearest"});
+  }
+});
+/* a save the server turned down: nothing moves, and the message says so */
+$("#demo").onclick = () => {
+  const n = selNote() || NOTES.find(look) || NOTES[0], s = state(n), to = s.better || catchAllFor(n);
+  const where = n.field ? `stays in ${FIELD[n.field].short}` : "is still not placed";
+  toast(`Could not save the move. Note ${ref(n)} ${where}.`, {err:true, retry:()=>moveNote(n.id, to.id)});
+};
+
+select({note:(NOTES.find(look)||NOTES[0]).id});
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-size: var(--text);
+  line-height: var(--leading);
+  -webkit-font-smoothing: antialiased;
+  min-width: var(--page-min-w);
+}
+
+h1, h2, h3, p { margin: 0; }
+
+h1 {
+  font-weight: var(--weight-medium);
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  letter-spacing: var(--tracking-xl);
+}
+
+h2 {
+  font-weight: var(--weight-medium);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-lg);
+}
+
+h3 {
+  font-weight: var(--weight-medium);
+  font-size: var(--text);
+  line-height: var(--leading);
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.meta { color: var(--muted); }
+
+.error { color: var(--accent-text); }
+
+/* Page header and the narrow column used by forms and settings */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--header-h);
+  flex: none;
+}
+
+.page-header .spacer { flex: 1; }
+
+.narrow {
+  width: 100%;
+  max-width: var(--narrow-w);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow: auto;
+  padding-bottom: var(--space-7);
+}
+
+.narrow > * { flex: none; }
+
+/* A label and its control on one line, as on the Settings page */
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--control-h);
+}
+
+.line > span:first-child { flex: 1; }
+
+.line .ctl { width: var(--control-ctl-w); flex: none; }
+
+/* A label above its control, as on the login form */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field > span { color: var(--muted); }
+
+.empty {
+  color: var(--muted);
+  padding: var(--space-7) 0;
+  text-align: center;
+}
+
+@keyframes rot { to { transform: rotate(360deg); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: translateY(var(--space-1)); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* A panel title with its action on the same line */
+.sec > .line > h2 { flex: 1; }
+
+/* Label and value pairs, values on the right */
+.kv { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2) var(--space-4); }
+.kv > span:nth-child(odd) { color: var(--muted); }
+
+/* A name that opens something, in a list row */
+.pick-name { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; border-radius: var(--radius-sm); }
+.pick-name:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: var(--focus-ring); }

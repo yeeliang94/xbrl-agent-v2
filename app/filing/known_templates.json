@@ -1,0 +1,147 @@
+{
+ "18e7b8230f499cdad6fd866f34b2dedd": {
+  "files": [
+   "mTool_MFRS_Group_FirstTime_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM.xlsx"
+  ],
+  "first_statements": true,
+  "layouts": {
+   "SOCF": "Indirect",
+   "SOCI": "NetOfTax",
+   "SOCIE": "Default",
+   "SOFP": "CuNonCu",
+   "SOPL": "Function"
+  },
+  "level": "group",
+  "name": "mTool_MFRS_Group_FirstTime_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM.xlsx",
+  "standard": "mfrs"
+ },
+ "305e364d79bc24ce9dba8ce186fe5df0": {
+  "files": [
+   "mTool_MPERS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Direct_SORE_RM000.xlsx"
+  ],
+  "first_statements": false,
+  "layouts": {
+   "SOCF": "Direct",
+   "SOCI": "NetOfTax",
+   "SOCIE": "SoRE",
+   "SOFP": "CuNonCu",
+   "SOPL": "Function"
+  },
+  "level": "company",
+  "name": "mTool_MPERS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Direct_SORE_RM000.xlsx",
+  "standard": "mpers"
+ },
+ "3493667c42b93aec5c3dd5a4a048b87b": {
+  "files": [
+   "mTool_MFRS_Group_SOFP-CuNonCu_SOPL-Nature_SOCI-BeforeTax_SOCF-Direct_SOCIE_RM000.xlsx"
+  ],
+  "first_statements": false,
+  "layouts": {
+   "SOCF": "Direct",
+   "SOCI": "BeforeTax",
+   "SOCIE": "Default",
+   "SOFP": "CuNonCu",
+   "SOPL": "Nature"
+  },
+  "level": "group",
+  "name": "mTool_MFRS_Group_SOFP-CuNonCu_SOPL-Nature_SOCI-BeforeTax_SOCF-Direct_SOCIE_RM000.xlsx",
+  "standard": "mfrs"
+ },
+ "3cae216b6b2b767494084e24b7771728": {
+  "files": [
+   "mTool_MPERS_Group_SOFP-CuNonCu_SOPL-Nature_SOCI-NetOfTax_SOCF-Direct_SOCIE_RM.xlsx"
+  ],
+  "first_statements": false,
+  "layouts": {
+   "SOCF": "Direct",
+   "SOCI": "NetOfTax",
+   "SOCIE": "Default",
+   "SOFP": "CuNonCu",
+   "SOPL": "Nature"
+  },
+  "level": "group",
+  "name": "mTool_MPERS_Group_SOFP-CuNonCu_SOPL-Nature_SOCI-NetOfTax_SOCF-Direct_SOCIE_RM.xlsx",
+  "standard": "mpers"
+ },
+ "4b0d4c88af761499f9ca327dc191ca84": {
+  "files": [
+   "mTool_MFRS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM.xlsx",
+   "mTool_MFRS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM000.xlsx"
+  ],
+  "first_statements": false,
+  "layouts": {
+   "SOCF": "Indirect",
+   "SOCI": "NetOfTax",
+   "SOCIE": "Default",
+   "SOFP": "CuNonCu",
+   "SOPL": "Function"
+  },
+  "level": "company",
+  "name": "mTool_MFRS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM.xlsx",
+  "standard": "mfrs"
+ },
+ "815fa2567ad780fea79f998aa5656091": {
+  "files": [
+   "mTool_MFRS_Group_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM000.xlsx"
+  ],
+  "first_statements": false,
+  "layouts": {
+   "SOCF": "Indirect",
+   "SOCI": "NetOfTax",
+   "SOCIE": "Default",
+   "SOFP": "CuNonCu",
+   "SOPL": "Function"
+  },
+  "level": "group",
+  "name": "mTool_MFRS_Group_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM000.xlsx",
+  "standard": "mfrs"
+ },
+ "8bb3108b796977782722bf96176fb53c": {
+  "files": [
+   "mTool_MPERS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM.xlsx"
+  ],
+  "first_statements": false,
+  "layouts": {
+   "SOCF": "Indirect",
+   "SOCI": "NetOfTax",
+   "SOCIE": "Default",
+   "SOFP": "CuNonCu",
+   "SOPL": "Function"
+  },
+  "level": "company",
+  "name": "mTool_MPERS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-NetOfTax_SOCF-Indirect_SOCIE_RM.xlsx",
+  "standard": "mpers"
+ },
+ "913ade2bbac368965452f3a07c5fbfb1": {
+  "files": [
+   "mTool_MPERS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-BeforeTax_SOCF-Indirect_SORE_RM.xlsx"
+  ],
+  "first_statements": false,
+  "layouts": {
+   "SOCF": "Indirect",
+   "SOCI": "BeforeTax",
+   "SOCIE": "SoRE",
+   "SOFP": "CuNonCu",
+   "SOPL": "Function"
+  },
+  "level": "company",
+  "name": "mTool_MPERS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-BeforeTax_SOCF-Indirect_SORE_RM.xlsx",
+  "standard": "mpers"
+ },
+ "c4d488bf52c12e463fac0eb4c4f385b8": {
+  "files": [
+   "mTool_MFRS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-BeforeTax_SOCF-Indirect_SOCIE_RM.xlsx"
+  ],
+  "first_statements": false,
+  "layouts": {
+   "SOCF": "Indirect",
+   "SOCI": "BeforeTax",
+   "SOCIE": "Default",
+   "SOFP": "CuNonCu",
+   "SOPL": "Function"
+  },
+  "level": "company",
+  "name": "mTool_MFRS_Company_SOFP-CuNonCu_SOPL-Function_SOCI-BeforeTax_SOCF-Indirect_SOCIE_RM.xlsx",
+  "standard": "mfrs"
+ }
+}

@@ -1,0 +1,18 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+__pycache__/
+node_modules/
+output/
+*.db
+.v1-reference/
+
+# Answer keys and other figures from client documents: kept local, as v1 keeps data/
+test-data/
+
+# Built by the packaging scripts
+veracode/
+version.txt

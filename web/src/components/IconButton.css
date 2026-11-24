@@ -1,0 +1,17 @@
+.icon-btn {
+  width: var(--control-sm-h);
+  height: var(--control-sm-h);
+  border-radius: var(--radius-sm);
+  border: 0;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  flex: none;
+  transition: background var(--fast), color var(--fast);
+}
+.icon-btn:hover, .icon-btn.on { background: var(--bg); color: var(--ink); }
+.icon-btn:disabled { opacity: .4; cursor: default; background: none; }
+.icon-btn:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: 0; }
+.icon-btn svg { width: var(--icon); height: var(--icon); stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }

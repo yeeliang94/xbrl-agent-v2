@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XBRL Agent v2 prototype</title>
+<style>
+:root{
+  /* neutrals and orange taken from the current app's tokens (web/src/lib/theme.ts) */
+  --bg:#EEEFF1; --panel:#FFFFFF; --tint:#F5F7F8; --line:#DFE3E6; --edge:#CBD1D6; --ink:#111111; --muted:#6B7280; --faint:#B5BCC4;
+  --nav:#000000; --nav-ink:#FFFFFF; --nav-muted:#9AA1A9; --nav-on:#1F1F1F;
+  --accent:#FD5108; --accent-text:#D64000; --accent-soft:#FFF5ED; --accent-mid:#FFE8D4;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:400 14px/20px -apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-width:1280px}
+h1,h2,h3,p{margin:0}
+h1{font-weight:500;font-size:22px;line-height:28px;letter-spacing:-.015em}
+h2{font-weight:500;font-size:16px;line-height:24px;letter-spacing:-.005em}
+h3{font-weight:500;font-size:14px;line-height:20px}
+button,input,select,textarea{font:inherit;color:inherit}
+.mono{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.app{height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr)}
+
+/* sidebar */
+.nav{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding:16px 12px;overflow:auto}
+.brand{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;margin-bottom:16px;font-weight:500}
+.brand i{width:14px;height:14px;border-radius:3px;background:var(--accent);display:block}
+.nav a{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 12px;border-radius:8px;cursor:pointer;color:var(--nav-muted);transition:background .15s,color .15s}
+.nav a:hover{color:var(--nav-ink)}
+.nav a.on{background:var(--nav-on);color:var(--nav-ink)}
+.nav a.sub{padding-left:24px}
+.nav a span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav .grp{color:#6B7280;font-size:12px;padding:24px 12px 4px}
+.nav .sp{flex:1}
+.who{display:flex;align-items:center;gap:8px;padding:8px 12px;color:var(--nav-muted)}
+.avatar{width:24px;height:24px;border-radius:50%;background:var(--nav-on);color:var(--nav-ink);display:grid;place-items:center;font-size:11px}
+.cnt{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--bg);color:var(--ink);font:400 12px/20px var(--mono);text-align:center;flex:none}
+.nav .cnt{background:none;color:#FE7C39;padding:0;min-width:0}
+.spin{width:12px;height:12px;border-radius:50%;border:1.5px solid currentColor;border-top-color:transparent;display:inline-block;flex:none;animation:rot .8s linear infinite;color:var(--accent)}
+.nav .spin{color:#FE7C39}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* main */
+main{min-width:0;min-height:0;display:flex;flex-direction:column;padding:0 24px 24px}
+.ph{display:flex;align-items:center;gap:12px;height:80px;flex:none}
+.ph .sp{flex:1}
+.meta{color:var(--muted)}
+.panel{background:var(--panel);border-radius:12px;min-height:0}
+.pad{padding:24px}
+.narrow{width:100%;max-width:880px;display:flex;flex-direction:column;gap:16px;overflow:auto;padding-bottom:64px}
+.narrow>*{flex:none}
+
+/* buttons */
+.btn{height:36px;padding:0 16px;border-radius:999px;border:1px solid transparent;background:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;transition:transform .12s var(--ease),background .15s,border-color .15s,opacity .15s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.primary:hover{background:#2B2B2B}
+.btn.outline{border-color:var(--edge)}
+.btn.outline:hover{background:var(--tint)}
+.btn.quiet{padding:0 8px;color:var(--muted)}
+.btn.quiet:hover{color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:default;transform:none}
+.btn.sm{height:28px;padding:0 12px;font-size:13px}
+.icon{width:28px;height:28px;border-radius:8px;border:0;background:none;cursor:pointer;display:grid;place-items:center;color:var(--muted);transition:background .15s,color .15s}
+.icon:hover,.icon.on{background:var(--bg);color:var(--ink)}
+.icon svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.icon b,.icon i,.icon u{font:500 14px/1 Georgia,serif}
+
+/* pills, segments, inputs */
+.pill{display:inline-flex;align-items:center;gap:6px;height:22px;font-size:13px;white-space:nowrap;color:var(--ink)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--faint);flex:none}
+.pill.green::before{background:var(--ink);box-shadow:none}
+.pill.amber::before{background:var(--accent);box-shadow:none}
+.pill.red{background:var(--accent-text);color:#fff;padding:0 8px;border-radius:999px;font-size:12px}
+.pill.red::before,.pill:has(.spin)::before{display:none}
+.pill .spin{width:10px;height:10px}
+.seg{display:inline-flex;background:var(--bg);border-radius:999px;padding:4px}
+.seg button{height:28px;padding:0 12px;border:0;border-radius:999px;background:none;cursor:pointer;color:var(--muted);transition:background .15s,color .15s}
+.seg button.on{background:#fff;color:var(--ink)}
+.in,select.in,textarea.in{width:100%;height:36px;padding:0 12px;border:0;border-radius:12px;background:var(--bg);outline:none;transition:box-shadow .15s}
+textarea.in{height:72px;padding:8px 12px;resize:none;line-height:20px;display:block}
+.in:focus{box-shadow:0 0 0 2px var(--ink)}
+.switch{width:36px;height:20px;border-radius:999px;border:0;background:var(--edge);position:relative;cursor:pointer;flex:none;transition:background .15s}
+.switch::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .18s var(--ease)}
+.switch.on{background:var(--ink)}
+.switch.on::after{transform:translateX(16px)}
+
+/* tables */
+table{border-collapse:collapse;width:100%}
+.tbl th{font-weight:400;color:var(--muted);text-align:left;height:36px;padding:0 12px;border-bottom:1px solid var(--line)}
+.tbl td{height:48px;padding:0 12px;border-bottom:1px solid var(--line)}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover td{background:var(--tint)}
+.tbl.flat tbody tr{cursor:default}
+.tbl.flat tbody tr:hover td{background:none}
+.r{text-align:right}
+
+/* run layout */
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px}
+.work,.side{display:flex;flex-direction:column;overflow:hidden}
+.wh{flex:none;height:64px;display:flex;align-items:center;gap:12px;padding:0 24px}
+.wh .sp{flex:1}
+.wh>*{flex:none}
+.wh h2{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb{flex:1;min-height:0;overflow:auto;padding:0 24px 24px}
+
+/* grid */
+.grid{table-layout:fixed}
+.grid th{position:sticky;top:0;background:#fff;font-weight:400;color:var(--muted);height:32px;padding:0 12px;z-index:1;text-align:left}
+.grid th.n{text-align:right}
+.grid td{height:36px;padding:0 12px;border-bottom:1px solid var(--line);transition:background .15s}
+.grid td.lab{cursor:pointer;padding-top:8px;padding-bottom:8px}
+.grid .l2{color:var(--muted);font-size:13px;line-height:18px}
+.grid tr.hd td{font-weight:500;font-size:13px;background:var(--tint);border-bottom:0;height:32px}
+.grid tr.hd td:first-child{border-radius:8px 0 0 8px}
+.grid tr.hd td:last-child{border-radius:0 8px 8px 0}
+.grid tr.gap td{height:12px;border:0;padding:0}
+.grid tr.tot td{font-weight:500;border-bottom-color:transparent}
+.grid tr.tot td.v{box-shadow:inset 0 1px 0 var(--ink)}
+.grid tr.emp td{color:var(--faint)}
+.grid td.v{text-align:right;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;cursor:pointer;position:relative}
+.grid tr:not(.hd):hover td{background:var(--tint)}
+.grid tr.rsel td{background:var(--accent-soft)}
+.grid td.v.sel{background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.grid td.v.mk::after{content:"";position:absolute;top:4px;right:3px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.grid td.lab.mk>div:first-child::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:8px;vertical-align:middle}
+.grid td.st{text-align:right;padding-right:0}
+.grid tr.sk .val{display:inline-block;width:72px;height:8px;border-radius:4px;font-size:0;color:transparent;vertical-align:middle;background:linear-gradient(90deg,#E6E9EC 25%,#F5F7F8 50%,#E6E9EC 75%);background-size:200% 100%;animation:shim 1.2s linear infinite}
+.grid tr.sk .l2 .val{width:140px}
+.grid tr.sk td.st *{display:none}
+.grid tr.pop .val{animation:pop .4s var(--ease)}
+.grid td.v.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes shim{to{background-position:-200% 0}}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes pulse{50%{background:var(--accent-soft)}}
+.empty{color:var(--muted);padding:48px 0;text-align:center}
+
+/* side */
+.tabs{flex:none;height:64px;display:flex;align-items:center;gap:24px;padding:0 24px}
+.tabs a{cursor:pointer;color:var(--muted);height:64px;display:flex;align-items:center;gap:8px;transition:color .15s}
+.tabs a.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+.sb{flex:1;min-height:0;overflow:auto;padding:16px 24px 24px;display:flex;flex-direction:column;gap:16px}
+.frow{display:grid;grid-template-columns:88px 1fr;align-items:center;gap:12px;min-height:36px}
+.frow>span:first-child{color:var(--muted)}
+.det{display:flex;flex-direction:column;gap:12px}
+.dh{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.why{color:var(--muted)}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.bar .sp{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--edge);background:none;cursor:pointer;font-size:13px;transition:background .15s}
+.chip:hover{background:var(--tint)}
+.pgwrap{background:var(--bg);border-radius:12px;padding:16px}
+.pgh{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;padding-bottom:12px}
+.page{background:#fff;padding:24px 20px;font:400 11.5px/17px Georgia,"Times New Roman",serif;color:#222}
+.page .co{text-align:center;font-weight:700}
+.page .ti{text-align:center;margin-bottom:12px}
+.page table td{padding:1px 0 1px 8px}
+.page table td:first-child{padding-left:0}
+.page td.n{text-align:right;width:84px;font-variant-numeric:tabular-nums}
+.page tr.h td{font-weight:700;padding-top:8px}
+.page tr.t td.n{border-top:1px solid #222}
+.page tr.hl td{background:var(--accent-mid)}
+.cm{background:var(--tint);border-radius:12px;padding:12px 12px 12px 16px;display:flex;flex-direction:column;gap:8px;animation:pop .3s var(--ease)}
+.cm .loc{font-weight:500;cursor:pointer}
+.cm s{color:var(--muted)}
+
+/* activity */
+.feed{display:flex;flex-direction:column;gap:12px}
+.fl{display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:center;color:var(--muted)}
+.fl.enter{animation:pop .35s var(--ease)}
+.fl .dot{width:6px;height:6px;border-radius:50%;background:var(--edge);justify-self:center}
+.fl.act{color:var(--ink)}
+.fl.act .tx{background:linear-gradient(90deg,var(--ink) 0%,var(--ink) 35%,#B5BCC4 50%,var(--ink) 65%,var(--ink) 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sweep 1.6s linear infinite}
+@keyframes sweep{from{background-position:120% 0}to{background-position:-100% 0}}
+.fl .ct{color:var(--muted)}
+
+/* notes */
+.tb{flex:none;display:flex;align-items:center;gap:4px;padding:0 24px 12px}
+.tb .div{width:1px;height:20px;background:var(--line);margin:0 8px}
+.tb .sp{flex:1}
+.stage{flex:1;min-height:0;overflow:auto;background:var(--bg);margin:0 24px 24px;border-radius:12px;padding:24px}
+.a4{background:#fff;max-width:660px;margin:0 auto;padding:40px 44px;font:400 13px/19px Arial,Helvetica,sans-serif;color:#000;min-height:560px}
+.a4 .nh{font-weight:700;margin-bottom:10px;cursor:pointer}
+.a4 p{margin-bottom:10px;text-align:justify;cursor:pointer}
+.a4 table{margin-bottom:12px}
+.a4 td{padding:2px 4px;cursor:pointer;vertical-align:bottom;transition:background .15s}
+.a4 .hit{background:var(--accent-soft)}
+.a4 .has{position:relative}
+.a4 .has::before{content:"";position:absolute;left:-16px;top:6px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.a4 .skl{height:10px;border-radius:5px;margin-bottom:14px;background:linear-gradient(90deg,#E6E9EC 25%,#F5F7F8 50%,#E6E9EC 75%);background-size:200% 100%;animation:shim 1.2s linear infinite}
+
+/* setup, settings */
+.sec{display:flex;flex-direction:column;gap:16px}
+.line{display:flex;align-items:center;gap:16px;min-height:36px}
+.line>span:first-child{flex:1}
+.line .ctl{width:240px;flex:none}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px}
+.fld2{display:flex;flex-direction:column;gap:8px}
+.fld2>span{color:var(--muted)}
+.drop{border:1.5px dashed var(--edge);border-radius:12px;height:240px;display:grid;place-items:center;text-align:center}
+.drop div{display:flex;flex-direction:column;gap:16px;align-items:center}
+.gl{display:flex;align-items:center;gap:12px;min-height:36px;padding:0 4px 0 12px;background:var(--tint);border-radius:12px}
+.gl span{flex:1}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(20,20,19,.36);display:grid;place-items:center;z-index:20;animation:fade .2s}
+.dlg{width:520px;background:#fff;border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:16px;animation:pop .3s var(--ease)}
+@keyframes fade{from{opacity:0}}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.stat{background:var(--tint);border-radius:12px;padding:16px}
+.stat b{display:block;font-weight:500;font-size:24px;line-height:32px;font-family:var(--mono)}
+.stat span{color:var(--muted)}
+
+/* prototype bar */
+.proto{position:fixed;left:calc(50% + 116px);bottom:16px;transform:translateX(-50%);background:#000000;color:#fff;border-radius:999px;height:44px;padding:0 8px 0 16px;display:flex;align-items:center;gap:4px;z-index:30;font-size:13px}
+.proto span{color:#9AA1A9;margin-right:8px}
+.proto button{white-space:nowrap;height:28px;padding:0 12px;border-radius:999px;border:0;background:none;color:#fff;cursor:pointer}
+.proto button:hover{background:#1F1F1F}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.fl.act .tx{color:var(--ink);background:none}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+/* ---------- data (all made up) ---------- */
+const CO = 'Seri Maju Trading Sdn. Bhd.';
+// l = template field, s = line as printed in the report (defaults to l), e = template field with no line in the report
+const S = {
+  sofp:{name:'Financial position', page:7, title:'Statement of financial position as at 31 December 2025', cols:['2025','2024'], rows:[
+    {id:'h1',t:'head',l:'Non-current assets'},
+    {id:'ppe',l:'Property, plant and equipment',v:[4812300,4356900]},
+    {id:'ip',l:'Investment property',e:1},
+    {id:'rou',l:'Right-of-use assets',v:[386400,441600]},
+    {id:'int',l:'Intangible assets',v:[92750,110300]},
+    {id:'sub',l:'Investments in subsidiaries',e:1},
+    {id:'dta',l:'Deferred tax assets',v:[64200,58900]},
+    {id:'tnca',t:'total',l:'Total non-current assets',of:['ppe','rou','int','dta']},
+    {id:'h2',t:'head',l:'Current assets'},
+    {id:'inv',l:'Inventories',v:[1947800,1702450]},
+    {id:'trecv',l:'Trade receivables',v:[2385600,2104300]},
+    {id:'orecv',l:'Other receivables',s:'Other receivables, deposits and prepayments',v:[318450,276900],flag:{0:'Note 11 includes 42,000 due from a director.'}},
+    {id:'relp',l:'Amounts due from related parties',v:[null,null],e:1},
+    {id:'ca',l:'Contract assets',e:1},
+    {id:'cash',l:'Cash and cash equivalents',s:'Cash and bank balances',v:[1264900,986750]},
+    {id:'tca',t:'total',l:'Total current assets',of:['inv','trecv','orecv','relp','cash']},
+    {id:'ta',t:'total',l:'Total assets',of:['tnca','tca']},
+    {id:'h3',t:'head',l:'Equity'},
+    {id:'sc',l:'Issued capital',s:'Share capital',v:[2000000,2000000]},
+    {id:'res',l:'Other reserves',e:1},
+    {id:'re',l:'Retained earnings',v:[4618350,3902700]},
+    {id:'teq',t:'total',l:'Total equity',of:['sc','re']},
+    {id:'h4',t:'head',l:'Non-current liabilities'},
+    {id:'ncb',l:'Non-current borrowings',s:'Borrowings',v:[1450000,1680000]},
+    {id:'ncl',l:'Non-current lease liabilities',s:'Lease liabilities',v:[298600,352400]},
+    {id:'prov',l:'Non-current provisions',e:1},
+    {id:'dtl',l:'Deferred tax liabilities',v:[187300,164800]},
+    {id:'tncl',t:'total',l:'Total non-current liabilities',of:['ncb','ncl','dtl']},
+    {id:'h5',t:'head',l:'Current liabilities'},
+    {id:'tpay',l:'Trade payables',v:[1628400,1214650]},
+    {id:'opay',l:'Other payables',s:'Other payables and accruals',v:[512750,389200],src:[512750,398200]},
+    {id:'cl2',l:'Contract liabilities',e:1},
+    {id:'cb',l:'Current borrowings',s:'Borrowings',v:[420000,230000]},
+    {id:'cl',l:'Current lease liabilities',s:'Lease liabilities',v:[88900,53800]},
+    {id:'tax',l:'Current tax liabilities',v:[68100,41550]},
+    {id:'tcl',t:'total',l:'Total current liabilities',of:['tpay','opay','cb','cl','tax']},
+    {id:'tl',t:'total',l:'Total liabilities',of:['tncl','tcl']},
+    {id:'tel',t:'total',l:'Total equity and liabilities',of:['teq','tl']}
+  ]},
+  sopl:{name:'Profit or loss', page:8, title:'Statement of profit or loss for the year ended 31 December 2025', cols:['2025','2024'], rows:[
+    {id:'rev',l:'Revenue',v:[18642300,16205800]},
+    {id:'cos',l:'Cost of sales',v:[-13208750,-11634200]},
+    {id:'gp',t:'total',l:'Gross profit',of:['rev','cos']},
+    {id:'oi',l:'Other income',v:[142600,118300]},
+    {id:'sell',l:'Selling and distribution expenses',v:[-1386400,-1242750]},
+    {id:'adm',l:'Administrative expenses',v:[-2724900,-2318600]},
+    {id:'rd',l:'Research and development expense',e:1},
+    {id:'fin',l:'Finance costs',v:[-128450,-141900]},
+    {id:'zk',l:'Contribution of zakat',e:1},
+    {id:'pbt',t:'total',l:'Profit (loss) before tax',s:'Profit before tax',of:['gp','oi','sell','adm','fin']},
+    {id:'te',l:'Tax expense',v:[-420750,-244350]},
+    {id:'pat',t:'total',l:'Profit (loss)',s:'Profit for the year',of:['pbt','te']}
+  ]},
+  soci:{name:'Comprehensive income', page:8, title:'Statement of comprehensive income for the year ended 31 December 2025', cols:['2025','2024'], rows:[
+    {id:'p',l:'Profit (loss)',s:'Profit for the year',v:[915650,742300]},
+    {id:'oci',l:'Other comprehensive income',v:[null,null],e:1},
+    {id:'tci',t:'total',l:'Total comprehensive income',of:['p','oci']}
+  ]},
+  socf:{name:'Cash flows', page:10, title:'Statement of cash flows for the year ended 31 December 2025', cols:['2025','2024'], rows:[
+    {id:'h1',t:'head',l:'Operating activities'},
+    {id:'pbt',l:'Profit (loss) before tax',s:'Profit before tax',v:[1336400,986650]},
+    {id:'dep',l:'Adjustments for depreciation',s:'Depreciation',v:[612800,574300]},
+    {id:'fc',l:'Adjustments for finance costs',s:'Finance costs',v:[128450,141900]},
+    {id:'wc',l:'Changes in working capital',v:[48450,-47600]},
+    {id:'tp',l:'Income taxes paid',s:'Tax paid',v:[-394200,-251600]},
+    {id:'op',t:'total',l:'Net cash from operating activities',of:['pbt','dep','fc','wc','tp']},
+    {id:'h2',t:'head',l:'Investing activities'},
+    {id:'pp',l:'Purchase of property, plant and equipment',v:[-1013000,-688400]},
+    {id:'iv',t:'total',l:'Net cash used in investing activities',of:['pp']},
+    {id:'h3',t:'head',l:'Financing activities'},
+    {id:'div',l:'Dividends paid',v:[-200000,-150000]},
+    {id:'rb',l:'Repayments of borrowings',s:'Repayment of borrowings',v:[-40000,-210000]},
+    {id:'lp',l:'Payments of lease liabilities',s:'Payment of lease liabilities',v:[-72300,-68900]},
+    {id:'ip',l:'Interest paid',v:[-128450,-141900]},
+    {id:'fa',t:'total',l:'Net cash used in financing activities',of:['div','rb','lp','ip']},
+    {id:'nc',t:'total',l:'Net increase in cash',of:['op','iv','fa']},
+    {id:'cb',l:'Cash at beginning of year',v:[986750,842300]},
+    {id:'ce',t:'total',l:'Cash at end of year',of:['nc','cb']}
+  ]},
+  socie:{name:'Changes in equity', page:9, title:'Statement of changes in equity for the year ended 31 December 2025', cols:['Issued capital','Retained earnings','Total'], rows:[
+    {id:'h1',t:'head',l:'2025'},
+    {id:'o5',l:'Equity at beginning of period',s:'At 1 January 2025',v:[2000000,3902700,5902700]},
+    {id:'p5',l:'Profit (loss)',s:'Profit for the year',v:[null,915650,915650]},
+    {id:'d5',l:'Dividends paid',s:'Dividends',v:[null,-200000,-200000]},
+    {id:'c5',t:'total',l:'Equity at end of period',s:'At 31 December 2025',of:['o5','p5','d5']},
+    {id:'h2',t:'head',l:'2024'},
+    {id:'o4',l:'Equity at beginning of period',s:'At 1 January 2024',v:[2000000,3310400,5310400]},
+    {id:'p4',l:'Profit (loss)',s:'Profit for the year',v:[null,742300,742300]},
+    {id:'d4',l:'Dividends paid',s:'Dividends',v:[null,-150000,-150000]},
+    {id:'c4',t:'total',l:'Equity at end of period',s:'At 31 December 2024',of:['o4','p4','d4']}
+  ]}
+};
+const T = {
+  corp:{name:'Corporate information',notes:['corp']},
+  pol:{name:'Accounting policies',notes:['basis','ppepol']},
+  list:{name:'List of notes',notes:['ppe','inv','rev','cont']},
+  cap:{name:'Issued capital',notes:['cap']},
+  rp:{name:'Related parties',notes:['rp']}
+};
+const P = t => ({k:'p',text:t});
+const NOTE = {
+  corp:{title:'Corporate information',page:12,field:'Corporate information',blocks:[{k:'h',text:'1. Corporate information'},P('The Company is a private limited liability company, incorporated and domiciled in Malaysia. The principal activity of the Company is the trading of industrial hardware and building materials.'),P('The registered office and principal place of business is located at Lot 14, Jalan Perusahaan 3, 43000 Kajang, Selangor.')]},
+  basis:{title:'Basis of preparation',page:13,field:'Basis of preparation',blocks:[{k:'h',text:'2.1 Basis of preparation'},P('The financial statements have been prepared in accordance with Malaysian Financial Reporting Standards, IFRS Accounting Standards and the requirements of the Companies Act 2016 in Malaysia.'),P('The financial statements are presented in Ringgit Malaysia, which is the functional currency of the Company.')]},
+  ppepol:{title:'Property, plant and equipment policy',page:14,field:'Property, plant and equipment',blocks:[{k:'h',text:'2.4 Property, plant and equipment'},P('Property, plant and equipment are stated at cost less accumulated depreciation and accumulated impairment losses. Depreciation is recognised on a straight-line basis over the estimated useful lives of the assets.'),{k:'t',head:['','Years'],rows:[{c:['Buildings','50']},{c:['Plant and machinery','8 to 10']},{c:['Motor vehicles','5']}]}]},
+  ppe:{title:'Property, plant and equipment',page:21,field:'Property, plant and equipment',flag:1,blocks:[
+    {k:'h',text:'5. Property, plant and equipment'},
+    {k:'t',head:['','Buildings','Plant and machinery','Motor vehicles','Total'],rows:[
+      {c:['Cost','','','',''],sub:1},
+      {c:['At 1 January 2025','3,200,000','2,846,500','912,400','6,958,900']},
+      {c:['Additions','-','804,600','208,400','1,013,000']},
+      {c:['At 31 December 2025','3,200,000','3,651,100','1,120,800','7,971,900'],total:1},
+      {c:['Accumulated depreciation','','','',''],sub:1},
+      {c:['At 1 January 2025','640,000','1,498,300','463,700','2,602,000']},
+      {c:['Charge for the year','64,000','362,900','130,700','557,600']},
+      {c:['At 31 December 2025','704,000','1,861,200','594,400','3,159,600'],total:1},
+      {c:['Carrying amount','','','',''],sub:1},
+      {c:['At 31 December 2025','2,496,000','1,789,900','526,400','4,812,300'],total:1}
+    ]},
+    P('Buildings with a carrying amount of RM2,496,000 are pledged as security for the term loan disclosed in Note 14.')
+  ]},
+  inv:{title:'Inventories',page:23,field:'Inventories',blocks:[{k:'h',text:'8. Inventories'},{k:'t',head:['','2025','2024'],rows:[{c:['Trading goods','1,802,300','1,588,150']},{c:['Goods in transit','145,500','114,300']},{c:['','1,947,800','1,702,450'],total:1}]},P('Inventories recognised as cost of sales during the year amounted to RM13,208,750.')]},
+  rev:{title:'Revenue',page:27,field:'Revenue',blocks:[{k:'h',text:'17. Revenue'},P('Revenue is recognised at a point in time when control of the goods passes to the customer.'),{k:'t',head:['','2025','2024'],rows:[{c:['Sale of hardware','11,930,400','10,412,900']},{c:['Sale of building materials','6,711,900','5,792,900']},{c:['','18,642,300','16,205,800'],total:1}]}]},
+  cont:{title:'Contingent liabilities',page:31,field:'',blocks:[{k:'h',text:'24. Contingent liabilities'},P('The Company has given a bank guarantee of RM150,000 to a utility provider. The directors are of the opinion that no loss is expected to arise.')]},
+  cap:{title:'Share capital',page:25,field:'Issued capital',blocks:[{k:'h',text:'12. Share capital'},{k:'t',head:['','Number of shares','RM'],rows:[{c:['Ordinary shares, issued and fully paid','',''],sub:1},{c:['At 1 January and 31 December','2,000,000','2,000,000'],total:1}]}]},
+  rp:{title:'Related party transactions',page:30,field:'Related party transactions',blocks:[{k:'h',text:'22. Related party transactions'},{k:'t',head:['','2025','2024'],rows:[{c:['Rental paid to a director','96,000','96,000']},{c:['Advance to a director','42,000','-']}]}]}
+};
+const FIELDS = ['Corporate information','Basis of preparation','Property, plant and equipment','Inventories','Revenue','Issued capital','Related party transactions','Contingent liabilities','Other notes'];
+const RUNS = [
+  [CO,'2025','MFRS, Company','In review','amber','Today, 09:14','Aina R.','review'],
+  ['Kemuncak Logistik Sdn. Bhd.','2025','MPERS, Company','Extracting','run','Today, 08:52','Aina R.','running'],
+  ['Delima Agro Holdings Berhad','2025','MFRS, Group','Ready','green','Yesterday','Wei Jian L.','review'],
+  ['Tanjung Bayu Resort Sdn. Bhd.','2025','MPERS, Company','In review','amber','Yesterday','Wei Jian L.','review'],
+  ['Mutiara Precision Engineering Sdn. Bhd.','2024','MFRS, Company','Filed','green','12 Nov','Aina R.','review'],
+  ['Cahaya Timur Foods Sdn. Bhd.','2025','MFRS, Company','Failed','red','11 Nov','Hafiz M.','review']
+];
+
+/* ---------- state ---------- */
+const st = {view:'runs', sec:'sofp', tpl:null, note:null, cell:null, tab:'source', filter:'all', order:'report', phase:'review',
+  comments:[], seq:1, edited:new Set(), changed:new Set(), nsel:null, styles:{}, modal:null, draft:'',
+  feed:[], rev:null, cur:null, notesDone:true, follow:true, tok:0, t0:0, pulse:null,
+  guide:['Rental paid to the director is disclosed under related parties.','Goods in transit are part of inventories.'],
+  firm:['Leave non-controlling interest blank when the report prints no split.']};
+for(let r=0;r<10;r++) st.styles['ppe|1|'+r+'|3']={al:'left'};
+['0','1','2','3','4'].forEach(c=>st.styles['ppe|1|9|'+c]=Object.assign(st.styles['ppe|1|9|'+c]||{}, {bb:''}));
+
+/* ---------- helpers ---------- */
+const fmt = v => v==null ? '' : v<0 ? '('+Math.abs(v).toLocaleString('en-US')+')' : v.toLocaleString('en-US');
+const row = (s,id) => S[s].rows.find(r=>r.id===id);
+const val = (s,r,ci) => r.t==='total' ? r.of.reduce((a,id)=>a+(val(s,row(s,id),ci)||0),0) : r.v ? r.v[ci] : null;
+const hasVal = r => r.t==='total' || (r.v && r.v.some(x=>x!=null));
+const sofpDiff = ci => val('sofp',row('sofp','ta'),ci) - val('sofp',row('sofp','tel'),ci);
+const ck = (s,id,ci) => s+'|'+id+'|'+ci;
+const openC = () => st.comments.filter(c=>!c.out);
+const pendC = () => st.comments.filter(c=>c.out && !c.done);
+const cOn = (s,id,ci) => st.comments.some(c=>!c.done && c.t.s===s && c.t.row===id && c.t.ci===ci);
+const busy = () => st.phase==='running'||st.phase==='working';
+const ro = () => busy();
+const shown = (s,id) => st.phase!=='running' || (st.rev && st.rev[s].has(id));
+function rowStatus(s,r){
+  if(s==='sofp' && r.id==='tel' && (sofpDiff(0)||sofpDiff(1))) return ['red','Does not tally'];
+  if(r.flag && Object.keys(r.flag).length) return ['amber','Unsure'];
+  const n = S[s].cols.length;
+  for(let i=0;i<n;i++) if(st.changed.has(ck(s,r.id,i))) return ['','Changed'];
+  for(let i=0;i<n;i++) if(st.edited.has(ck(s,r.id,i))) return ['','Edited'];
+  return null;
+}
+const secCount = s => st.phase==='running' ? 0 : S[s].rows.filter(r=>{const x=rowStatus(s,r);return x&&x[0]}).length + openC().filter(c=>c.t.s===s).length;
+const noteCount = n => st.phase==='running' ? 0 : (NOTE[n].flag?1:0) + (NOTE[n].field?0:1) + openC().filter(c=>c.t.note===n).length;
+const tplCount = t => T[t].notes.reduce((a,n)=>a+noteCount(n),0);
+const checksFailed = () => st.phase==='running' ? 0 : (sofpDiff(0)?1:0)+(sofpDiff(1)?1:0);
+function canSign(){
+  if(checksFailed()||openC().length||pendC().length) return false;
+  return !Object.keys(S).some(secCount) && !Object.keys(T).some(tplCount);
+}
+const ICO = {
+  dl:'<path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/>',
+  x:'<path d="M4 4l8 8M12 4l-8 8"/>', al:'<path d="M2 4h12M2 8h8M2 12h10"/>', ac:'<path d="M2 4h12M4 8h8M3 12h10"/>', ar:'<path d="M2 4h12M6 8h8M4 12h10"/>',
+  in:'<path d="M2 3h12M7 8h7M2 13h12M2 6l3 2-3 2"/>', out:'<path d="M2 3h12M7 8h7M2 13h12M5 6L2 8l3 2"/>',
+  bt:'<path d="M2 3h12" stroke-width="2.4"/><path d="M2 7v6h12V7" stroke-dasharray="1.5 2"/>', bb:'<path d="M2 13h12"/><path d="M2 9V3h12v6" stroke-dasharray="1.5 2"/>',
+  bk:'<path d="M2 13h12" stroke-width="3"/><path d="M2 9V3h12v6" stroke-dasharray="1.5 2"/>', bn:'<path d="M2 3h12v10H2z" stroke-dasharray="1.5 2"/>'
+};
+const ico = n => '<svg viewBox="0 0 16 16">'+ICO[n]+'</svg>';
+const esc = s => String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const clock = () => {const t=Math.floor((Date.now()-st.t0)/1000); return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');};
+
+/* ---------- note styles ---------- */
+function base(n,bi,ri,ci){
+  const b = NOTE[n].blocks[bi]; if(b.k!=='t') return {};
+  if(ri<0) return {al:ci?'right':'left',bb:'thin'};
+  const r = b.rows[ri], o = {al:ci?'right':'left'};
+  if(r.sub) o.b = 1;
+  if(r.total && ci){o.bt='thin';o.bb='thick'}
+  return o;
+}
+const sty = (n,bi,ri,ci) => Object.assign({}, base(n,bi,ri,ci), st.styles[[n,bi,ri,ci].join('|')]||{});
+function css(o,src){
+  let c = 'text-align:'+(o.al||'left')+';';
+  if(o.b) c+='font-weight:700;'; if(o.i) c+='font-style:italic;'; if(o.u) c+='text-decoration:underline;';
+  if(o.ind) c+='padding-left:'+(4+o.ind*16)+'px;';
+  if(o.bt) c+='border-top:1px solid #000;';
+  if(o.bb==='thin') c+='border-bottom:1px solid #000;';
+  if(o.bb==='thick') c+= src ? 'border-bottom:3px double #000;' : 'border-bottom:2.5px solid #000;';
+  return c;
+}
+function targets(){
+  const s = st.nsel; if(!s) return [];
+  const b = NOTE[s.n].blocks[s.bi];
+  if(b.k!=='t') return [[s.n,s.bi,0,0]];
+  const R = b.rows.length, C = b.head.length, out = [];
+  for(let r=-1;r<R;r++) for(let c=0;c<C;c++){
+    if(s.scope==='table' || (s.scope==='row'&&r===s.ri) || (s.scope==='col'&&c===s.ci) || (s.scope==='cell'&&r===s.ri&&c===s.ci)) out.push([s.n,s.bi,r,c]);
+  }
+  return out;
+}
+const isHit = (n,bi,ri,ci) => targets().some(t=>t[0]===n&&t[1]===bi&&t[2]===ri&&t[3]===ci);
+function setStyle(k,v){
+  const ts = targets(); if(!ts.length) return;
+  const cur = sty(...ts[0])[k];
+  const nv = v===undefined ? (cur?0:1) : (cur===v && k==='bb' ? '' : v);
+  ts.forEach(t=>{const key=t.join('|'); st.styles[key]=Object.assign(st.styles[key]||{}, {[k]:nv});});
+}
+function noteHtml(n,src){
+  return NOTE[n].blocks.map((b,bi)=>{
+    const has = !src && st.comments.some(c=>!c.done&&c.t.note===n&&c.t.bi===bi) ? ' has' : '';
+    const at = src ? '' : `data-a="nsel" data-bi="${bi}" data-ri="0" data-ci="0"`;
+    if(b.k==='h') return `<div class="nh${!src&&isHit(n,bi,0,0)?' hit':''}${has}" ${at} style="${src?'':css(Object.assign({b:1},st.styles[[n,bi,0,0].join('|')]||{}))}">${b.text}</div>`;
+    if(b.k==='p') return `<p class="${!src&&isHit(n,bi,0,0)?'hit':''}${has}" ${at} style="${src?'':css(Object.assign({al:'justify'},st.styles[[n,bi,0,0].join('|')]||{}))}">${b.text}</p>`;
+    const tr = (cells,ri) => '<tr>'+cells.map((t,ci)=>{
+      const o = src ? base(n,bi,ri,ci) : sty(n,bi,ri,ci);
+      return `<td class="${!src&&isHit(n,bi,ri,ci)?'hit':''}" ${src?'':`data-a="nsel" data-bi="${bi}" data-ri="${ri}" data-ci="${ci}"`} style="${css(o,src)}">${t||'&nbsp;'}</td>`;
+    }).join('')+'</tr>';
+    return `<table class="${has.trim()}">${tr(b.head,-1)}${b.rows.map((r,ri)=>tr(r.c,ri)).join('')}</table>`;
+  }).join('');
+}
+
+/* ---------- views ---------- */
+function sidebar(){
+  const inRun = st.view==='review';
+  const c = n => n ? `<span class="cnt">${n}</span>` : '';
+  const sp = '<i class="spin"></i>';
+  let h = `<div class="brand"><i></i>XBRL Agent</div>
+    <a class="${st.view!=='settings'&&!inRun?'on':''}" data-a="go" data-v="runs"><span>Runs</span></a>
+    <a class="${st.view==='settings'?'on':''}" data-a="go" data-v="settings"><span>Settings</span></a>`;
+  if(inRun){
+    h += `<div class="grp">Statements</div>`;
+    h += Object.keys(S).map(s=>`<a class="${st.sec===s?'on':''}" data-a="sec" data-s="${s}"><span>${S[s].name}</span>${st.phase==='running'&&st.cur===s?sp:c(secCount(s))}</a>`).join('');
+    h += `<a class="${st.sec==='checks'?'on':''}" data-a="sec" data-s="checks"><span>Checks</span>${st.phase==='running'&&st.cur==='checks'?sp:c(checksFailed())}</a>`;
+    h += `<div class="grp">Notes</div>`;
+    h += Object.keys(T).map(t=>{
+      const multi = T[t].notes.length>1, open = st.tpl===t;
+      let x = `<a class="${open&&!multi?'on':''}" data-a="tpl" data-t="${t}"><span>${T[t].name}</span>${st.phase==='running'&&st.cur==='notes'?sp:open&&multi?'':c(tplCount(t))}</a>`;
+      if(open&&multi) x += T[t].notes.map(n=>`<a class="sub ${st.note===n?'on':''}" data-a="note" data-n="${n}"><span>${NOTE[n].title}</span>${c(noteCount(n))}</a>`).join('');
+      return x;
+    }).join('');
+  }
+  return `<nav class="nav">${h}<span class="sp"></span><div class="who"><span class="avatar">AR</span>Aina R.</div></nav>`;
+}
+function runs(){
+  return `<div class="ph"><h1>Runs</h1><span class="sp"></span><div class="seg"><button class="on" data-a="segpick">All</button><button data-a="segpick">Mine</button><button data-a="segpick">In review</button></div><button class="btn primary" data-a="go" data-v="new">New run</button></div>
+  <div class="panel pad" style="overflow:auto"><table class="tbl"><thead><tr><th>Company</th><th>Year</th><th>Filing</th><th>Status</th><th>Updated</th><th>Owner</th></tr></thead><tbody>
+  ${RUNS.map(r=>`<tr data-a="open" data-m="${r[7]}"><td>${r[0]}</td><td class="mono">${r[1]}</td><td>${r[2]}</td><td><span class="pill ${r[4]==='run'?'amber':r[4]}">${r[4]==='run'?'<i class="spin"></i>':''}${r[3]}</span></td><td class="meta">${r[5]}</td><td class="meta">${r[6]}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function newRun(){
+  return `<div class="ph"><h1>New run</h1></div><div class="narrow"><div class="panel pad"><div class="drop"><div><span>Drop a PDF or Word file</span><button class="btn outline" data-a="go" data-v="setup">Choose file</button></div></div></div></div>`;
+}
+function setup(){
+  const sel = (o,i=0) => `<select class="in">${o.map((x,j)=>`<option${j===i?' selected':''}>${x}</option>`).join('')}</select>`;
+  const seg = (o,i=0) => `<div class="seg">${o.map((x,j)=>`<button class="${j===i?'on':''}" data-a="segpick">${x}</button>`).join('')}</div>`;
+  const stmts = [['Financial position',['Current and non-current','Order of liquidity']],['Profit or loss',['By function','By nature']],['Comprehensive income',['Before tax','Net of tax']],['Cash flows',['Indirect','Direct']],['Changes in equity',['Changes in equity']]];
+  return `<div class="ph"><h1>New run</h1><span class="sp"></span><button class="btn quiet" data-a="go" data-v="runs">Cancel</button><button class="btn primary" data-a="open" data-m="running">Start run</button></div>
+  <div class="narrow">
+    <div class="panel pad sec"><h2>Document</h2><div class="line"><span>Seri Maju Trading audited financial statements 2025.pdf</span><span class="meta mono">48 pages</span><button class="btn outline sm" data-a="go" data-v="new">Replace</button></div></div>
+    <div class="panel pad sec"><h2>Filing</h2><div class="g2">
+      <label class="fld2"><span>Company</span><input class="in" value="${CO}"></label>
+      <label class="fld2"><span>Year end</span><input class="in" value="31 December 2025"></label>
+      <div class="fld2"><span>Standard</span>${seg(['MFRS','MPERS'])}</div>
+      <div class="fld2"><span>Level</span>${seg(['Company','Group'])}</div>
+      <div class="fld2"><span>Prior year</span>${seg(['This document',"Last year's mTool file"])}</div>
+      <div class="fld2"><span>Amounts in</span>${sel(['RM','RM thousands'])}</div>
+    </div></div>
+    <div class="panel pad sec"><h2>Statements</h2>${stmts.map(s=>`<div class="line"><span>${s[0]}</span><div class="ctl">${sel(s[1])}</div><button class="switch on" data-a="sw"></button></div>`).join('')}
+      <div class="line"><span>Notes</span><button class="switch on" data-a="sw"></button></div><div class="line"><span>Reports</span><button class="switch on" data-a="sw"></button></div></div>
+    <div class="panel pad sec"><h2>Guidance for this company</h2>${guideList('guide')}</div>
+  </div>`;
+}
+function guideList(k){
+  return st[k].map((g,i)=>`<div class="gl"><span>${esc(g)}</span><button class="icon" title="Remove" data-a="gdel" data-k="${k}" data-i="${i}">${ico('x')}</button></div>`).join('')
+    + `<div class="bar"><input class="in" id="g-${k}" style="flex:1;width:auto" placeholder="Add guidance"><button class="btn outline" data-a="gadd" data-k="${k}">Add</button></div>`;
+}
+function settings(){
+  const sel = (o,i=0) => `<div class="ctl"><select class="in">${o.map((x,j)=>`<option${j===i?' selected':''}>${x}</option>`).join('')}</select></div>`;
+  return `<div class="ph"><h1>Settings</h1></div><div class="narrow">
+    <div class="panel pad sec"><h2>Notes house style</h2>
+      <div class="line"><span>Body text</span>${sel(['Justified','Left aligned'])}</div>
+      <div class="line"><span>Table font size</span>${sel(['10 pt','9 pt','11 pt'])}</div>
+      <div class="line"><span>Smallest table font</span>${sel(['8 pt','9 pt'])}</div>
+      <div class="line"><span>Double underline</span>${sel(['Thick bottom border','Single bottom border'])}</div>
+      <div class="line"><span>Bold totals</span><button class="switch" data-a="sw"></button></div></div>
+    <div class="panel pad sec"><h2>Firm guidance</h2>${guideList('firm')}</div>
+    <div class="panel pad sec"><h2>Records</h2>
+      <div class="line"><span>Server logs, last 30 days</span><button class="btn outline sm">Download</button></div>
+      <div class="line"><span>Usage and cost by run and day</span><button class="btn outline sm">Download</button></div></div>
+    <div class="panel pad sec"><h2>Models</h2>
+      <div class="line"><span>Reading</span>${sel(['Gemini 3 Flash','GPT-5.4 mini'])}</div>
+      <div class="line"><span>Extraction and review</span>${sel(['GPT-5.4','Claude Opus 5.5','Gemini 3 Pro'])}</div></div>
+  </div>`;
+}
+
+function review(){
+  const n = openC().length, p = pendC().length;
+  let act = '';
+  if(busy()) act = `<button class="btn outline" data-a="stop">Stop</button>`;
+  else if(n) act = `<button class="btn primary" data-a="send">Send ${n} comment${n>1?'s':''}</button>`;
+  else if(p) act = `<button class="btn primary" data-a="acceptAll">Accept all</button>`;
+  else act = `<button class="btn primary" data-a="modal" data-m="fill">Prepare mTool file</button>`;
+  return `<div class="ph"><h1>${CO}</h1><span class="sp"></span><button class="btn quiet" data-a="modal" data-m="record">Download traces</button>${act}</div>
+  <div class="cols"><section class="panel work">${st.sec==='checks'?checks():st.sec==='note'?noteWork():grid()}</section><aside class="panel side">${side()}</aside></div>`;
+}
+function grid(){
+  const s = st.sec, d = S[s], n = d.cols.length, rep = st.order==='report';
+  let rows = d.rows.filter(r => rep ? (r.t==='head' || !r.e || hasVal(r)) : true);
+  if(st.filter==='att') rows = rows.filter(r => r.t!=='head' && (rowStatus(s,r) || d.cols.some((_,i)=>cOn(s,r.id,i)) || cOn(s,r.id,undefined)));
+  const body = rows.map((r,i)=>{
+    if(r.t==='head') return (i?'<tr class="gap"><td colspan="'+(n+2)+'"></td></tr>':'')+`<tr class="hd"><td colspan="${n+2}">${r.l}</td></tr>`;
+    const x = rowStatus(s,r), rs = st.cell && st.cell.row===r.id && st.cell.ci==null, rl = r.s||r.l;
+    const two = rl!==r.l ? (rep ? 'Filed as '+r.l : 'Printed as '+rl) : '';
+    const lab = `<td class="lab${cOn(s,r.id,undefined)?' mk':''}" data-a="rowsel" data-row="${r.id}"><div>${rep?rl:r.l}</div>${two?`<div class="l2"><span class="val">${two}</span></div>`:''}</td>`;
+    const cls = [r.t==='total'?'tot':'', rs?'rsel':'', shown(s,r.id)?'':'sk', !hasVal(r)?'emp':''].join(' ');
+    return `<tr class="${cls}" data-r="${r.id}">${lab}${d.cols.map((_,ci)=>{
+      const sel = st.cell && st.cell.row===r.id && st.cell.ci===ci;
+      return `<td class="v${sel?' sel':''}${cOn(s,r.id,ci)?' mk':''}${st.pulse===ck(s,r.id,ci)?' pulse':''}" data-a="cell" data-row="${r.id}" data-ci="${ci}"><span class="val">${fmt(val(s,r,ci))}</span></td>`;}).join('')}
+      <td class="st">${x?`<span class="pill ${x[0]}">${x[1]}</span>`:''}</td></tr>`;
+  }).join('');
+  const w = n>2 ? 112 : 124;
+  return `<div class="wh"><h2>${d.name}</h2><span class="sp"></span><div class="seg"><button class="${rep?'on':''}" data-a="order" data-o="report">Report</button><button class="${rep?'':'on'}" data-a="order" data-o="template">Template</button></div><div class="seg"><button class="${st.filter==='all'?'on':''}" data-a="filter" data-f="all">All</button><button class="${st.filter==='att'?'on':''}" data-a="filter" data-f="att">Needs attention</button></div></div>
+  <div class="wb">${rows.length?`<table class="grid"><thead><tr><th>${rep?'Line in report':'Template field'}</th>${d.cols.map(c=>`<th class="n" style="width:${w}px">${c}</th>`).join('')}<th style="width:112px"></th></tr></thead><tbody>${body}</tbody></table>`:`<div class="empty">Nothing needs attention</div>`}</div>`;
+}
+function checks(){
+  const run = st.phase==='running';
+  const pf = ok => run ? '<span class="pill">Waiting</span>' : `<span class="pill ${ok?'green':'red'}">${ok?'Pass':'Fail'}</span>`;
+  const list = [['Total assets equal total equity and liabilities',!sofpDiff(0),!sofpDiff(1),'sofp','tel'],['Profit for the year agrees to changes in equity',1,1,'socie','p5'],['Retained earnings roll forward',1,1,'socie','c5'],['Net change in cash agrees to cash balances',1,1,'socf','nc'],['Cash at end of year agrees to financial position',1,1,'socf','ce']];
+  return `<div class="wh"><h2>Checks</h2></div><div class="wb"><table class="tbl"><thead><tr><th style="padding-left:0">Check</th><th class="r" style="text-align:right;width:120px">2025</th><th class="r" style="text-align:right;width:120px">2024</th></tr></thead><tbody>
+  ${list.map(c=>`<tr data-a="jump" data-s="${c[3]}" data-row="${c[4]}"><td style="padding-left:0">${c[0]}</td><td class="r">${pf(c[1])}</td><td class="r">${pf(c[2])}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function noteWork(){
+  const n = st.note, d = NOTE[n], s = st.nsel, o = s ? sty(...targets()[0]) : {};
+  const wait = st.phase==='running' && !st.notesDone;
+  const b = (a,arg,icon,title,on) => `<button class="icon${on?' on':''}" title="${title}" data-a="fmt" data-k="${a}" ${arg!==undefined?`data-val="${arg}"`:''}>${icon}</button>`;
+  const isT = s && d.blocks[s.bi].k==='t';
+  return `<div class="wh"><h2>${d.title}</h2>${wait?'':d.flag?'<span class="pill amber">Check formatting</span>':''}${wait||d.field?'':'<span class="pill amber">Not placed</span>'}<span class="sp"></span>
+    <select class="in" style="width:220px" data-c="field"${ro()?' disabled':''}><option value="">Not placed</option>${FIELDS.map(f=>`<option${f===d.field?' selected':''}>${f}</option>`).join('')}</select>
+    ${d.flag&&!ro()?'<button class="btn outline" data-a="confirmNote">Confirm</button>':''}</div>
+  <div class="tb">${b('b',undefined,'<b>B</b>','Bold',o.b)}${b('i',undefined,'<i>I</i>','Italic',o.i)}${b('u',undefined,'<u>U</u>','Underline',o.u)}<span class="div"></span>
+    ${b('al','left',ico('al'),'Align left',o.al==='left')}${b('al','center',ico('ac'),'Align centre',o.al==='center')}${b('al','right',ico('ar'),'Align right',o.al==='right')}<span class="div"></span>
+    ${b('ind','-',ico('out'),'Decrease indent')}${b('ind','+',ico('in'),'Increase indent')}<span class="div"></span>
+    ${b('bt','thin',ico('bt'),'Top border',o.bt)}${b('bb','thin',ico('bb'),'Bottom border',o.bb==='thin')}${b('bb','thick',ico('bk'),'Thick bottom border',o.bb==='thick')}${b('none',undefined,ico('bn'),'No borders')}
+    <span class="sp"></span>${isT?`<div class="seg">${[['cell','Cell'],['row','Row'],['col','Column'],['table','Table']].map(x=>`<button class="${s.scope===x[0]?'on':''}" data-a="scope" data-s="${x[0]}">${x[1]}</button>`).join('')}</div>`:''}</div>
+  <div class="stage"><div class="a4">${wait?[40,100,96,100,72,0,100,88,100,60].map(w=>`<div class="skl" style="width:${w}%;${w?'':'visibility:hidden'}"></div>`).join(''):noteHtml(n)}</div></div>`;
+}
+function side(){
+  const n = st.comments.filter(c=>!c.done).length;
+  const tab = (k,l,x='') => `<a class="${st.tab===k?'on':''}" data-a="tab" data-t="${k}">${l}${x}</a>`;
+  const tabs = `<div class="tabs">${tab('source','Source')}${tab('comments','Comments',n?` <span class="cnt">${n}</span>`:'')}${tab('activity','Activity')}</div>`;
+  const body = st.tab==='activity' ? feedHtml() : st.tab==='comments' ? commentList() : st.sec==='note' ? noteSide() : st.sec==='checks' ? '' : cellSide();
+  return tabs + `<div class="sb" id="sb">${body}</div>`;
+}
+function feedHtml(){
+  if(!st.feed.length) return `<div class="empty">No activity</div>`;
+  const last = st.feed.length-1;
+  return `<div class="feed">${st.feed.map((f,i)=>{
+    const act = i===last && busy();
+    return `<div class="fl${act?' act':''}${i===last&&st.feedNew?' enter':''}"><span>${act?'<i class="spin"></i>':'<i class="dot" style="display:block"></i>'}</span><span class="tx">${f.text}</span><span class="mono ct" ${act?'id="fct"':''}>${f.of?f.n+' of '+f.of:''}</span></div>`;
+  }).join('')}</div>`;
+}
+const SRC0 = Object.fromEntries(Object.keys(S).map(s=>[s,Object.fromEntries(S[s].rows.filter(r=>r.v).map(r=>[r.id,(r.src||r.v).slice()]))]));
+const srcVal = (s,r,ci) => r.t==='total' ? r.of.reduce((a,id)=>a+srcVal(s,row(s,id),ci),0) : (SRC0[s][r.id]||[])[ci]||0;
+function srcPage(s,hl){
+  const d = S[s];
+  return `<div class="pgwrap"><div class="pgh"><span>Page ${d.page}</span><span class="mono">${d.page} of 48</span></div><div class="page"><div class="co">${CO.toUpperCase()}</div><div class="ti">${d.title}</div><table>
+  <tr><td></td>${d.cols.map(c=>`<td class="n"><b>${c}</b></td>`).join('')}</tr>
+  ${d.rows.filter(r=>!r.e).map(r=>r.t==='head'?`<tr class="h"><td colspan="${d.cols.length+1}">${r.l}</td></tr>`:
+    `<tr class="${r.t==='total'?'t':''}${hl===r.id?' hl':''}"><td>${r.s||r.l}</td>${d.cols.map((_,ci)=>{const v=srcVal(s,r,ci);return `<td class="n">${v?fmt(v):'-'}</td>`}).join('')}</tr>`).join('')}
+  </table></div></div>`;
+}
+function commentBox(chips,redo){
+  return `${chips?`<div class="chips">${chips.map(c=>`<button class="chip" data-a="chip">${c}</button>`).join('')}</div>`:''}<textarea class="in" id="cbox" placeholder="Comment for the agent">${esc(st.draft)}</textarea><div class="bar">${redo?'<button class="btn outline" data-a="redo">Redo from source</button>':''}<span class="sp"></span><button class="btn outline" data-a="addComment">Add comment</button></div>`;
+}
+function cellSide(){
+  const s = st.sec, c = st.cell, d = S[s];
+  if(!c) return (ro() ? '' : `<div class="det"><div class="dh"><h3>${d.name}</h3></div>${commentBox()}</div>`) + srcPage(s);
+  const r = row(s,c.row), x = rowStatus(s,r), items = d.rows.filter(q=>!q.t && (!q.e || q.v));
+  const pill = x?`<span class="pill ${x[0]}">${x[1]}</span>`:'';
+  const fieldSel = r.t==='total'||ro() ? '' : `<div class="frow"><span>Field</span><select class="in" data-c="move">${items.map(q=>`<option value="${q.id}"${q.id===r.id?' selected':''}>${q.l}</option>`).join('')}</select></div>`;
+  let mid = '';
+  if(c.ci==null){
+    mid = (r.s&&r.s!==r.l?`<div class="frow"><span>In report</span><span>${r.s}</span></div>`:'') + d.cols.map((col,ci)=>`<div class="frow"><span>${col}</span><span class="mono">${fmt(val(s,r,ci))||'-'}</span></div>`).join('') + fieldSel;
+  } else {
+    const v = val(s,r,c.ci);
+    mid = r.t==='total'||ro() ? `<div class="frow"><span>${d.cols[c.ci]}</span><span class="mono">${fmt(v)}</span></div>` : `<div class="frow"><span>${d.cols[c.ci]}</span><input class="in mono" style="text-align:right" data-c="value" value="${fmt(v)}"></div>`;
+    mid += fieldSel;
+    if(s==='sofp' && r.id==='tel' && sofpDiff(c.ci)) mid += `<p class="why">Differs from total assets by ${fmt(Math.abs(sofpDiff(c.ci)))}</p>`;
+    if(r.flag && r.flag[c.ci]) mid += `<div class="bar"><p class="why" style="flex:1">${r.flag[c.ci]}</p>${ro()?'':'<button class="btn outline sm" data-a="confirm">Confirm</button>'}</div>`;
+  }
+  return `<div class="det"><div class="dh"><h3>${r.l}</h3>${pill}</div>${mid}${ro()?'':commentBox(['Recheck','Wrong field','Wrong sign','Should be split'])}</div>${srcPage(s,r.id)}`;
+}
+function noteSide(){
+  const n = st.note, d = NOTE[n], s = st.nsel;
+  const b = s ? d.blocks[s.bi] : null;
+  const rule = s && b.k==='t' && s.ri>=0 && b.rows[s.ri].total && (s.scope==='cell'||s.scope==='row') ? `<p class="why">Double underline shown as thick border</p>` : '';
+  const form = ro() ? '' : `<div class="det">${s?`<div class="dh"><h3>${selLabel()}</h3></div>`:''}${rule}${commentBox(['Columns misaligned','Rows merged wrongly','Text missing','Heading level wrong','Total line missing'],1)}</div>`;
+  return form + `<div class="pgwrap"><div class="pgh"><span>Page ${d.page}</span><span class="mono">${d.page} of 48</span></div><div class="page" style="font-size:10.5px;line-height:15px">${noteHtml(n,1)}</div></div>`;
+}
+function selLabel(){
+  const s = st.nsel; if(!s) return NOTE[st.note].title;
+  const b = NOTE[s.n].blocks[s.bi];
+  if(b.k==='h') return 'Heading'; if(b.k==='p') return 'Paragraph';
+  if(s.scope==='table') return 'Table';
+  if(s.scope==='col') return 'Column: '+(b.head[s.ci]||'Labels');
+  const rl = s.ri<0 ? 'Header row' : (b.rows[s.ri].c[0]||'Total');
+  return s.scope==='row' ? 'Row: '+rl : rl+(b.head[s.ci]?', '+b.head[s.ci]:'');
+}
+function commentList(){
+  const list = st.comments.filter(c=>!c.done);
+  if(!list.length) return `<div class="empty">No comments</div>`;
+  const pl = {changed:['green','Changed'],same:['','Not changed'],question:['amber','Question']};
+  return list.map(c=>{
+    let o = '';
+    if(c.out){
+      const p = pl[c.out.k];
+      o = `<div><span class="pill ${p[0]}">${p[1]}</span></div><p>${c.out.text}</p>${c.out.ba?`<p class="mono"><s>${c.out.ba[0]}</s> to ${c.out.ba[1]}</p>`:''}`;
+      if(st.phase==='working') o += '';
+      else if(c.out.k==='question') o += `<textarea class="in" id="rep-${c.id}" placeholder="Reply"></textarea><div class="bar"><span class="sp"></span><button class="btn outline sm" data-a="reply" data-id="${c.id}">Reply</button></div>`;
+      else o += `<div class="bar"><span class="sp"></span>${c.out.k==='changed'?`<button class="btn quiet sm" data-a="undo" data-id="${c.id}">Undo</button>`:''}<button class="btn outline sm" data-a="accept" data-id="${c.id}">${c.out.k==='changed'?'Accept':'Done'}</button></div>`;
+    } else if(st.phase==='working') o = `<div><span class="pill amber"><i class="spin"></i>Working</span></div>`;
+    return `<div class="cm"><div class="dh"><span class="loc" data-a="goto" data-id="${c.id}">${c.loc}</span>${c.out||st.phase==='working'?'':`<button class="icon" title="Remove" data-a="cdel" data-id="${c.id}">${ico('x')}</button>`}</div><p>${esc(c.text)}</p>${o}</div>`;
+  }).join('');
+}
+function modal(){
+  if(st.modal==='record') return `<div class="scrim"><div class="dlg"><h2>Download traces</h2><p>Everything the agents did: each agent's conversation and tool calls, every model call with tokens and cost, the activity list, page transcriptions, the document map, figure history, checks and comments.</p><div class="line"><span>Include the uploaded PDF</span><button class="switch" data-a="sw"></button></div><div class="bar"><span class="sp"></span><button class="btn quiet" data-a="modal" data-m="">Cancel</button><button class="btn primary" data-a="modal" data-m="">Download</button></div></div></div>`;
+  if(st.modal==='fill') return `<div class="scrim"><div class="dlg"><h2>Prepare mTool file</h2><div class="line"><span>SeriMaju_MFRS_Company_2025.xlsx</span><button class="btn outline sm">Replace</button></div><div class="bar"><span class="sp"></span><button class="btn quiet" data-a="modal" data-m="">Cancel</button><button class="btn primary" data-a="modal" data-m="receipt">Fill template</button></div></div></div>`;
+  if(st.modal==='receipt') return `<div class="scrim"><div class="dlg"><h2>mTool file ready</h2><div class="stats"><div class="stat"><b>214</b><span>Written</span></div><div class="stat"><b>3</b><span>Skipped</span></div><div class="stat"><b>11</b><span>Notes</span></div></div>
+    <table class="tbl flat"><tbody><tr><td style="padding-left:0">Other comprehensive income</td><td class="r meta">No value in source</td></tr><tr><td style="padding-left:0">Amounts due from related parties, 2024</td><td class="r meta">No value in source</td></tr><tr><td style="padding-left:0">Contingent liabilities</td><td class="r meta">Placed in other notes</td></tr></tbody></table>
+    <div class="bar"><span class="sp"></span><button class="btn quiet" data-a="modal" data-m="">Close</button><button class="btn primary" data-a="modal" data-m="">Download</button></div></div></div>`;
+  return '';
+}
+function render(){
+  const keep = {}; ['.wb','#sb','.stage','.nav','.narrow'].forEach(q=>{const e=document.querySelector(q); if(e) keep[q]=e.scrollTop;});
+  const v = {runs,new:newRun,setup,review,settings}[st.view]();
+  document.getElementById('root').innerHTML = `<div class="app">${sidebar()}<main>${v}</main></div>${modal()}
+  <div class="proto"><span>Prototype</span>${[['runs','Runs'],['new','New run'],['running','Running'],['review','Review'],['working','Correcting'],['results','Results']].map(x=>`<button data-a="proto" data-p="${x[0]}">${x[1]}</button>`).join('')}</div>`;
+  Object.keys(keep).forEach(q=>{const e=document.querySelector(q); if(e) e.scrollTop=keep[q];});
+  if(st.tab==='activity' && busy()){const e=document.getElementById('sb'); if(e) e.scrollTop=e.scrollHeight;}
+  st.feedNew = false;
+}
+
+/* ---------- agent simulation ---------- */
+function runQ(q){
+  const tok = ++st.tok; let i = 0;
+  const next = () => { if(st.tok!==tok || i>=q.length) return; const [d,f] = q[i++]; setTimeout(()=>{ if(st.tok!==tok) return; f(); next(); }, d); };
+  next();
+}
+function feed(text,of){ st.feed.push({text,n:0,of}); st.feedNew = true; render(); }
+function reveal(s,id){
+  st.rev[s].add(id);
+  const f = st.feed[st.feed.length-1]; f.n++;
+  const c = document.getElementById('fct'); if(c) c.textContent = f.n+' of '+f.of;
+  if(st.sec!==s) return;
+  const tr = document.querySelector(`tr[data-r="${id}"]`); if(!tr) return;
+  tr.classList.remove('sk'); tr.classList.add('pop');
+  if(st.follow) tr.scrollIntoView({block:'nearest'});
+}
+function startRun(){
+  st.view='review'; st.phase='running'; st.feed=[]; st.rev={}; Object.keys(S).forEach(s=>st.rev[s]=new Set());
+  st.sec='sofp'; st.tpl=null; st.note=null; st.cell=null; st.nsel=null; st.follow=true; st.tab='activity'; st.t0=Date.now(); st.notesDone=false; st.cur=null; st.filter='all'; st.order='report';
+  const q = [[500,()=>feed('Reading 48 pages')],[1500,()=>feed('Found 5 statements on pages 7 to 10')],[900,()=>feed('Found 24 notes on pages 12 to 34')]];
+  Object.keys(S).forEach(s=>{
+    const ids = S[s].rows.filter(r=>r.t!=='head').map(r=>r.id);
+    q.push([700,()=>{st.cur=s; if(st.follow){st.sec=s; st.cell=null;} feed(S[s].name+', page '+S[s].page, ids.length);}]);
+    ids.forEach(id=>q.push([90,()=>reveal(s,id)]));
+  });
+  q.push([700,()=>{st.cur='notes'; feed('Placing notes in 5 templates')}]);
+  q.push([1600,()=>{st.notesDone=true; st.cur='checks'; feed('Running 5 checks')}]);
+  q.push([1300,()=>feed('Financial position 2024 differs by 9,000')]);
+  q.push([1400,()=>feed('Reread page 7. Could not explain it. Left for review')]);
+  q.push([1200,()=>{st.phase='review'; st.cur=null; st.rev=null; if(st.follow){st.sec='sofp'; st.tab='source';} render();}]);
+  render(); runQ(q);
+}
+function resolve(c){
+  const t = c.t;
+  if(t.kind==='cell'||t.kind==='row'){
+    const r = row(t.s,t.row);
+    if(t.s==='sofp' && t.row==='orecv' && (t.ci===0||t.ci==null) && r.v[0]===318450){
+      const rp = row('sofp','relp'); r.v[0]=276450; rp.v[0]=42000; delete r.flag;
+      st.changed.add(ck('sofp','orecv',0)); st.changed.add(ck('sofp','relp',0));
+      c.undo = ()=>{r.v[0]=318450; rp.v[0]=null; st.changed.delete(ck('sofp','orecv',0)); st.changed.delete(ck('sofp','relp',0));};
+      return {k:'changed',text:'Moved 42,000 due from a director to amounts due from related parties.',ba:['318,450','276,450']};
+    }
+    if(t.s==='sofp' && t.row==='opay' && (t.ci===1||t.ci==null) && r.v[1]!==398200){
+      const old = r.v[1]; r.v[1]=398200; st.changed.add(ck('sofp','opay',1));
+      c.undo = ()=>{r.v[1]=old; st.changed.delete(ck('sofp','opay',1));};
+      return {k:'changed',text:'Page 7 prints 398,200.',ba:[fmt(old),'398,200']};
+    }
+    return {k:'same',text:'Page '+S[t.s].page+(t.kind==='row'?' prints these figures as shown.':' prints this figure as shown.')};
+  }
+  if(t.kind==='stmt') return c.replied ? {k:'same',text:'The lines already follow page '+S[t.s].page+'.'} : {k:'question',text:'Which lines should change?'};
+  const keys = Object.keys(st.styles).filter(k=>k.startsWith(t.note+'|'));
+  if(keys.length || NOTE[t.note].flag){
+    const old = {}; keys.forEach(k=>{old[k]=st.styles[k]; delete st.styles[k];});
+    const f = NOTE[t.note].flag; NOTE[t.note].flag = 0;
+    c.undo = ()=>{Object.assign(st.styles,old); NOTE[t.note].flag=f;};
+    return {k:'changed',text:'Alignment and total lines matched to page '+NOTE[t.note].page+'.'};
+  }
+  return {k:'same',text:'Formatting matches page '+NOTE[t.note].page+'.'};
+}
+function startWork(){
+  st.phase='working'; st.tab='activity'; st.feed=[]; st.t0=Date.now(); st.follow=true;
+  const q = [];
+  openC().forEach(c=>{
+    const t = c.t, pg = t.note ? NOTE[t.note].page : S[t.s].page;
+    q.push([700,()=>{
+      if(t.kind==='cell'||t.kind==='row'){st.sec=t.s; st.tpl=null; st.note=null; st.cell=null; st.pulse=ck(t.s,t.row,t.ci==null?0:t.ci);}
+      else if(t.kind==='note'){st.sec='note'; st.note=t.note; st.tpl=Object.keys(T).find(k=>T[k].notes.includes(t.note)); st.nsel=null;}
+      feed(c.loc+': reading page '+pg);
+    }]);
+    q.push([1500,()=>{c.out=resolve(c); st.pulse=null; feed({changed:'Changed',same:'No change needed',question:'Needs your answer'}[c.out.k]+': '+c.loc);}]);
+  });
+  q.push([900,()=>feed('Rechecking totals')]);
+  q.push([1300,()=>{st.phase='results'; st.tab='comments'; render();}]);
+  render(); runQ(q);
+}
+function addC(t,loc,text){ st.comments.push({id:st.seq++,t,loc,text}); }
+function seed(){
+  if(openC().length) return;
+  addC({kind:'row',s:'sofp',row:'orecv'},'Other receivables','The amount due from the director should be under related parties.');
+  addC({kind:'cell',s:'sofp',row:'opay',ci:1},'Other payables, 2024','Recheck');
+  addC({kind:'note',note:'ppe',bi:1},'Property, plant and equipment, Table','Columns misaligned. Total line missing');
+  addC({kind:'cell',s:'sopl',row:'adm',ci:0},'Administrative expenses, 2025','Should this include depreciation?');
+}
+
+/* ---------- actions ---------- */
+const A = {
+  go:d=>{st.tok++; st.view=d.v;},
+  open:d=>{ if(d.m==='running'){startRun(); return 1;} st.tok++; st.view='review'; if(busy()) st.phase='review'; st.rev=null; },
+  sw:(d,el)=>{el.classList.toggle('on'); return 1;},
+  segpick:(d,el)=>{[...el.parentNode.children].forEach(b=>b.classList.remove('on')); el.classList.add('on'); return 1;},
+  gadd:d=>{const i=document.getElementById('g-'+d.k); if(i.value.trim()) st[d.k].push(i.value.trim());},
+  gdel:d=>{st[d.k].splice(+d.i,1);},
+  sec:d=>{st.sec=d.s; st.cell=null; st.tpl=null; st.note=null; st.nsel=null; st.draft=''; st.follow=false; if(!busy()) st.tab = d.s==='checks' || st.phase==='results' ? 'comments' : 'source';},
+  tpl:d=>{st.tpl=d.t; A.note({n:T[d.t].notes[0]});},
+  note:d=>{st.sec='note'; st.note=d.n; st.nsel=null; st.cell=null; st.draft=''; st.follow=false; if(st.tab==='comments'&&st.phase==='review') st.tab='source';},
+  cell:d=>{st.cell={row:d.row,ci:+d.ci}; if(!busy()) st.tab='source'; st.draft='';},
+  rowsel:d=>{st.cell={row:d.row,ci:null}; if(!busy()) st.tab='source'; st.draft='';},
+  filter:d=>{st.filter=d.f;},
+  order:d=>{st.order=d.o;},
+  tab:d=>{st.tab=d.t;},
+  jump:d=>{st.sec=d.s; st.cell={row:d.row,ci:d.s==='sofp'&&sofpDiff(1)?1:0}; st.tab='source'; st.filter='all';},
+  confirm:()=>{const r=row(st.sec,st.cell.row); delete r.flag[st.cell.ci];},
+  confirmNote:()=>{NOTE[st.note].flag=0;},
+  addComment:()=>{
+    const text = document.getElementById('cbox').value.trim(); if(!text) return 1;
+    if(st.sec==='note'){
+      const s = st.nsel; addC({kind:'note',note:st.note,bi:s?s.bi:-1}, NOTE[st.note].title+(s?', '+selLabel():''), text);
+    } else if(st.cell){
+      const r = row(st.sec,st.cell.row), ci = st.cell.ci;
+      if(ci==null) addC({kind:'row',s:st.sec,row:r.id}, r.l, text);
+      else addC({kind:'cell',s:st.sec,row:r.id,ci}, r.l+', '+S[st.sec].cols[ci], text);
+    } else addC({kind:'stmt',s:st.sec}, S[st.sec].name, text);
+    st.draft='';
+  },
+  chip:(d,el)=>{const b=document.getElementById('cbox'); b.value = b.value ? b.value+'. '+el.textContent : el.textContent; st.draft=b.value; b.focus(); return 1;},
+  redo:()=>{addC({kind:'note',note:st.note,bi:-1}, NOTE[st.note].title, 'Redo from source');},
+  cdel:d=>{st.comments = st.comments.filter(c=>c.id!==+d.id);},
+  goto:d=>{const c=st.comments.find(c=>c.id===+d.id), t=c.t;
+    if(t.kind==='note'){st.sec='note'; st.note=t.note; st.tpl=Object.keys(T).find(k=>T[k].notes.includes(t.note)); st.nsel=null;}
+    else {st.sec=t.s; st.tpl=null; st.note=null; st.filter='all'; st.cell=t.kind==='cell'?{row:t.row,ci:t.ci}:t.kind==='row'?{row:t.row,ci:null}:null;}},
+  send:()=>{startWork(); return 1;},
+  stop:()=>{st.tok++; st.phase='review'; st.rev=null; st.cur=null; st.pulse=null; st.notesDone=true;},
+  accept:d=>{st.comments.find(c=>c.id===+d.id).done=1; if(!pendC().length&&!openC().length) st.phase='review';},
+  acceptAll:()=>{pendC().filter(c=>c.out.k!=='question').forEach(c=>c.done=1); if(!pendC().length) st.phase='review';},
+  undo:d=>{const c=st.comments.find(c=>c.id===+d.id); if(c.undo) c.undo(); c.done=1; if(!pendC().length&&!openC().length) st.phase='review';},
+  reply:d=>{const c=st.comments.find(c=>c.id===+d.id), v=document.getElementById('rep-'+d.id).value.trim(); if(!v) return 1; c.text+='. '+v; c.out=null; c.replied=1; st.phase='review';},
+  modal:d=>{st.modal=d.m||null;},
+  nsel:d=>{const p={n:st.note,bi:+d.bi,ri:+d.ri,ci:+d.ci}; p.scope = st.nsel && st.nsel.bi===p.bi && NOTE[st.note].blocks[p.bi].k==='t' ? st.nsel.scope : 'cell'; st.nsel=p; if(!busy()) st.tab='source';},
+  scope:d=>{st.nsel.scope=d.s;},
+  fmt:d=>{
+    if(!st.nsel || ro()) return 1;
+    if(d.k==='ind'){const cur=sty(...targets()[0]).ind||0; setStyle('ind',Math.max(0,Math.min(4,cur+(d.val==='+'?1:-1))));}
+    else if(d.k==='none'){setStyle('bt',0); targets().forEach(t=>{st.styles[t.join('|')].bb='';});}
+    else if(d.k==='bt'){setStyle('bt');}
+    else setStyle(d.k,d.val);
+  },
+  proto:d=>{
+    const p = d.p; st.tok++; st.rev=null; st.cur=null; st.pulse=null; st.notesDone=true;
+    if(p==='runs'||p==='new'){st.view=p; if(busy()) st.phase='review'; return;}
+    if(p==='running'){startRun(); return 1;}
+    st.view='review';
+    if(p==='review'){st.phase='review'; st.tab='source';}
+    if(p==='working'){st.phase='review'; seed(); startWork(); return 1;}
+    if(p==='results'){
+      st.phase='review'; seed(); openC().forEach(c=>{c.out=resolve(c);});
+      st.sec='sofp'; st.tpl=null; st.note=null; st.cell=null; st.filter='all'; st.phase='results'; st.tab='comments';
+    }
+  }
+};
+document.addEventListener('click',e=>{
+  const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
+  const keep = A[el.dataset.a](el.dataset, el);
+  if(!keep) render();
+});
+document.addEventListener('input',e=>{ if(e.target.id==='cbox') st.draft = e.target.value; });
+document.addEventListener('change',e=>{
+  const c = e.target.dataset.c; if(!c) return;
+  if(c==='field'){ NOTE[st.note].field = e.target.value; render(); return; }
+  const s = st.sec, r = row(s,st.cell.row), ci = st.cell.ci, n = S[s].cols.length;
+  if(c==='value'){
+    const raw = e.target.value.trim(), neg = /^\(.*\)$|^-/.test(raw), num = parseInt(raw.replace(/[^0-9]/g,''),10);
+    r.v[ci] = isNaN(num) ? null : (neg?-num:num);
+    st.edited.add(ck(s,r.id,ci)); if(r.flag) delete r.flag[ci];
+  }
+  if(c==='move'){
+    const to = row(s,e.target.value); if(to.id===r.id) return;
+    if(!to.v) to.v = Array(n).fill(null);
+    (ci==null ? [...Array(n).keys()] : [ci]).forEach(i=>{
+      if(r.v[i]==null) return;
+      to.v[i] = (to.v[i]||0) + r.v[i]; r.v[i] = null;
+      st.edited.add(ck(s,r.id,i)); st.edited.add(ck(s,to.id,i)); if(r.flag) delete r.flag[i];
+    });
+    st.cell = {row:to.id,ci};
+  }
+  render();
+});
+setInterval(()=>{ const c = document.getElementById('clock'); if(c) c.textContent = clock(); }, 1000);
+render();
+</script>
+</body>
+</html>

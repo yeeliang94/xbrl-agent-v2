@@ -1,0 +1,158 @@
+/* Design tokens. Every colour, space, radius, size and font in the app comes
+   from here. Values are those of prototypes/review-prototype-v2.html. */
+:root {
+  /* Neutrals */
+  --bg: #EEEFF1;
+  --panel: #FFFFFF;
+  --tint: #F5F7F8;
+  --line: #DFE3E6;
+  --edge: #CBD1D6;
+  --ink: #111111;
+  --ink-hover: #2B2B2B;
+  --on-ink: #FFFFFF;
+  --muted: #6B7280;
+  --faint: #B5BCC4;
+  --skeleton: #E6E9EC;
+  --scrim: rgba(20, 20, 19, .36);
+
+  /* Sidebar */
+  --nav: #000000;
+  --nav-ink: #FFFFFF;
+  --nav-muted: #9AA1A9;
+  --nav-on: #1F1F1F;
+  --nav-group: #6B7280;
+  --nav-accent: #FE7C39;
+
+  /* Accent */
+  --accent: #FD5108;
+  --accent-text: #D64000;
+  --accent-soft: #FFF5ED;
+  --accent-mid: #FFE8D4;
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radii */
+  --radius-mark: 3px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-pill: 999px;
+  --radius-round: 50%;
+
+  /* Sizes */
+  --sidebar-w: 232px;
+  --page-min-w: 1280px;
+  --narrow-w: 880px;
+  --dialog-w: 520px;
+  --dialog-wide-w: 600px;
+  --run-side-w: 420px;
+  --work-head-h: 64px;
+  --grid-row-h: 36px;
+  --grid-head-h: 32px;
+  --grid-num-w: 124px;
+  --grid-num-narrow-w: 112px;
+  --grid-status-w: 112px;
+  --field-label-w: 88px;
+  --kbd: 24px;
+  --kbd-radius: 6px;
+  --own-pad: 6px;
+  --own-text-pad: 2px;
+  --mark-inset: 3px;
+  --underline-offset: 3px;
+  --login-w: 400px;
+  --header-h: 80px;
+  --control-h: 36px;
+  --control-sm-h: 28px;
+  --nav-item-h: 32px;
+  --row-h: 48px;
+  --status-h: 22px;
+  --count-h: 20px;
+  --count-pad: 6px;
+  --status-gap: 6px;
+  --avatar: 24px;
+  --brand-mark: 14px;
+  --dot: 6px;
+  --dot-ring: 1.5px;
+  --spinner: 12px;
+  --spinner-sm: 10px;
+  --spinner-ring: 1.5px;
+  --icon: 16px;
+  --switch-w: 36px;
+  --switch-h: 20px;
+  --switch-knob: 16px;
+  --switch-inset: 2px;
+  --switch-travel: 16px;
+  --control-ctl-w: 240px;
+  --textarea-h: 72px;
+  --focus-ring: 2px;
+  --hairline: 1px;
+  --radius-xs: 4px;
+  --drop-border: 1.5px;
+  --drop-h: 240px;
+  --setup-side-w: 460px;
+  --page-col-w: 48px;
+  --progress-h: 4px;
+  --note-no-w: 64px;
+  --note-page-w: 72px;
+
+  /* A note drawn on mTool's A4 page (prototypes/review-prototype-v4.html .a4).
+     The paper's own colours are those of a printed page. */
+  --paper: #FFFFFF;
+  --paper-ink: #000000;
+  --paper-shade: #F2F2F2;
+  --paper-w: 660px;
+  --paper-min-h: 560px;
+  --paper-pad-y: 40px;
+  --paper-pad-x: 44px;
+  --paper-font: Arial, Helvetica, sans-serif;
+  --paper-text: 13px;
+  --paper-leading: 19px;
+  --paper-bold: 700;
+  --paper-gap: 10px;
+  --paper-cell-pad-y: 2px;
+  --paper-line: 0.75px;
+  --paper-line-thick: 2.5px;
+  --paper-ring-out: 5px;
+  --paper-mark-out: 16px;
+  --skeleton-h: 10px;
+  --skeleton-gap: 14px;
+  --skeleton-radius: 5px;
+  --field-select-w: 180px;
+  --field-select-min-w: 112px;
+  /* A report field's value column (prototypes/step-10-prototype.html .ftbl) */
+  --report-value-w: 320px;
+
+  /* Type */
+  /* The computer's own font: Segoe UI on Windows, San Francisco on a Mac.
+     Nothing is downloaded (owner, 18 November 2026). */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text: 14px;
+  --text-lg: 16px;
+  --text-xl: 22px;
+  --text-stat: 24px;
+  --leading-sm: 18px;
+  --leading: 20px;
+  --leading-lg: 24px;
+  --leading-xl: 28px;
+  --leading-stat: 32px;
+  --tracking-xl: -.015em;
+  --tracking-lg: -.005em;
+
+  /* Motion */
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --fast: .15s;
+  --press: .12s;
+  --knob: .18s;
+}
