@@ -120,6 +120,64 @@ export function rowLabels(row: StatementRow, order: "report" | "template"): [str
 
 export const hasValue = (row: StatementRow) => Object.values(row.cells).some((c) => c.value !== null);
 
+/** A line the report prints as a total: "Total assets", "Net cash from operating activities", "Profit for the year".
+ * Read from the printed wording because the figures carry no "printed as a total" mark: the agent saves which
+ * template field a line goes to, and a template total (such as "Total cash and cash equivalents") often holds
+ * a plain printed line ("Cash and bank balances"). It only decides the drawn weight and rule, never a figure. */
+const PRINTED_TOTAL = /^(total|net|gross|profit|loss)\b/i;
+
+/** The rows as the grid draws them. Report order: the report's own section names, said once, and a line is
+ * a total only where the report prints one (a template total such as "Total cash and cash equivalents" can
+ * hold a plain printed line). Template order: empty fields left out unless asked for, and a heading kept
+ * only where lines follow it (of headings in a row, the last, the closest one). */
+export function gridRows(rows: StatementRow[], order: "report" | "template", empties = false,
+                         keep: (row: StatementRow) => boolean = () => false): StatementRow[] {
+  const out: StatementRow[] = [];
+  if (order === "report") {
+    let section = "";
+    for (const row of rows) {
+      if (row.kind === "heading") {
+        // The section as the agent saved it, outermost first ("Current assets › Trade receivables"): its top.
+        const name = row.label.split("›")[0].trim();
+        if (name && name !== section) out.push({ ...row, label: name });
+        section = name || section;
+      } else {
+        out.push(row.kind === "total" && !PRINTED_TOTAL.test(row.label.trim()) ? { ...row, kind: "line" } : row);
+      }
+    }
+    return out;
+  }
+  let heading: StatementRow | null = null;
+  let skipped = false;
+  for (const row of rows) {
+    if (row.kind === "heading") {
+      // A block title of a many-column statement (its period or entity, from the server) is never replaced.
+      if (heading && !heading.concept_uuid) out.push(heading);
+      heading = row;
+      skipped = false;
+      continue;
+    }
+    if (!empties && !hasValue(row) && !row.status && !keep(row)) {
+      skipped = true;
+      continue;
+    }
+    // A total after a heading whose lines were all hidden closes an outer group, not that heading's.
+    if (heading && row.kind === "total" && skipped && /^total\b/i.test(row.label.trim())) heading = null;
+    if (heading) {
+      const last = out[out.length - 1];
+      if (last?.kind !== "heading" || last.label !== heading.label) out.push(heading);
+      heading = null;
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+/** A total drawn with a rule above its figures: every total the report prints; in template order, the fields
+ * named "Total …" (a sub-sheet's total, such as property, plant and equipment, is medium weight only). */
+export const ruled = (row: StatementRow, order: "report" | "template") =>
+  row.kind === "total" && (order === "report" || /^total\b/i.test(row.label.trim()));
+
 /** Cells the latest round changed, by field, period and entity. */
 export function changedCells(report: RoundReport | null): Set<string> {
   const keys = new Set<string>();

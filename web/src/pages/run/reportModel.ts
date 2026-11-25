@@ -17,7 +17,7 @@ export function fieldStatus(field: ReportField): { kind: StatusKind; word: strin
     case "cleared":
       return { kind: "neutral", word: "Cleared" };
     default:
-      return { kind: "neutral", word: "Not read yet" };
+      return null;
   }
 }
 

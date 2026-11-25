@@ -145,9 +145,6 @@ function MissingRows({ missing }: { missing: PlaceField[] }) {
       </div>
       {missing.map((f) => (
         <div key={f.id} className="prow pmiss">
-          <span />
-          <span />
-          <span className="pt meta">No note</span>
           <span className="pf" title={f.label}>
             {f.short}
             <span className="meta">{` · ${f.templateName}`}</span>
@@ -323,12 +320,8 @@ export function FieldRow({
       className={drop.over ? "prow pfield over" : "prow pfield"}
       {...drop.props}
     >
-      <span className="pl" title={field.label}>
+      <span className="pl" title={field.mandatory ? `${field.label} (mandatory)` : field.label}>
         {field.short}
-        {field.mandatory && <span className="meta">Mandatory</span>}
-        {field.catchAll && !field.mandatory && (
-          <span className="meta">Catch-all</span>
-        )}
       </span>
       {children}
     </div>

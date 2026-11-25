@@ -49,6 +49,8 @@ function opensRun(run: Run): boolean {
   return !opensSetup(run) && run.status !== "reading" && run.status !== "setup" && !(run.status === "failed" && run.failed_stage !== "extract");
 }
 
+export const REFRESH_MS = 5000;
+
 function openRun(run: Run): void {
   navigate(opensSetup(run) ? { name: "setup", runId: run.id } : { name: "run", runId: run.id });
 }
@@ -58,14 +60,33 @@ export function RunsPage({ user }: { user: User }) {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
 
+  // The list refreshes itself, so a run's status moves without a reload.
+  // The next request waits for the last reply, so an old reply never lands after a newer one.
   useEffect(() => {
     let live = true;
-    api
-      .runs()
-      .then((list) => live && setRuns(list))
-      .catch((failure) => live && setError(errorMessage(failure)));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let runsSeen = false;
+    const load = async () => {
+      // A hidden tab waits; it catches up on its next turn once shown.
+      if (document.hidden && runsSeen) {
+        timer = setTimeout(load, REFRESH_MS);
+        return;
+      }
+      runsSeen = true;
+      try {
+        const list = await api.runs();
+        if (!live) return;
+        setRuns(list);
+        setError("");
+      } catch (failure) {
+        if (live) setError(errorMessage(failure));
+      }
+      if (live) timer = setTimeout(load, REFRESH_MS);
+    };
+    void load();
     return () => {
       live = false;
+      clearTimeout(timer);
     };
   }, []);
 

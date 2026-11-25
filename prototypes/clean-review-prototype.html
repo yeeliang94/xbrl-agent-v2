@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clean review screens</title>
+<style>
+/* Tokens as web/src/styles/tokens.css. Proposal: fewer lines, no helper text. Data is invented. */
+:root{
+  --bg:#EEEFF1;--panel:#FFFFFF;--tint:#F5F7F8;--line:#DFE3E6;--edge:#CBD1D6;--ink:#111111;--muted:#6B7280;--faint:#B5BCC4;
+  --nav:#000000;--nav-ink:#FFFFFF;--nav-muted:#9AA1A9;--nav-on:#1F1F1F;--nav-group:#6B7280;--nav-accent:#FE7C39;--nav-scroll:#3A3A3A;
+  --accent:#FD5108;--accent-text:#D64000;--accent-soft:#FFF5ED;--fail:#B23B00;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;
+  --radius:12px;--radius-sm:8px;--pill:999px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--edge) transparent}
+html,body{margin:0;height:100%}
+body{font-family:var(--sans);font-size:14px;line-height:20px;color:var(--ink);background:var(--bg);display:grid;grid-template-columns:232px 1fr;height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+h1,h2,h3{font-weight:500;margin:0}
+/* sidebar */
+.nav{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding:var(--s4) var(--s3);overflow:auto;scrollbar-color:var(--nav-scroll) transparent}
+.brand{display:flex;gap:var(--s2);align-items:center;padding:var(--s2) var(--s3) var(--s4);font-weight:500}
+.brand i{width:14px;height:14px;border-radius:4px;background:var(--nav-accent)}
+.grp{color:var(--nav-group);font-size:12px;padding:var(--s5) var(--s3) var(--s1)}
+.nav button{display:flex;justify-content:space-between;width:100%;text-align:left;height:32px;align-items:center;padding:0 var(--s3);border-radius:var(--radius-sm);color:var(--nav-muted)}
+.nav button.on{background:var(--nav-on);color:var(--nav-ink)}
+.nav .n{font-size:12px}
+/* main */
+main{display:flex;flex-direction:column;min-width:0;padding:0 var(--s5) var(--s5);overflow:hidden}
+.head{height:80px;display:flex;align-items:center;gap:var(--s3)}
+.head h1{font-size:20px;flex:1}
+.quiet{height:36px;padding:0 var(--s4);border-radius:var(--pill);color:var(--muted)}
+.primary{height:36px;padding:0 var(--s4);border-radius:var(--pill);background:var(--ink);color:#fff}
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:var(--s4)}
+.panel{background:var(--panel);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden}
+.ph{height:64px;flex:none;display:flex;align-items:center;gap:var(--s3);padding:0 var(--s5)}
+.ph h2{font-size:16px;flex:1}
+.seg{display:inline-flex;background:var(--tint);border-radius:var(--pill);padding:2px}
+.seg button{height:28px;padding:0 var(--s3);border-radius:var(--pill);color:var(--muted)}
+.seg button.on{background:var(--panel);color:var(--ink)}
+.pb{flex:1;min-height:0;overflow:auto;padding:0 var(--s5) var(--s5)}
+/* the grid */
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:400;text-align:left;height:32px;padding:0 var(--s3)}
+th.n{text-align:right;width:124px}
+td{height:36px;padding:0 var(--s3)}
+td.v{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px}
+tr.line{cursor:pointer}
+tr.line:hover td{background:var(--tint)}
+tr.sel td{background:var(--accent-soft)}
+tr.hd td{font-weight:500;padding-top:var(--s5);height:auto;padding-bottom:var(--s1)}
+tr.tot td{font-weight:500}
+tr.tot.rule td.v span{display:block;border-top:1px solid var(--ink);padding-top:var(--s1);margin-top:calc(-1 * var(--s1))}
+tr.emp td{color:var(--faint)}
+td .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:var(--s2);vertical-align:middle}
+/* "before": today's look, for comparison */
+.before td{border-bottom:1px solid var(--line)}
+.before tr.hd td{background:var(--tint);border-bottom:0;padding:0 var(--s3);height:32px}
+.before tr.tot td.v{box-shadow:inset 0 1px 0 var(--ink)}
+.before .l2{color:var(--muted);font-size:13px;line-height:18px}
+.before tr.line td{height:auto;padding-top:var(--s2);padding-bottom:var(--s2)}
+/* side panel */
+.tabs{display:flex;gap:var(--s5);padding:0 var(--s5);height:64px;align-items:center}
+.tabs button{color:var(--muted);height:64px}
+.tabs button.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+.count{display:inline-block;min-width:20px;height:20px;line-height:20px;border-radius:var(--pill);background:var(--tint);font-size:12px;text-align:center;margin-left:var(--s1)}
+.item{padding:var(--s3) 0;cursor:pointer}
+.item .t{display:flex;align-items:center;gap:var(--s2)}
+.item .t span:first-child{flex:1}
+.item p{margin:var(--s2) 0 0;color:var(--muted)}
+.fail{display:inline-block;height:22px;line-height:22px;padding:0 var(--s2);border-radius:var(--radius-sm);background:var(--fail);color:#fff;font-size:12px}
+.kv{display:grid;grid-template-columns:96px 1fr;gap:var(--s2) var(--s4);margin:var(--s4) 0}
+.kv span:nth-child(odd){color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;gap:var(--s1) var(--s4);margin:var(--s4) 0}
+.acts button{color:var(--muted)}
+.acts button:hover{color:var(--ink)}
+textarea{width:100%;height:72px;border:0;background:var(--tint);border-radius:var(--radius);padding:var(--s3);font:inherit;resize:none}
+.empty{color:var(--muted);padding:var(--s5) 0}
+.switch{display:inline-flex;align-items:center;gap:var(--s2);color:var(--muted)}
+.switch i{width:36px;height:20px;border-radius:var(--pill);background:var(--edge);position:relative}
+.switch i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.switch.on i{background:var(--ink)}
+.switch.on i::after{left:18px}
+/* the prototype's own controls, not part of the app */
+.proto{position:fixed;right:16px;bottom:16px;background:#fff;border-radius:var(--radius);box-shadow:0 4px 24px rgba(0,0,0,.12);padding:var(--s3) var(--s4);display:flex;flex-direction:column;gap:var(--s2);font-size:13px;z-index:9;max-width:360px}
+.proto b{font-weight:500}
+.proto .row{display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap}
+.proto .seg button{height:26px}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<main>
+  <div class="head"><h1>Kemuncak Logistik Sdn. Bhd.</h1><button class="quiet">Download traces</button><button class="primary">Prepare mTool file</button></div>
+  <div class="cols"><section class="panel" id="work"></section><section class="panel" id="side"></section></div>
+</main>
+<div class="proto">
+  <div class="row"><b>Prototype</b></div>
+  <div class="row">Look <span class="seg" id="look"><button data-v="before">Today</button><button data-v="after" class="on">Proposed</button></span></div>
+  <div class="row">Total line <span class="seg" id="rule"><button data-v="report" class="on">Report's totals</button><button data-v="none">None</button></span></div>
+</div>
+<script>
+const st={page:'sofp',order:'report',filter:'all',look:'after',rule:'report',sel:null,tab:'needs',open:null,empties:false};
+// Invented figures. kind: hd heading, ln line, tot total as the report prints it. filed: the template field; tplTotal: that field is a total in the template.
+const SOFP=[
+ {k:'hd',l:'Non-current assets'},
+ {k:'ln',l:'Property, plant and equipment',a:'4,812,330',b:'4,355,901',filed:'Property, plant and equipment',tplTotal:true,p:13},
+ {k:'ln',l:'Right-of-use assets',a:'829,990',b:'1,183,317',filed:'Right-of-use assets',p:13},
+ {k:'ln',l:'Deferred tax assets',a:'296,082',b:'280,531',filed:'Deferred tax assets',p:13},
+ {k:'tot',l:'Total non-current assets',a:'5,938,402',b:'5,819,749',filed:'Total non-current assets',tplTotal:true,p:13},
+ {k:'hd',l:'Current assets'},
+ {k:'ln',l:'Trade receivables',a:'3,214,866',b:'2,904,120',filed:'Trade receivables',p:13},
+ {k:'ln',l:'Amounts due from related companies',a:'2,729,209',b:'3,762,972',filed:'Trade receivables due from other related parties',p:13,mark:true},
+ {k:'ln',l:'Cash and bank balances',a:'10,255,059',b:'6,245,254',filed:'Total cash and cash equivalents',tplTotal:true,p:13},
+ {k:'tot',l:'Total current assets',a:'16,199,134',b:'12,912,346',filed:'Total current assets',tplTotal:true,p:13},
+ {k:'tot',l:'Total assets',a:'22,137,536',b:'18,732,095',filed:'Total assets',tplTotal:true,p:13},
+ {k:'hd',l:'Equity'},
+ {k:'ln',l:'Share capital',a:'5,000,000',b:'5,000,000',filed:'Issued capital',p:13},
+ {k:'ln',l:'Capital contribution reserve',a:'182,259',b:'175,442',filed:'Reserve of share-based payments',p:13},
+ {k:'ln',l:'Retained earnings',a:'9,412,551',b:'7,106,218',filed:'Retained earnings',p:13},
+ {k:'tot',l:'Total equity',a:'14,594,810',b:'12,281,660',filed:'Total equity',tplTotal:true,p:13},
+ {k:'hd',l:'Current liabilities'},
+ {k:'ln',l:'Trade payables',a:'5,813,225',b:'6,450,435',filed:'Trade payables',p:14},
+ {k:'ln',l:'Amounts due to related company',a:'1,729,501',b:'0',filed:'Trade payables due to other related parties',p:14},
+ {k:'tot',l:'Total liabilities',a:'7,542,726',b:'6,450,435',filed:'Total liabilities',tplTotal:true,p:14},
+ {k:'tot',l:'Total equity and liabilities',a:'22,137,536',b:'18,732,095',filed:'Total equity and liabilities',tplTotal:true,p:14},
+];
+// Template order: SSM's fields, many empty. Headings as the template nests them.
+const TPL=[
+ {k:'hd',l:'Non-current assets'},
+ {k:'ln',l:'Property, plant and equipment',a:'4,812,330',b:'4,355,901',tot:true,printed:'Property, plant and equipment'},
+ {k:'ln',l:'Investment property'},{k:'ln',l:'Biological assets'},
+ {k:'ln',l:'Right-of-use assets',a:'829,990',b:'1,183,317'},
+ {k:'ln',l:'Service concession assets'},
+ {k:'ln',l:'Intangible assets'},{k:'ln',l:'Investments in subsidiaries'},{k:'ln',l:'Investments in associates'},
+ {k:'ln',l:'Deferred tax assets',a:'296,082',b:'280,531'},
+ {k:'ln',l:'Total non-current assets',a:'5,938,402',b:'5,819,749',tot:true},
+ {k:'hd',l:'Current assets'},
+ {k:'ln',l:'Inventories'},
+ {k:'ln',l:'Trade and other current receivables',a:'5,944,075',b:'6,667,092',tot:true},
+ {k:'ln',l:'Current tax assets'},
+ {k:'ln',l:'Total cash and cash equivalents',a:'10,255,059',b:'6,245,254',tot:true},
+ {k:'ln',l:'Total current assets',a:'16,199,134',b:'12,912,346',tot:true},
+ {k:'ln',l:'Total assets',a:'22,137,536',b:'18,732,095',tot:true},
+];
+const NEEDS=[
+ {t:'Total assets do not equal equity and liabilities',p:'This year, total assets are 22,137,536 and total equity and liabilities are 22,137,536 on the face, but the template\'s sub-sheet adds to 22,151,402. The 13,866 gap sits in trade receivables.',fail:true},
+ {t:'Amounts due from related companies',p:'The agent was not sure whether this belongs under trade or other receivables. The note on page 22 says the amounts are trade in nature.'},
+];
+const CHECKS=[
+ {t:'Assets equal equity and liabilities',ok:false,p:NEEDS[0].p},
+ {t:'Profit flows to retained earnings',ok:true},
+ {t:'Closing cash agrees with the balance sheet',ok:true},
+ {t:'Comprehensive income agrees with profit',ok:true},
+];
+const REPORT=[['Name of company','Kemuncak Logistik Sdn. Bhd.'],['Principal activities','Logistics and warehousing services'],['Directors in office','Tan Mei Ling, Ahmad Farid bin Osman'],['Ultimate holding company',''],['Auditors','']];
+
+const $=s=>document.querySelector(s);
+function seg(id,key){$(id).onclick=e=>{const v=e.target.dataset.v;if(!v)return;st[key]=v;$(id).querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));draw()}}
+seg('#look','look');seg('#rule','rule');
+
+function nav(){
+  const item=(id,l,n)=>`<button data-p="${id}" class="${st.page===id?'on':''}"><span>${l}</span>${n?`<span class="n">${n}</span>`:''}</button>`;
+  $('#nav').innerHTML=`<div class="brand"><i></i>XBRL Agent</div>${item('runs','Runs')}${item('settings','Settings')}
+  <div class="grp">Statements</div>${item('sofp','Financial position',2)}${item('sopl','Profit or loss')}${item('socf','Cash flows')}${item('checks','Checks',1)}
+  <div class="grp">Reports</div>${item('dr',"Directors' report")}${item('sbd','Statement by directors')}
+  <div class="grp">Notes</div>${item('map','Placement map')}${item('corp','Corporate information')}${item('pol','Accounting policies')}`;
+  $('#nav').onclick=e=>{const b=e.target.closest('button');if(!b)return;const p=b.dataset.p;if(['sofp','checks','dr'].includes(p)){st.page=p;st.sel=null;st.open=null;draw()}};
+}
+
+function grid(){
+  const before=st.look==='before';
+  const rows=st.order==='report'?SOFP:TPL.filter(r=>r.k==='hd'||st.empties||before||r.a);
+  const shown=st.filter==='all'?rows:rows.filter(r=>r.mark||r.l===NEEDS[0].t);
+  let h=`<table class="${before?'before':''}"><thead><tr><th>${st.order==='report'?'Line in report':'Template field'}</th><th class="n">This year</th><th class="n">Last year</th></tr></thead><tbody>`;
+  for(const [i,r] of shown.entries()){
+    if(r.k==='hd'){h+=`<tr class="hd"><td colspan="3">${r.l}</td></tr>`;continue}
+    let tot, l2='';
+    if(before){ tot=st.order==='report'?(r.tplTotal||r.k==='tot'):r.tot; l2=st.order==='report'&&r.filed&&r.filed!==r.l?`Filed as ${r.filed}`:(r.printed&&r.printed!==r.l?`Printed as ${r.printed}`:''); }
+    else { tot=st.order==='report'?r.k==='tot':(r.tot&&r.l.startsWith('Total')); }
+    const rule=tot&&(before||st.rule==='report');
+    const cls=['line',tot?'tot':'',rule?'rule':'',!r.a?'emp':'',st.sel===r.l?'sel':''].filter(Boolean).join(' ');
+    h+=`<tr class="${cls}" data-l="${r.l}"><td>${r.l}${r.mark?'<span class="dot"></span>':''}${l2?`<div class="l2">${l2}</div>`:''}</td><td class="v"><span>${r.a||''}</span></td><td class="v"><span>${r.b||''}</span></td></tr>`;
+  }
+  return h+'</tbody></table>';
+}
+
+function work(){
+  const w=$('#work');
+  if(st.page==='sofp'){
+    const empt=st.order==='template'&&st.look==='after'?`<button class="switch ${st.empties?'on':''}" id="emp"><i></i>Empty fields</button>`:'';
+    w.innerHTML=`<div class="ph"><h2>Financial position</h2>${empt}
+      <span class="seg" id="ord"><button data-v="report" class="${st.order==='report'?'on':''}">Report</button><button data-v="template" class="${st.order==='template'?'on':''}">Template</button></span>
+      <span class="seg" id="flt"><button data-v="all" class="${st.filter==='all'?'on':''}">All</button><button data-v="attention" class="${st.filter==='attention'?'on':''}">Needs attention</button></span></div>
+      <div class="pb">${grid()}</div>`;
+    seg('#ord','order');seg('#flt','filter');
+    if($('#emp'))$('#emp').onclick=()=>{st.empties=!st.empties;draw()};
+    w.querySelector('tbody').onclick=e=>{const tr=e.target.closest('tr.line');if(!tr)return;st.sel=tr.dataset.l;st.tab='source';draw()};
+  } else if(st.page==='checks'){
+    const before=st.look==='before';
+    w.innerHTML=`<div class="ph"><h2>Checks</h2></div><div class="pb">${CHECKS.map((c,i)=>`<div class="item" data-i="${i}" style="${before?'border-bottom:1px solid var(--line)':''}">
+      <div class="t"><span>${c.t}</span>${c.ok?'<span style="color:var(--muted)">Passed</span>':'<span class="fail">Failed</span>'}</div>
+      ${c.p&&(before||st.open==='c'+i)?`<p>${c.p}</p>`:''}</div>`).join('')}</div>`;
+    w.querySelector('.pb').onclick=e=>{const d=e.target.closest('.item');if(!d)return;st.open=st.open==='c'+d.dataset.i?null:'c'+d.dataset.i;draw()};
+  } else {
+    const before=st.look==='before';
+    w.innerHTML=`<div class="ph"><h2>Directors' report</h2>${before?'<span style="color:var(--muted)">22 fields</span>':''}</div>
+      <div class="pb">${before?'<p style="color:var(--muted);margin:0 0 var(--s4)">Choose a field to see its page and change it.</p>':''}
+      <table class="${before?'before':''}"><tbody>${REPORT.map(([k,v])=>`<tr class="line"><td>${k}</td><td style="width:320px">${v||(before?'<span style="color:var(--muted)">○ Not read yet</span>':'')}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+}
+
+function side(){
+  const s=$('#side');const before=st.look==='before';
+  const t=(id,l,n)=>`<button data-t="${id}" class="${st.tab===id?'on':''}">${l}${n?`<span class="count">${n}</span>`:''}</button>`;
+  let body='';
+  if(st.tab==='needs'){
+    body=NEEDS.map((n,i)=>`<div class="item" data-i="${i}" style="${before?'background:var(--tint);border-radius:12px;padding:12px;margin-bottom:8px':''}">
+      <div class="t"><span>${n.t}</span>${n.fail?'<span class="fail">Failed</span>':''}</div>${before||st.open==='n'+i?`<p>${n.p}</p>`:''}</div>`).join('')
+      +(before?'<p class="empty">1,065 other figures passed their checks</p>':'');
+  } else if(st.tab==='source'){
+    const r=SOFP.find(x=>x.l===st.sel)||TPL.find(x=>x.l===st.sel);
+    if(!r){body=before?'<p class="empty">Choose a figure to see its source.</p>':''}
+    else body=`<h3 style="font-size:14px">${r.l}</h3><div class="kv"><span>This year</span><span style="font-family:var(--mono)">${r.a||''}</span>${r.filed&&r.filed!==r.l?`<span>Filed as</span><span>${r.filed}</span>`:''}${r.p?`<span>Page</span><span>${r.p}</span>`:''}</div>
+      <div class="acts" ${before?'style="gap:8px"':''}>${['Recheck','Wrong field','Wrong sign','Should be split'].map(a=>`<button ${before?'style="border:1px solid var(--edge);border-radius:999px;padding:4px 12px"':''}>${a}</button>`).join('')}</div>
+      <textarea placeholder="Comment for the agent"></textarea>`;
+  } else body='';
+  s.innerHTML=`<div class="tabs">${t('needs','Needs you',NEEDS.length)}${t('source','Source')}${t('comments','Comments')}${t('activity','Activity')}</div><div class="pb">${body}</div>`;
+  s.querySelector('.tabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;st.tab=b.dataset.t;draw()};
+  s.querySelector('.pb').onclick=e=>{const d=e.target.closest('.item');if(!d)return;st.open=st.open==='n'+d.dataset.i?null:'n'+d.dataset.i;draw()};
+}
+function draw(){nav();work();side()}
+draw();
+</script>
+</body>
+</html>

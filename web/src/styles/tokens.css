@@ -14,6 +14,7 @@
   --faint: #B5BCC4;
   --skeleton: #E6E9EC;
   --scrim: rgba(20, 20, 19, .36);
+  --scroll: #CBD1D6;
 
   /* Sidebar */
   --nav: #000000;
@@ -22,6 +23,7 @@
   --nav-on: #1F1F1F;
   --nav-group: #6B7280;
   --nav-accent: #FE7C39;
+  --nav-scroll: #3A3A3A;
 
   /* Accent */
   --accent: #FD5108;
@@ -47,6 +49,12 @@
 
   /* Sizes */
   --sidebar-w: 232px;
+  --sidebar-min-w: 184px;
+  --sidebar-max-w: 360px;
+  --splitter-w: 12px;
+  --work-min-w: 480px;
+  --run-side-min-w: 320px;
+  --setup-side-min-w: 360px;
   --page-min-w: 1280px;
   --narrow-w: 880px;
   --dialog-w: 520px;
@@ -57,6 +65,7 @@
   --grid-head-h: 32px;
   --grid-num-w: 124px;
   --grid-num-narrow-w: 112px;
+  --grid-label-min-w: 240px;
   --grid-status-w: 112px;
   --field-label-w: 88px;
   --kbd: 24px;
@@ -135,18 +144,14 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --weight-regular: 400;
   --weight-medium: 500;
-  --text-xs: 11px;
   --text-sm: 12px;
-  --text-md: 13px;
   --text: 14px;
   --text-lg: 16px;
   --text-xl: 22px;
-  --text-stat: 24px;
   --leading-sm: 18px;
   --leading: 20px;
   --leading-lg: 24px;
   --leading-xl: 28px;
-  --leading-stat: 32px;
   --tracking-xl: -.015em;
   --tracking-lg: -.005em;
 

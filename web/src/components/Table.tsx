@@ -25,7 +25,7 @@ export interface TableProps<T> {
   empty?: ReactNode;
 }
 
-/** Thin row lines and no vertical lines. Only a row that opens something looks clickable. */
+/** No row or vertical lines. Only a row that opens something looks clickable. */
 export function Table<T>({ columns, rows, rowKey, onRowClick, rowClickable, header = true, empty }: TableProps<T>) {
   const clickable = (row: T) => onRowClick !== undefined && (rowClickable ? rowClickable(row) : true);
   return (

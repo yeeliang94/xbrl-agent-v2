@@ -120,7 +120,7 @@ describe("Placement map", () => {
       within(judgements).getByText("Empty").closest("[data-kind]"),
     ).toHaveAttribute("data-kind", "check");
 
-    fireEvent.click(screen.getByRole("radio", { name: "Needs a look 3" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Needs you" }));
     expect(
       screen.queryByText("Revenue", { selector: ".pt" }),
     ).not.toBeInTheDocument();

@@ -82,10 +82,7 @@ export function PlacementSide({
 }: PlacementSideProps) {
   const [query, setQuery] = useState("");
   const [browse, setBrowse] = useState<string | null>(null);
-  if (!note)
-    return (
-      <div className="empty">Pick a note to see its field and move it</div>
-    );
+  if (!note) return null;
 
   const can = !busy && !working && !placement.saving;
   const flag = flagOf(note, fields);

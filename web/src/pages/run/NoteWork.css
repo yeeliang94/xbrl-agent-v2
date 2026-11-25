@@ -48,7 +48,7 @@
   padding: var(--space-3) var(--space-4);
   margin-bottom: var(--space-3);
   color: var(--muted);
-  font: var(--weight-regular) var(--text-md) / var(--leading) var(--font-sans);
+  font: var(--weight-regular) var(--text-sm) / var(--leading) var(--font-sans);
   text-align: center;
   cursor: pointer;
 }

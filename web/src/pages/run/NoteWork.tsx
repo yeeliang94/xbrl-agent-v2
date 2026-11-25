@@ -84,10 +84,7 @@ function NoteFiguresTable({ figures, sel, comments, onSelect }: { figures: NoteF
         columns={figures.columns}
         rows={figures.rows}
         first="Line in note"
-        labels={(row) => {
-          const printed = row.printed_label || row.label;
-          return [printed, printed !== row.field_label ? `Filed as ${row.field_label}` : ""];
-        }}
+        labels={(row) => row.printed_label || row.label}
         isOn={(row, column) => sel?.kind === "figure" && sel.row === figures.rows.indexOf(row) && sel.column === column.key}
         cellMarked={(row, column) => marked.has(row.cells[column.key]?.figure_id ?? -1)}
         status={(row) => (figureUnsure(row) ? { kind: "attention", word: "Unsure" } : null)}

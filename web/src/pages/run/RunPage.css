@@ -1,5 +1,6 @@
 /* The run screen, as prototypes/review-prototype-v3.html. */
 .run-cols {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
@@ -30,20 +31,30 @@
   text-align: left;
 }
 .grid th.n { text-align: right; }
-.grid td { height: var(--grid-row-h); padding: 0; border-bottom: var(--hairline) solid var(--line); }
-.grid .l2 { color: var(--muted); font-size: var(--text-md); line-height: var(--leading-sm); }
-.grid tr.hd td { font-weight: var(--weight-medium); font-size: var(--text-md); background: var(--tint); border-bottom: 0; height: var(--grid-head-h); padding: 0 var(--space-3); }
-.grid tr.hd td:first-child { border-radius: var(--radius-sm); }
-.grid tr.gap td { height: var(--space-3); border: 0; }
-.grid tr.tot td { font-weight: var(--weight-medium); border-bottom-color: transparent; }
-.grid tr.tot td.v { box-shadow: inset 0 var(--hairline) 0 var(--ink); }
+.grid td { height: var(--grid-row-h); padding: 0; }
+.grid th.lab { width: auto; }
+.grid tr.hd td { font-weight: var(--weight-medium); padding: var(--space-5) var(--space-3) var(--space-1); }
+.grid tr.hd.first td { padding-top: var(--space-2); }
+.grid tr.tot td { font-weight: var(--weight-medium); }
+/* A rule above a total's figures only, the width of the figure. */
+.grid tr.rule td.v .cell-btn > span { display: block; padding-top: var(--space-1); border-top: var(--hairline) solid var(--ink); }
 .grid tr.emp td { color: var(--faint); }
-.grid tr:not(.hd):not(.gap):hover td { background: var(--tint); }
-.grid tr.rsel td { background: var(--accent-soft); }
-.grid td.v { text-align: right; font-family: var(--font-mono); font-size: var(--text-md); font-variant-numeric: tabular-nums; position: relative; }
-.grid td.v.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 var(--dot-ring) var(--accent); }
+/* Many figure columns (changes in equity): the line names stay pinned while the figures scroll sideways. */
+.grid.wide th.lab, .grid.wide td.lab { position: sticky; left: 0; z-index: 2; background: var(--panel); width: var(--grid-label-min-w); }
+.grid.wide th.lab { z-index: 3; }
+.grid tr:not(.hd):hover td { background: var(--tint); }
+.grid tr.rsel td, .grid.wide tr.rsel td.lab { background: var(--accent-soft); }
+.grid.wide tr:not(.hd):not(.rsel):hover td.lab { background: var(--tint); }
+.grid td.v { text-align: right; font-family: var(--font-mono); font-size: var(--text); font-variant-numeric: tabular-nums; position: relative; }
+/* The selected figure's ring sits on its rounded button, the same shape as the hover box. */
+.grid td.v.sel .cell-btn { background: var(--accent-soft); box-shadow: inset 0 0 0 var(--dot-ring) var(--accent); }
+/* A figure opened from a list pulses once so the eye finds it. */
+@media (prefers-reduced-motion: no-preference) {
+  .grid.arrived td.v.sel .cell-btn { animation: arrive 1.2s var(--ease); }
+}
+@keyframes arrive { from { box-shadow: inset 0 0 0 var(--space-1) var(--accent); } }
 .grid td.v.mk::after { content: ""; position: absolute; top: var(--space-1); right: var(--mark-inset); width: var(--dot); height: var(--dot); border-radius: var(--radius-round); background: var(--accent); }
-.grid td.lab.mk .lab-btn > div:first-child::after {
+.grid td.lab.mk .lab-name::after {
   content: "";
   display: inline-block;
   width: var(--dot);
@@ -53,7 +64,7 @@
   margin-left: var(--space-2);
   vertical-align: middle;
 }
-.grid td.st { text-align: right; }
+.grid .row-status { margin-left: var(--space-2); white-space: nowrap; }
 .lab-btn, .cell-btn {
   display: block;
   width: 100%;
@@ -67,9 +78,12 @@
   text-align: inherit;
 }
 .cell-btn { padding: 0 var(--space-3); }
+/* The figure or line name under the pointer gets its own box, so it reads as something to click; the row
+   keeps its faint tint so the eye can follow it across (prototypes/cell-hover-prototype.html). */
+.lab-btn, .cell-btn { border-radius: var(--radius-sm); transition: background var(--fast), box-shadow var(--fast); }
+.grid tr:not(.rsel) button.lab-btn:hover, .grid td.v:not(.sel) .cell-btn:hover { background: var(--panel); box-shadow: inset 0 0 0 var(--hairline) var(--edge); }
 .lab-btn:focus-visible, .cell-btn:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: calc(-1 * var(--focus-ring)); }
 .check-text { padding: var(--space-2) 0; }
-.check-text .l2 { color: var(--muted); font-size: var(--text-md); }
 
 /* The side panel */
 .tabs { flex: none; height: var(--work-head-h); display: flex; align-items: center; gap: var(--space-5); padding: 0 var(--space-5); }
@@ -99,16 +113,16 @@
 .why { color: var(--muted); }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip {
-  height: var(--control-sm-h);
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-pill);
-  border: var(--hairline) solid var(--edge);
+  border: 0;
   background: none;
+  padding: var(--space-1) 0;
+  margin-right: var(--space-4);
+  font: inherit;
+  color: var(--muted);
   cursor: pointer;
-  font-size: var(--text-md);
-  transition: background var(--fast);
+  transition: color var(--fast);
 }
-.chip:hover { background: var(--tint); }
+.chip:hover { color: var(--ink); }
 .chip:focus-visible, .loc:focus-visible, .lk:focus-visible, .pgc:focus-visible, .fold:focus-visible, .nyi:focus-visible, .alike-line:focus-visible {
   outline: var(--focus-ring) solid var(--ink);
   outline-offset: var(--focus-ring);
@@ -122,10 +136,11 @@ button.loc { border: 0; background: none; padding: 0; cursor: pointer; text-alig
 
 /* Needs you */
 .nyi {
-  background: var(--tint);
+  background: none;
   border: 0;
-  border-radius: var(--radius);
-  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 calc(-1 * var(--space-3));
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -133,12 +148,11 @@ button.loc { border: 0; background: none; padding: 0; cursor: pointer; text-alig
   font: inherit;
   color: inherit;
   transition: background var(--fast);
-  animation: pop .3s var(--ease);
 }
 button.nyi { cursor: pointer; }
-button.nyi:hover { background: var(--bg); }
+button.nyi:hover { background: var(--tint); }
 .nyi .dh { width: 100%; }
-.nyi-title { font-weight: var(--weight-medium); }
+.nyi-title { min-width: 0; }
 .alike { display: flex; flex-direction: column; gap: var(--space-1); }
 .alike-line { display: flex; flex-direction: column; border: 0; background: none; padding: var(--space-1) 0; text-align: left; cursor: pointer; font: inherit; color: inherit; border-radius: var(--radius-sm); }
 .alike-line:hover span:first-child { text-decoration: underline; text-underline-offset: var(--underline-offset); }
@@ -187,7 +201,7 @@ button.nyi:hover { background: var(--bg); }
 .compare { display: flex; flex-direction: column; gap: var(--space-6); }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
 .stat { background: var(--tint); border-radius: var(--radius); padding: var(--space-4); }
-.stat b { display: block; font-weight: var(--weight-medium); font-size: var(--text-stat); line-height: var(--leading-stat); font-family: var(--font-mono); }
+.stat b { display: block; font-weight: var(--weight-medium); font-size: var(--text-xl); line-height: var(--leading-xl); font-family: var(--font-mono); }
 .stat span { color: var(--muted); }
 .page-in { width: var(--note-page-w); }
 /* The mTool fill dialogs (step 8e). */
@@ -197,10 +211,13 @@ button.nyi:hover { background: var(--bg); }
 .receipt-lines .tbl td:last-child { padding-right: 0; }
 
 /* A report's fields (prototypes/step-10-prototype.html .ftbl) */
+.report-notice { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); margin: 0 0 var(--space-4); }
+.ftbl td { height: var(--grid-row-h); }
+.ftbl tbody tr:hover td { background: var(--tint); }
 .ftbl td.val { max-width: var(--report-value-w); }
 .ftbl td.val .status { margin-left: var(--space-2); }
 .ftbl td.val .status:first-child { margin-left: 0; }
 .ftbl tr.sel td { background: var(--accent-soft); }
 /* Check placements (step 12): the evidence under each place */
 .place { padding: var(--space-3) 0; }
-.place .meta { font-size: var(--text-md); margin-top: var(--space-1); }
+.place .meta { font-size: var(--text-sm); margin-top: var(--space-1); }

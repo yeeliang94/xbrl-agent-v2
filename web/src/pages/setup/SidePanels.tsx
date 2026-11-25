@@ -12,9 +12,7 @@ import { addNote, pagesText, parsePages, parseStatementPages, statementName, typ
 
 export function SourcePanel() {
   return (
-    <Panel title="Source">
-      <p className="meta">Choose a statement to see the page it was found on and why.</p>
-    </Panel>
+    <Panel title="Source">{null}</Panel>
   );
 }
 

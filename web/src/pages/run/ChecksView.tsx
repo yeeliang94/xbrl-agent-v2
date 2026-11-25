@@ -22,9 +22,8 @@ export function ChecksView({ checks, group, busy, onOpen }: { checks: Check[]; g
       key: "check",
       header: "Check",
       render: (c) => (
-        <div className="check-text">
-          <div>{group ? `${c.title}, ${c.entity_scope}` : c.title}</div>
-          {c.status !== "passed" && c.message && <div className="l2">{c.message}</div>}
+        <div className="check-text" title={c.status !== "passed" ? c.message || undefined : undefined}>
+          {group ? `${c.title}, ${c.entity_scope}` : c.title}
         </div>
       ),
     },

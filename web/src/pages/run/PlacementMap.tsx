@@ -21,8 +21,6 @@ export interface PlacementMapProps {
   flags: Map<number, Flag>;
   /** Mandatory fields no note fills and no person left empty. */
   missing: PlaceField[];
-  /** How many notes and fields need a look. */
-  look: number;
   selected: number | null;
   onSelect: (noteId: number) => void;
   placement: Placement;
@@ -37,7 +35,6 @@ export function PlacementMap({
   fields,
   flags,
   missing,
-  look,
   selected,
   onSelect,
   placement,
@@ -89,8 +86,8 @@ export function PlacementMap({
           <Segmented
             label="Show"
             options={[
-              { value: "all", label: `All ${notes.length}` },
-              { value: "look", label: `Needs a look ${look}` },
+              { value: "all", label: "All" },
+              { value: "look", label: "Needs you" },
             ]}
             value={filter}
             onChange={setFilter}

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Report, ReportField, Reports } from "../../api";
 import { Button } from "../../components/Button";
 import { Status } from "../../components/Status";
@@ -24,15 +25,14 @@ function Row({ field, selected, onSelect }: { field: ReportField; selected: bool
 }
 
 /** One report's fields in template order: the label, the value or why it is empty, and the page. */
-export function ReportFields({ report, selected, onSelect }: { report: Report; selected: string | null; onSelect: (fieldId: string) => void }) {
+export function ReportFields({ report, selected, onSelect, notice }: { report: Report; selected: string | null; onSelect: (fieldId: string) => void; notice?: ReactNode }) {
   return (
     <>
       <div className="wh">
         <h2>{report.name}</h2>
-        <span className="spacer" />
-        <span className="meta">{`${report.total} fields`}</span>
       </div>
       <div className="wb">
+        {notice}
         <table className="tbl ftbl">
           <thead>
             <tr>
@@ -90,10 +90,10 @@ export interface ReportWorkProps {
 /** The work panel for a report: its fields, or its wording once opened. */
 function StageLine({ stage }: { stage: Reports["stage"] }) {
   if (stage === null)
-    return <p className="work-failure meta">The Reader found no directors' report, statement by directors or auditors' report, so the reports agent did not run.</p>;
+    return <p className="meta report-notice">Not found in the document</p>;
   if (stage.status !== "failed" && stage.status !== "stopped") return null;
   return (
-    <div className="work-failure" role={stage.status === "failed" ? "alert" : undefined}>
+    <div className="report-notice" role={stage.status === "failed" ? "alert" : undefined}>
       <Status kind={stage.status === "failed" ? "failure" : "neutral"}>{stage.status === "failed" ? "Reports agent failed" : "Reports agent stopped"}</Status>
       {stage.error && <p>{stage.error}</p>}
     </div>
@@ -111,8 +111,7 @@ export function ReportWork({ report, field, text, error, stage, onSelect, onBack
   if (text && field?.kind === "html") return <ReportText field={field} onBack={onBack} />;
   return (
     <>
-      <StageLine stage={stage} />
-      <ReportFields report={report} selected={field?.field_id ?? null} onSelect={onSelect} />
+      <ReportFields report={report} selected={field?.field_id ?? null} onSelect={onSelect} notice={<StageLine stage={stage} />} />
     </>
   );
 }

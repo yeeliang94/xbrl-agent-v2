@@ -27,6 +27,7 @@ import type { Layouts } from "../setup/setupModel";
 import { changedCells, extractionFailed, isBusy, isExtracting, selectionFor, type Selection } from "./runModel";
 import { SidePanel, type Tab } from "./SidePanel";
 import { SourceTab } from "./SourceTab";
+import { useSidePanel } from "../../components/Splitter";
 import { StatementGrid, type Filter, type Order } from "./StatementGrid";
 import { TracesDialog } from "./TracesDialog";
 import { FillDialog } from "./FillDialog";
@@ -42,6 +43,12 @@ const isStatement = (s: Section | null): s is StatementCode => s !== null && !is
 
 /** The run screen: the whole life of a run after setup, from extraction to review and correction. */
 export function RunPage({ runId }: { runId: number; user: User }) {
+  const split = useSidePanel("run-side", "--run-side-w", "--run-side-min-w");
+  // Why the figure opened from Needs you or Checks waits for a person; shown in the Source tab.
+  const [why, setWhy] = useState<string | null>(null);
+  // The figure was opened from a list, not clicked: the grid marks it briefly so the eye finds it, and
+  // gives it the keyboard once, unless the person is moving through Needs you. Each opening has its own id.
+  const [arrival, setArrival] = useState<{ id: number; focus: boolean } | null>(null);
   const [section, setSection] = useState<Section | null>(null);
   const [order, setOrder] = useState<Order>("report");
   const [filter, setFilter] = useState<Filter>("all");
@@ -103,6 +110,8 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   function openSection(next: Section) {
     setSection(next);
     setSelection(null);
+    setWhy(null);
+    setArrival(null);
     setReportField(null);
     setReportText(false);
     if (!busy && next !== "guidance" && next !== "compare") setTab(next === "checks" ? "needs" : "source");
@@ -131,11 +140,30 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   }
 
   function select(next: Selection) {
+    setWhy(null);
+    setArrival(null);
     setSelection(next);
     if (!busy) setTab("source");
   }
 
-  function open(place: FigurePlace) {
+  /** Opens a figure from a list. A failed check's line is a template total, which only the template order
+   * shows, so it opens there with the check's explanation; everything else opens where the report prints it.
+   * `stay` keeps the side panel on Needs you, for moving through that list with the keyboard. */
+  function open(place: FigurePlace, { failure, stay = false }: { failure?: string; stay?: boolean } = {}) {
+    setWhy(failure ?? null);
+    reach(place, failure, stay);
+    if (stay) setTab("needs");
+  }
+
+  /** Escape in the grid: nothing selected, and the side panel back on what needs the person. */
+  function clear() {
+    setSelection(null);
+    setWhy(null);
+    setArrival(null);
+    setTab("needs");
+  }
+
+  function reach(place: FigurePlace, failure?: string, stay = false) {
     if (place.note_id) return showNote({ kind: "note", id: place.note_id });
     if (place.report_id) return showNote({ kind: "missing", id: place.report_id });
     // A comment on the notes as a whole opens the notes list at its first entry.
@@ -143,10 +171,15 @@ export function RunPage({ runId }: { runId: number; user: User }) {
     const fallback = statements[0] ?? "SOFP";
     const target = selectionFor(place, fallback);
     const where = (place.statement ?? fallback) as StatementCode;
-    setSection(statements.includes(where) ? where : fallback);
-    setOrder("report");
+    const into = statements.includes(where) ? where : fallback;
+    // Moving through Needs you keeps the order on screen while the line is in it, so the grid does not
+    // flip between orders and reload at every step.
+    const shown = stay && statement?.statement === into && statement.rows.some((r) => r.concept_uuid === place.concept_uuid);
+    setSection(into);
+    if (!shown) setOrder(failure !== undefined ? "template" : "report");
     setFilter("all");
     setSelection(target);
+    setArrival((a) => ({ id: (a?.id ?? 0) + 1, focus: !stay }));
     setTab("source");
   }
 
@@ -158,7 +191,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
 
   function openCheck(check: Check) {
     const fallback = statements[0] ?? "SOFP";
-    open({ statement: checkStatement(check, fallback), concept_uuid: check.target_concept_uuid, period: check.period, entity_scope: check.entity_scope });
+    open({ statement: checkStatement(check, fallback), concept_uuid: check.target_concept_uuid, period: check.period, entity_scope: check.entity_scope }, { failure: check.message });
   }
 
   async function act(work: () => Promise<unknown>) {
@@ -304,8 +337,10 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   const shownTab = tab ?? "needs";
 
   let body = null;
+  // On the Checks page the failed checks are listed already, so Needs you keeps only the rest.
+  const sideNeeds = section === "checks" && needs ? { ...needs, items: needs.items.filter((i) => i.kind !== "failed_check") } : needs;
   if (shownTab === "needs") {
-    body = <NeedsYouTab needs={needs} extracting={extracting} busy={busy} onOpen={open} onAcceptAlike={() => act(() => api.acceptAlike(runId))} />;
+    body = <NeedsYouTab needs={sideNeeds} extracting={extracting} busy={busy} onOpen={(place, failure, stay) => open(place, { failure, stay })} onAcceptAlike={() => act(() => api.acceptAlike(runId))} others={(sideNeeds?.items.length ?? 0) < (needs?.items.length ?? 0)} onClear={clear} />;
   } else if (shownTab === "comments") {
     body = <CommentsTab runId={runId} comments={comments} rounds={rounds} report={report} working={roundWorking} onOpen={open} onChanged={data.refresh} layouts={layouts} />;
   } else if (shownTab === "activity") {
@@ -317,7 +352,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   } else if (section === "notes" && noteView) {
     body = <NoteSide runId={runId} data={notes} view={noteView} sel={noteSel} onSelect={selectNote} busy={busy} working={notesWorking} onChanged={data.refresh} onOpenNote={(id) => showNote({ kind: "note", id })} />;
   } else if (statement && code) {
-    body = <SourceTab runId={runId} statement={statement} selection={selection} comments={comments} busy={busy} changed={changed} onSelect={setSelection} onChanged={data.refresh} />;
+    body = <SourceTab runId={runId} statement={statement} selection={selection} why={why} comments={comments} busy={busy} changed={changed} onSelect={select} onChanged={data.refresh} />;
   }
 
   return (
@@ -341,7 +376,8 @@ export function RunPage({ runId }: { runId: number; user: User }) {
         )}
         {action}
       </div>
-      <div className="run-cols">
+      <div className="run-cols" ref={split.ref} style={split.style}>
+        {split.splitter}
         <section className="panel work">
           {asking && question && (
             <div className="ask">
@@ -406,7 +442,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
               }}
             />
           ) : section === "placement" ? (
-            <PlacementMap notes={notes.notes} fields={mapFields} flags={mapFlags} missing={mapMissing} look={mapLook} selected={mapNote} onSelect={pickOnMap} placement={placement} busy={busy} working={notesWorking} />
+            <PlacementMap notes={notes.notes} fields={mapFields} flags={mapFlags} missing={mapMissing} selected={mapNote} onSelect={pickOnMap} placement={placement} busy={busy} working={notesWorking} />
           ) : section === "notes" && noteView ? (
             <NoteWork
               runId={runId}
@@ -435,12 +471,14 @@ export function RunPage({ runId }: { runId: number; user: User }) {
               comments={comments}
               changed={changed}
               selection={selection}
+              arrival={arrival}
               onSelect={select}
+              onClear={clear}
               busy={busy}
             />
           )}
         </section>
-        <SidePanel tab={shownTab} counts={{ needs: extracting ? 0 : needs?.items.length ?? 0, comments: live.length }} onTab={setTab}>
+        <SidePanel tab={shownTab} counts={{ needs: extracting ? 0 : sideNeeds?.items.length ?? 0, comments: live.length }} onTab={setTab}>
           {body}
         </SidePanel>
       </div>

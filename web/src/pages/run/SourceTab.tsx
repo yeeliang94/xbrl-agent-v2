@@ -28,6 +28,8 @@ export interface SourceTabProps {
   runId: number;
   statement: Statement;
   selection: Selection;
+  /** Why this figure was opened from Needs you or Checks, said above it. */
+  why?: string | null;
   comments: Comment[];
   busy: boolean;
   changed: Set<string>;
@@ -36,7 +38,7 @@ export interface SourceTabProps {
 }
 
 /** The Source tab: the selected figure, line or statement, then its page. */
-export function SourceTab({ runId, statement, selection, comments, busy, changed, onSelect, onChanged }: SourceTabProps) {
+export function SourceTab({ runId, statement, selection, why, comments, busy, changed, onSelect, onChanged }: SourceTabProps) {
   const found = findCell(statement, selection);
   const line = findLine(statement, selection);
   const fields = useFields(runId, statement.statement, !busy && (found !== null || line !== null));
@@ -53,6 +55,7 @@ export function SourceTab({ runId, statement, selection, comments, busy, changed
   if (found) {
     return (
       <>
+        {why && <p className="why">{why}</p>}
         <FigureDetail key={`${found.row.concept_uuid}|${found.column.key}`} row={found.row} column={found.column} {...props} />
         <PagePicture runId={runId} page={found.row.page ?? firstPage} />
       </>
@@ -65,6 +68,7 @@ export function SourceTab({ runId, statement, selection, comments, busy, changed
     const withFigure = statement.columns.map((c) => cellPlace(statement, line, c)).find((p) => p.figure_id !== null);
     return (
       <>
+        {why && <p className="why">{why}</p>}
         <div className="det">
           <div className="dh">
             <h3>{line.field_label}</h3>
@@ -105,6 +109,7 @@ export function SourceTab({ runId, statement, selection, comments, busy, changed
 
   return (
     <>
+      {why && <p className="why">{why}</p>}
       {!busy && (
         <div className="det">
           <div className="dh">

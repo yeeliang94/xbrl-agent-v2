@@ -1,5 +1,6 @@
-import { createContext, useState, type ReactNode } from "react";
+import { createContext, useRef, useState, type ReactNode } from "react";
 import type { User } from "../api";
+import { Splitter, tokenPx, usePanelWidth } from "./Splitter";
 import "./AppShell.css";
 
 export interface NavItem {
@@ -29,8 +30,11 @@ export const NavSlot = createContext<HTMLElement | null>(null);
 /** The black sidebar and the main column. */
 export function AppShell({ user, nav, onLogout, children }: AppShellProps) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const app = useRef<HTMLDivElement>(null);
+  const [sizes] = useState(() => ({ min: tokenPx("--sidebar-min-w", 184), max: tokenPx("--sidebar-max-w", 360), initial: tokenPx("--sidebar-w", 232) }));
+  const [width, setWidth] = usePanelWidth("sidebar", sizes.initial, sizes.min);
   return (
-    <div className="app">
+    <div className="app" ref={app} style={{ ["--sidebar-w" as string]: `${width}px` }}>
       <nav className="nav" aria-label="Main">
         <div className="brand">
           <i aria-hidden="true" />
@@ -53,6 +57,16 @@ export function AppShell({ user, nav, onLogout, children }: AppShellProps) {
           </button>
         </div>
       </nav>
+      <Splitter
+        label="Sidebar width"
+        width={width}
+        min={sizes.min}
+        max={() => sizes.max}
+        panel="start"
+        onChange={setWidth}
+        onPreview={(w) => app.current?.style.setProperty("--sidebar-w", `${w}px`)}
+        at="var(--sidebar-w)"
+      />
       <main className="main">
         <NavSlot.Provider value={slot}>{children}</NavSlot.Provider>
       </main>

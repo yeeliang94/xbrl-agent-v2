@@ -39,7 +39,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .mono {
   font-family: var(--font-mono);
-  font-size: var(--text-md);
+  font-size: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -115,3 +115,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* A name that opens something, in a list row */
 .pick-name { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; border-radius: var(--radius-sm); }
 .pick-name:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: var(--focus-ring); }
+
+/* Thin, quiet scrollbars everywhere: no arrows, a soft thumb on no track. */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
