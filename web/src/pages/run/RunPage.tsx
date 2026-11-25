@@ -9,7 +9,7 @@ import { checkStatement, ChecksView } from "./ChecksView";
 import { CompareView } from "./CompareView";
 import { GuidanceView } from "./GuidanceView";
 import { CommentsTab, liveComments } from "./CommentsTab";
-import { NeedsYouTab } from "./NeedsYouTab";
+import { NeedsYouTab, type OpenOptions } from "./NeedsYouTab";
 import { noteGroups, NOT_PLACED } from "./noteList";
 import type { NoteSelection } from "./noteModel";
 import { NoteSide } from "./NoteSide";
@@ -49,6 +49,8 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   // The figure was opened from a list, not clicked: the grid marks it briefly so the eye finds it, and
   // gives it the keyboard once, unless the person is moving through Needs you. Each opening has its own id.
   const [arrival, setArrival] = useState<{ id: number; focus: boolean } | null>(null);
+  // Counts every opening and is never reset, so no two openings share an id.
+  const arrivals = useRef(0);
   const [section, setSection] = useState<Section | null>(null);
   const [order, setOrder] = useState<Order>("report");
   const [filter, setFilter] = useState<Filter>("all");
@@ -149,10 +151,11 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   /** Opens a figure from a list. A failed check's line is a template total, which only the template order
    * shows, so it opens there with the check's explanation; everything else opens where the report prints it.
    * `stay` keeps the side panel on Needs you, for moving through that list with the keyboard. */
-  function open(place: FigurePlace, { failure, stay = false }: { failure?: string; stay?: boolean } = {}) {
+  function open(place: FigurePlace, { failure, stay = false, comments = false }: OpenOptions = {}) {
     setWhy(failure ?? null);
     reach(place, failure, stay);
     if (stay) setTab("needs");
+    else if (comments) setTab("comments");
   }
 
   /** Escape in the grid: nothing selected, and the side panel back on what needs the person. */
@@ -179,7 +182,8 @@ export function RunPage({ runId }: { runId: number; user: User }) {
     if (!shown) setOrder(failure !== undefined ? "template" : "report");
     setFilter("all");
     setSelection(target);
-    setArrival((a) => ({ id: (a?.id ?? 0) + 1, focus: !stay }));
+    arrivals.current += 1;
+    setArrival({ id: arrivals.current, focus: !stay });
     setTab("source");
   }
 
@@ -340,7 +344,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   // On the Checks page the failed checks are listed already, so Needs you keeps only the rest.
   const sideNeeds = section === "checks" && needs ? { ...needs, items: needs.items.filter((i) => i.kind !== "failed_check") } : needs;
   if (shownTab === "needs") {
-    body = <NeedsYouTab needs={sideNeeds} extracting={extracting} busy={busy} onOpen={(place, failure, stay) => open(place, { failure, stay })} onAcceptAlike={() => act(() => api.acceptAlike(runId))} others={(sideNeeds?.items.length ?? 0) < (needs?.items.length ?? 0)} onClear={clear} />;
+    body = <NeedsYouTab needs={sideNeeds} extracting={extracting} busy={busy} onOpen={open} onAcceptAlike={() => act(() => api.acceptAlike(runId))} others={(sideNeeds?.items.length ?? 0) < (needs?.items.length ?? 0)} onClear={clear} />;
   } else if (shownTab === "comments") {
     body = <CommentsTab runId={runId} comments={comments} rounds={rounds} report={report} working={roundWorking} onOpen={open} onChanged={data.refresh} layouts={layouts} />;
   } else if (shownTab === "activity") {

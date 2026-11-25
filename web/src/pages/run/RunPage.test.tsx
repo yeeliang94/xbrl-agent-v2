@@ -149,6 +149,44 @@ describe("Run screen", () => {
     expect(screen.queryAllByRole("button", { pressed: true })).toHaveLength(0);
   });
 
+  it("gives the keyboard to a figure opened again after Escape", async () => {
+    mockFetch(routes());
+    render(<RunPage runId={1} user={admin} />);
+    fireEvent.click(await screen.findByText("Total assets equal total equity and liabilities"));
+    const cell = await screen.findByRole("button", { name: "Total equity and liabilities, Last year" });
+    await waitFor(() => expect(cell).toHaveFocus());
+    fireEvent.keyDown(cell, { key: "Escape" });
+    fireEvent.click(screen.getByText("Total assets equal total equity and liabilities"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Total equity and liabilities, Last year" })).toHaveFocus());
+  });
+
+  it("opens an agent's comment on the notes as a whole in Comments", async () => {
+    const onNotes = { kind: "agent_comment" as const, title: "The notes", message: "Note 4 repeats note 3.", statement: "NOTES" as const, comment_id: 9 };
+    mockFetch(routes({}, { "GET /api/runs/1/needs-you": { body: { items: [onNotes], passed: 0 } } }));
+    render(<RunPage runId={1} user={admin} />);
+    fireEvent.click(await screen.findByText("The notes"));
+    expect(tab("Comments")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("unfolds the explanation of a check that has no line to open", async () => {
+    const missing = { ...checks[0], name: "socf_cash", title: "Closing cash agrees", status: "not_assessed" as const, message: "The cash flow statement was not filed.", target_concept_uuid: null };
+    const slot = document.createElement("div");
+    document.body.appendChild(slot);
+    mockFetch(routes({}, { "GET /api/runs/1/checks": { body: { checks: [missing] } } }));
+    render(
+      <NavSlot.Provider value={slot}>
+        <RunPage runId={1} user={admin} />
+      </NavSlot.Provider>,
+    );
+    fireEvent.click(await within(slot).findByRole("button", { name: /Checks/ }));
+    const title = await screen.findByRole("button", { name: "Closing cash agrees" });
+    expect(screen.queryByText("The cash flow statement was not filed.")).not.toBeInTheDocument();
+    fireEvent.click(title);
+    expect(screen.getByText("The cash flow statement was not filed.")).toBeInTheDocument();
+    expect(title).toHaveAttribute("aria-expanded", "true");
+    slot.remove();
+  });
+
   it("shows each alike line and accepts them all at once", async () => {
     const fetch = mockFetch(routes({}, { "POST /api/runs/1/needs-you/alike/accept": { body: { items: needs.items.slice(0, 2), passed: 215 } } }));
     render(<RunPage runId={1} user={admin} />);

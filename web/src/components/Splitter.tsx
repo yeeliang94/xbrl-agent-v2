@@ -118,22 +118,35 @@ export function Splitter({ label, width, min, max, panel, onChange, onPreview, a
  * minimum, and the main panel keeps --work-min-w. Spread `style` and `ref` on the two-column container
  * (position: relative) and put `splitter` inside it. */
 export function useSidePanel(key: string, widthToken: string, minToken: string) {
-  const ref = useRef<HTMLDivElement>(null);
+  // The container may appear after a loading screen, so it is tracked as it mounts, not read once.
+  const node = useRef<HTMLDivElement | null>(null);
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    node.current = el;
+    setBox(el);
+  }, []);
   // Sizes from tokens.css, read once.
   const [sizes] = useState(() => ({ min: tokenPx(minToken, 320), initial: tokenPx(widthToken, 420), work: tokenPx("--work-min-w", 480), gap: tokenPx("--space-4", 16) }));
   const { min } = sizes;
   const [width, setWidth] = usePanelWidth(key, sizes.initial, min);
-  const max = () => (ref.current?.clientWidth ?? Infinity) - sizes.work - sizes.gap;
-  // A width kept from a wider window gives way, so the main panel keeps its minimum.
+  const max = () => (node.current?.clientWidth ?? Infinity) - sizes.work - sizes.gap;
+  // A width kept from a wider space gives way, so the main panel keeps its minimum. The container is
+  // watched, not the window: widening the sidebar narrows it too.
   useEffect(() => {
     const fit = () => {
       const most = Math.max(min, max());
       if (width > most) setWidth(most);
     };
     fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  });
+    if (!box || typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", fit);
+      return () => window.removeEventListener("resize", fit);
+    }
+    const watch = new ResizeObserver(fit);
+    watch.observe(box);
+    return () => watch.disconnect();
+    // max reads only the ref and the sizes, which never change.
+  }, [box, width, min, setWidth]);
   const style = { [widthToken]: `${width}px` } as CSSProperties;
   const splitter = (
     <Splitter
@@ -143,7 +156,7 @@ export function useSidePanel(key: string, widthToken: string, minToken: string) 
       max={max}
       panel="end"
       onChange={setWidth}
-      onPreview={(w) => ref.current?.style.setProperty(widthToken, `${w}px`)}
+      onPreview={(w) => node.current?.style.setProperty(widthToken, `${w}px`)}
       at={`calc(var(${widthToken}) + var(--space-4) / 2)`}
     />
   );

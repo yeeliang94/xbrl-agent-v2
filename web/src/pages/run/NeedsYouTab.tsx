@@ -27,13 +27,31 @@ function reason(item: NeedsYouItem): string {
   }
 }
 
+/** How an item opens. A failed check's explanation (`failure`) goes with it to the Source tab; other
+ * figures say theirs there already (an unsure figure's reason, an agent's comment on it). `stay` keeps this
+ * list in view, for the arrow keys. `comments` shows the Comments tab, for an agent's comment on the notes as
+ * a whole, which no note's panel shows. */
+export interface OpenOptions {
+  failure?: string;
+  stay?: boolean;
+  comments?: boolean;
+}
+
+/** What to carry when an item opens. */
+function openOptions(item: NeedsYouItem, stay = false): OpenOptions {
+  return {
+    failure: item.kind === "failed_check" ? item.message : undefined,
+    comments: item.kind === "agent_comment" && item.statement === "NOTES" && !item.note_id && !item.report_id,
+    stay,
+  };
+}
+
 export interface NeedsYouTabProps {
   needs: NeedsYou | null;
   extracting: boolean;
   busy: boolean;
-  /** Opens the item's figure. A failed check's explanation goes with it to the Source tab; other kinds say
-   * theirs there already (an unsure figure's reason, an agent's comment). */
-  onOpen: (place: FigurePlace, failure?: string, stay?: boolean) => void;
+  /** Opens the item's figure. */
+  onOpen: (place: FigurePlace, options?: OpenOptions) => void;
   onAcceptAlike: () => Promise<void>;
   /** Escape: nothing selected. */
   onClear?: () => void;
@@ -104,7 +122,6 @@ export function NeedsYouTab({ needs, extracting, busy, onOpen, onAcceptAlike, on
   if (extracting) return <div className="empty">Shown when the agent finishes</div>;
   if (!needs) return <div className="empty">Loading what needs you</div>;
   const keys = itemKeys(needs.items);
-  const why = (item: NeedsYouItem) => (item.kind === "failed_check" ? item.message : undefined);
   // From an item, the arrow keys move to the next or previous one and open its figure, keeping this list
   // in view; Escape clears the selection. Keys pressed inside an alike group stay with that group.
   function step(event: KeyboardEvent<HTMLDivElement>) {
@@ -123,7 +140,7 @@ export function NeedsYouTab({ needs, extracting, busy, onOpen, onAcceptAlike, on
     if (!next || !item) return;
     event.preventDefault();
     next.focus();
-    onOpen(item, why(item), true);
+    onOpen(item, openOptions(item, true));
   }
   return (
     <div className="nyl" onKeyDown={step}>
@@ -132,7 +149,7 @@ export function NeedsYouTab({ needs, extracting, busy, onOpen, onAcceptAlike, on
         item.kind === "alike" ? (
           <Alike key={`alike-${index}`} item={item} busy={busy} onOpen={onOpen} onAccept={onAcceptAlike} />
         ) : (
-          <button key={keys[index]} type="button" className="nyi" data-i={index} title={item.message} onClick={() => onOpen(item, why(item))}>
+          <button key={keys[index]} type="button" className="nyi" data-i={index} title={item.message} onClick={() => onOpen(item, openOptions(item))}>
             <span className="dh">
               <span className="nyi-title">{item.title}</span>
               <Status kind={item.kind === "note_too_long" || item.kind === "failed_check" ? "failure" : "attention"}>{reason(item)}</Status>
