@@ -110,8 +110,8 @@ def _sections(conn, deps: NotesDeps, family) -> list[tuple[str, str]]:
 
 
 def build_deps(run_id: int, session: str, *, job_id: Optional[int] = None, previews: Optional[dict] = None,
-               max_steps: Optional[int] = None, group: tuple[int, ...] = (), name: Optional[str] = None
-               ) -> tuple[NotesDeps, str]:
+               max_steps: Optional[int] = None, group: tuple[int, ...] = (), name: Optional[str] = None,
+               label: str = "") -> tuple[NotesDeps, str]:
     with db.connect() as conn:
         family = run_family(conn, run_id)
         if family is None or not family.standard:
@@ -125,7 +125,7 @@ def build_deps(run_id: int, session: str, *, job_id: Optional[int] = None, previ
         outline = notes_outline(outline_mod.build_numeric_notes(conn, family), run_note_fields(conn, run_id))
         deps = NotesDeps(run_id=run_id, pdf_path=str(path), page_count=total,
                          contents=reading.page_contents(conn, run_id), family=family, outline=outline,
-                         session=session, name=name or session, max_steps=max_steps or MAX_STEPS[session],
+                         session=session, name=name or session, label=label, max_steps=max_steps or MAX_STEPS[session],
                          job_id=job_id, notes_list=notes_list, group=frozenset(group),
                          previews=previews if previews is not None else {})
         standing = _standing(conn, deps) if session != "look" else []
@@ -147,7 +147,7 @@ def spec(model_id: str, deps: NotesDeps, bench: workbench.Workbench, guidance: s
                           tools=[budgeted(t) for t in TOOLS[deps.session]],
                           output_type=coverage.FinishReport, max_steps=deps.max_steps, max_seconds=MAX_SECONDS,
                           retries=4, thinking=THINKING[deps.session], code_tool=bench.on, history_processor=trimmer,
-                          output_validator=coverage.finish)
+                          output_validator=coverage.finish, agent=deps.label or None)
 
 
 def open_question(run_id: int) -> bool:
@@ -158,10 +158,10 @@ def open_question(run_id: int) -> bool:
 
 async def run_session(run_id: int, session: str, model_id: str, *, job_id: Optional[int] = None, model: Any = None,
                       previews: Optional[dict] = None, should_stop: Callable[[], Any] = lambda: False,
-                      max_steps: Optional[int] = None, group: tuple[int, ...] = (), name: Optional[str] = None
-                      ) -> tuple[loop.AgentOutcome, NotesDeps]:
+                      max_steps: Optional[int] = None, group: tuple[int, ...] = (), name: Optional[str] = None,
+                      label: str = "") -> tuple[loop.AgentOutcome, NotesDeps]:
     deps, message = build_deps(run_id, session, job_id=job_id, previews=previews, max_steps=max_steps, group=group,
-                               name=name)
+                               name=name, label=label)
     guidance = framing.prepare(run_id, "notes")
     bench = workbench.decide(model_id, wanted=session in instructions.WORKBENCH)
     deps.event("workbench", bench.why, {"on": bench.on, "session": deps.name})

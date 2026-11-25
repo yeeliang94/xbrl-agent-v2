@@ -1626,7 +1626,11 @@ Reader's findings (a statement's pages; the notes list's first and last
 page) and scope questions (`asked`, `answered`, `setup_changed`: the
 evidence pages). The activity feed also gains `question_id` on every row:
 the scope question an `asked`, `answered` or `setup_changed` event is
-about, else null.
+about, else null. It also gains `agent` on every row: the name of the
+agent that wrote it when several run side by side (the notes agent's
+sessions, such as "Placing the notes" or "Formatting the notes, 2 of 3"),
+else null. The Activity tab shows one block per agent when a run has more
+than one.
 
 **Stopping extraction**
 

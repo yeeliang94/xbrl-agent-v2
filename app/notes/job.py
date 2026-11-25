@@ -208,19 +208,22 @@ class _Sessions:
             return agent.ASKED_STOP
         return stop_requested(self.run_id)
 
-    async def run(self, session: str, name: str, group: tuple[int, ...] = ()) -> str:
-        """Run one session to its end. Returns how it ended; raises only on an unexpected error."""
+    async def run(self, session: str, name: str, group: tuple[int, ...] = (), label: str = "") -> str:
+        """Run one session to its end. Returns how it ended; raises only on an unexpected error. `label` names it
+        on the activity rows (its title when not given), so sessions running side by side can be told apart."""
         started = time.monotonic()
         self.running.append(name)
         self._working_on()
         title = SESSION_TEXT[session][0]
+        label = label or title
         _event(self.run_id, self.job_id, "session", f"Working on {title.lower()}"
-               + (f" ({len(group)} note(s))." if group else "."), {"session": name, "notes": list(group)})
+               + (f" ({len(group)} note(s))." if group else "."),
+               {"session": name, "agent": label, "notes": list(group)})
         logger.info("Run %s: the notes agent starts its %s session with %s.", self.run_id, name, self.model_id)
         try:
             outcome, deps = await agent.run_session(
                 self.run_id, session, self.model_id, job_id=self.job_id, model=self.model, previews=self.previews,
-                should_stop=self.should_stop, max_steps=self.max_steps, group=group, name=name)
+                should_stop=self.should_stop, max_steps=self.max_steps, group=group, name=name, label=label)
         except BaseException:
             self.broken = True
             raise
@@ -248,7 +251,8 @@ class _Sessions:
             _event(self.run_id, self.job_id, "finished" if finished else "notice",
                    (f"{title}: done" + (f", with {open_points} point(s) left open." if open_points else "."))
                    if finished else f"{title}: partly done. {outcome.message}",
-                   {"session": name, "status": outcome.status, "steps": outcome.steps, "seconds": round(seconds),
+                   {"session": name, "agent": label, "status": outcome.status, "steps": outcome.steps,
+                    "seconds": round(seconds),
                     "unresolved": open_points})
         self.ended[name] = ended
         return ended
@@ -259,7 +263,9 @@ class _Sessions:
         if not groups:
             _event(self.run_id, self.job_id, "notice", "No placed note holds a table, so no formatting session runs.")
             return
-        await _together([self.run("look", f"look-{k}", tuple(g)) for k, g in enumerate(groups, 1)])
+        title = SESSION_TEXT["look"][0]
+        labels = [f"{title}, {k} of {len(groups)}" if len(groups) > 1 else title for k in range(1, len(groups) + 1)]
+        await _together([self.run("look", f"look-{k}", tuple(g), labels[k - 1]) for k, g in enumerate(groups, 1)])
 
 
 async def _together(runs: list) -> None:

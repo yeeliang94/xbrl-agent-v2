@@ -85,6 +85,8 @@ class AgentSpec:
     # Checks the agent's final answer, e.g. that it saved its work first. It
     # raises ModelRetry with one plain sentence to send the agent back.
     output_validator: Optional[Callable[..., Any]] = None
+    # Names this agent on its activity rows (`data["agent"]`) when several run side by side.
+    agent: Optional[str] = None
 
 
 @dataclass
@@ -135,6 +137,8 @@ class _Recorder:
         """A progress row. Same rule as `FiguresDeps.event`: a person reads the message, so field ids become
         names (`Outline.readable`), and the agent's own wording is kept in `data["raw"]` when it changed."""
         try:
+            if self.spec.agent:
+                data = {**(data or {}), "agent": self.spec.agent}
             if self.readable is not None:
                 shown = self.readable(message)
                 if shown != message:
