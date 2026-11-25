@@ -38,8 +38,6 @@ MAX_STEPS = {"placing": 60, "numeric": 40, "look": 30}
 MAX_SECONDS = 30 * 60
 THINKING = {"placing": "medium", "numeric": "medium", "look": "low"}   # judging the look needs less
 PICTURE_BUDGET = 12
-# The sessions that may do arithmetic or checks in the code workbench. The look session only sets formatting.
-WORKBENCH_SESSIONS = frozenset({"placing", "numeric"})
 ASKED_STOP = "Stopped to ask a person about the scope."
 TEXT_TOOLS = frozenset({"read_pages", "search_pages", "show_note_source", "find_note_fields", "show_note_fields",
                         "lookup_definitions", "list_notes"})
@@ -141,8 +139,7 @@ def build_deps(run_id: int, session: str, *, job_id: Optional[int] = None, previ
     return deps, message
 
 
-def spec(model_id: str, deps: NotesDeps, guidance: str = "",
-         bench: workbench.Workbench = workbench.Workbench(False, "")) -> loop.AgentSpec:
+def spec(model_id: str, deps: NotesDeps, bench: workbench.Workbench, guidance: str = "") -> loop.AgentSpec:
     trimmer = history.Trimmer(text_tools=TEXT_TOOLS, saved=lambda _messages: deps.writes > 0,
                               picture_tools=PICTURE_TOOLS, picture_budget=PICTURE_BUDGET)
     return loop.AgentSpec(name=NAME, model_id=model_id,
@@ -166,7 +163,7 @@ async def run_session(run_id: int, session: str, model_id: str, *, job_id: Optio
     deps, message = build_deps(run_id, session, job_id=job_id, previews=previews, max_steps=max_steps, group=group,
                                name=name)
     guidance = framing.prepare(run_id, "notes")
-    bench = workbench.decide(model_id, wanted=session in WORKBENCH_SESSIONS)
+    bench = workbench.decide(model_id, wanted=session in instructions.WORKBENCH)
     deps.event("workbench", bench.why, {"on": bench.on, "session": deps.name})
 
     def stop() -> Any:
@@ -174,7 +171,7 @@ async def run_session(run_id: int, session: str, model_id: str, *, job_id: Optio
             return ASKED_STOP
         return should_stop()
 
-    outcome = await loop.run_agent(spec(model_id, deps, guidance, bench), message, deps=deps, run_id=run_id, job_id=job_id,
+    outcome = await loop.run_agent(spec(model_id, deps, bench, guidance), message, deps=deps, run_id=run_id, job_id=job_id,
                                    model=model, readable=deps.outline.readable, should_stop=stop)
     return outcome, deps
 

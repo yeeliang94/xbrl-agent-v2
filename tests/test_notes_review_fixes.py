@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from pydantic_ai.messages import BinaryContent, ModelRequest, ToolReturnPart
 
 from app import db
+from app.agents import workbench
 from app.notes import agent as notes_agent, instructions as notes_instructions, store
 from app.review import agent as review_agent, comments, instructions as review_instructions
 from tests.notes_agent_helpers import confirmed_notes_run
@@ -32,7 +33,7 @@ def _pictures(messages) -> int:
 def test_earlier_preview_pictures_are_dropped_once_past_the_budget():
     run_id = confirmed_notes_run()
     deps, _ = notes_agent.build_deps(run_id, "look")
-    trimmer = notes_agent.spec("gpt-5.4", deps).history_processor
+    trimmer = notes_agent.spec("gpt-5.4", deps, workbench.Workbench(False, "Off in this test.")).history_processor
     previews = [_preview(f"p{i}") for i in range(notes_agent.PICTURE_BUDGET + 2)]
     assert _pictures(trimmer(previews)) == len(previews)   # nothing goes before the first save
     deps.writes = 1
