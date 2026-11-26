@@ -57,6 +57,16 @@ describe("Where a figure comes from", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
+  it("opens an Excel run's figure on its page picture when its line is not among the sheet's cells", () => {
+    const fetched = mockFetch({});
+    const other = fromWorkbook.rows.find((r) => r.source?.row === null && Object.keys(r.cells).length > 0)!;
+    show(fromWorkbook, { kind: "cell", ...cellPlace(fromWorkbook, other, thisYear) });
+
+    expect(screen.getByText("Source").nextSibling).toHaveTextContent("SOFP");
+    expect(screen.getByAltText(`Page ${other.page}`)).toBeInTheDocument();
+    expect(fetched.mock.calls.some(([url]) => String(url).includes("/sheets/"))).toBe(false);
+  });
+
   it("opens a Word run's figure on its reading-copy page and says the numbers are its own", () => {
     mockFetch({});
     show({ ...sofp, source_kind: "word" }, { kind: "cell", ...cellPlace(sofp, cash, thisYear) });

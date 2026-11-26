@@ -30,7 +30,8 @@ export function SourceLine({ kind, place }: { kind: SourceKind | undefined; plac
  * sheet, otherwise the page picture. */
 export function SourceView({ runId, kind, row, page, cell = null }: { runId: number; kind: SourceKind | undefined; row: StatementRow | null; page: number | null; cell?: string | null }) {
   const source = row?.source;
-  if (kind === "excel" && source) {
+  // A line not found among the sheet's cells (a statement pasted as a picture) is shown on its page.
+  if (kind === "excel" && source && source.row !== null) {
     return <SheetView key={source.sheet} runId={runId} name={source.sheet} place={sourcePlace(kind, row, page, cell)} row={source.row} cell={cell} />;
   }
   return <PagePicture runId={runId} page={page} kind={kind} />;
