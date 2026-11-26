@@ -101,7 +101,7 @@ export function UsersTab({ me }: { me: User }) {
 function AddUserDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (user: AdminUser, temporaryPassword: string) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Role>("preparer");
+  const [role, setRole] = useState<Role>("user");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 

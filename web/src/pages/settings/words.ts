@@ -13,15 +13,15 @@ export function stamp(iso: string): string {
 
 export const firstName = (person: { name: string; email: string }) => person.name.trim().split(/\s+/)[0] || person.email;
 
-export type Role = "admin" | "preparer";
+export type Role = "admin" | "user";
 
 export const ROLES: { id: Role; name: string; may: string }[] = [
-  { id: "admin", name: "Admin", may: "Everything a preparer may do, plus users, settings and the audit log." },
-  { id: "preparer", name: "Preparer", may: "Uploads reports, runs the agents and corrects figures and notes." },
+  { id: "admin", name: "Admin", may: "Everything a user may do, plus users, settings and the audit log." },
+  { id: "user", name: "User", may: "Uploads reports, runs the agents and corrects figures and notes." },
 ];
 
-export const roleOf = (person: { is_admin: boolean }): Role => (person.is_admin ? "admin" : "preparer");
-export const roleName = (role: Role) => (role === "admin" ? "Admin" : "Preparer");
+export const roleOf = (person: { is_admin: boolean }): Role => (person.is_admin ? "admin" : "user");
+export const roleName = (role: Role) => (role === "admin" ? "Admin" : "User");
 
 const ACTIONS: Record<string, string> = {
   user_added: "Added user",
@@ -53,7 +53,7 @@ export const auditPerson = (entry: AuditEntry) => entry.actor_name || entry.acto
 export function auditDetail(entry: AuditEntry): string {
   const detail = entry.detail ?? {};
   const who = entry.target_name || entry.target;
-  const role = (admin: unknown) => (admin ? "admin" : "preparer");
+  const role = (admin: unknown) => (admin ? "admin" : "user");
   switch (entry.action) {
     case "user_added":
       return `${who}, ${role(detail.is_admin)}`;

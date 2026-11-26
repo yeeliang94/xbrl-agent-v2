@@ -50,7 +50,7 @@ describe("Settings sections by role", () => {
     render(<SettingsPage user={odell} />);
     expect(screen.getByRole("heading", { name: "Odell Brambleworth" })).toBeInTheDocument();
     expect(screen.getByText("odell@samplefirm.example")).toBeInTheDocument();
-    expect(screen.getByText("Preparer")).toBeInTheDocument();
+    expect(screen.getByText("User")).toBeInTheDocument();
   });
 });
 
@@ -92,7 +92,7 @@ describe("Users", () => {
     show(mira, "Users", list);
     const row = (await screen.findByText("Jonty Applecross")).closest("tr")!;
     expect(row).toHaveTextContent("jonty@samplefirm.example");
-    expect(row).toHaveTextContent("Preparer");
+    expect(row).toHaveTextContent("User");
     expect(row).toHaveTextContent("Disabled");
     expect(row).toHaveTextContent("Never");
     expect(screen.getByText("Mira Quillfeather").closest("tr")).toHaveTextContent("Admin");
@@ -108,7 +108,7 @@ describe("Users", () => {
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Enter a name and an email.");
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Wren Dapplemoor" } });
     fireEvent.change(within(dialog).getByLabelText("Email"), { target: { value: "wren@samplefirm.example" } });
-    expect(within(dialog).getByRole("radio", { name: "Preparer" })).toHaveAttribute("aria-checked", "true");
+    expect(within(dialog).getByRole("radio", { name: "User" })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(within(dialog).getByRole("radio", { name: "Admin" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Add user" }));
 
@@ -153,7 +153,7 @@ describe("Users", () => {
     const dialog = screen.getByRole("dialog");
     // An admin's own password is changed on Account, so there is no reset here.
     expect(within(dialog).queryByRole("button", { name: "Reset password" })).toBeNull();
-    fireEvent.click(within(dialog).getByRole("radio", { name: "Preparer" }));
+    fireEvent.click(within(dialog).getByRole("radio", { name: "User" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save role" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(refusal);
     fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
@@ -224,10 +224,10 @@ describe("Audit log", () => {
       ["Mira Quillfeather", "Changed setting", "Attempts before lockout: 5 to 10"],
       ["Mira Quillfeather", "Cleared abandoned drafts", "2 runs"],
       ["Mira Quillfeather", "Closed issue", "Issue 11"],
-      ["Mira Quillfeather", "Changed role", "Odell Brambleworth: preparer to admin"],
+      ["Mira Quillfeather", "Changed role", "Odell Brambleworth: user to admin"],
       ["Mira Quillfeather", "Changed own password", ""],
       ["Mira Quillfeather", "Run archived", "12"],
-      ["Mira Quillfeather", "Added user", "Wren Dapplemoor, preparer"],
+      ["Mira Quillfeather", "Added user", "Wren Dapplemoor, user"],
     ]);
     expect(screen.getByText("1–7 of 7")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();

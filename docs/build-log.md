@@ -976,3 +976,12 @@ Five lanes were built side by side in worktrees and merged by hand.
   pages still transcribed by the model though their text is stored.
 - **Not verified:** a real accountant's Excel file; mTool on Windows with first-year and millions files;
   whether the limit warnings change agent behaviour in a long live run; notes comparison on real notes.
+- **Pull request review (pull request 2):** Codex and Greptile findings fixed: Excel amounts round a half
+  away from zero and pick the format section Excel uses (sign, zero, conditions, escaped brackets);
+  pictures in Word table cells are kept; long Excel cells are drawn as paragraphs; file search matches
+  the shown and the saved amount; a sparse workbook's drawn grid is bounded; choosing a sheet no longer
+  drops pages after the tenth; a source cell is left unnamed when two cells could be it.
+- **Builders' choices approved (owner, 26 November 2026):** the two roles are named Admin and User
+  (Preparer renamed); version 0.1.0; the owner or an admin may delete any run that is not working;
+  drafts can be cleared after 7, 30 or 90 days; the upload limit stays at 100 MB; the password minimum
+  stays at 8; stopping one agent on its own and spotting working-paper sheets are not built.
