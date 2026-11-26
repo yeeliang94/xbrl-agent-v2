@@ -273,6 +273,27 @@ def test_a_cell_taller_than_a_page_is_drawn_in_full():
     assert [line.row for line in copy.lines] == [1, 2]
 
 
+def test_pictures_on_a_sheet_are_drawn_and_a_sheet_of_only_a_picture_is_kept():
+    import openpyxl
+    import pymupdf
+    from app.documents.workbook_copy import workbook_copy
+
+    book = openpyxl.Workbook()
+    book.active.title = "SOFP"
+    book.active["A1"] = "Statement of financial position"
+    book.create_sheet("Scanned note")
+    out = io.BytesIO()
+    book.save(out)
+    data = samples.with_pictures(out.getvalue(), {"sheet1.xml": "1,11", "sheet2.xml": "0,0"})
+
+    copy, sheet_list = workbook_copy("pictures.xlsx", data)
+
+    assert [(s["name"], s["used"]) for s in sheet_list] == [("SOFP", True), ("Scanned note", True)]
+    pages = pymupdf.open(stream=copy.pdf, filetype="pdf")
+    assert pages[0].get_images() and "Picture at B12" in pages[0].get_text()
+    assert pages[1].get_images() and "Picture at A1" in pages[1].get_text()
+
+
 def test_a_sparse_workbook_that_would_draw_too_large_a_grid_is_refused(monkeypatch):
     import openpyxl
     from app.documents import workbook_copy as wc

@@ -24,6 +24,7 @@ from lxml import etree
 from openpyxl.utils import get_column_letter, range_boundaries
 
 from app.documents import reading_copy as rc
+from app.documents.sheet_pictures import Picture, sheet_pictures
 from app.documents.source_file import EXCEL, Refused, unreadable
 
 # A workbook with more filled cells than this is no set of statements, and laying it out would take minutes.
@@ -182,12 +183,13 @@ def _sheet_rows(values, formulas) -> tuple[list[tuple[int, list]], list[str], in
     return rows, [get_column_letter(c) for c in sorted(used)], empty
 
 
-def _part(name: str, rows: list[tuple[int, list]], columns: list[str]) -> rc.Part:
+def _part(name: str, rows: list[tuple[int, list]], columns: list[str], pictures: Sequence[Picture] = ()) -> rc.Part:
+    """A sheet as its grid of cells, then the pictures placed on it, each named by the cell it sits on."""
     lines: dict[str, rc.Line] = {}
     size = 9 if len(columns) <= 8 else 7 if len(columns) <= 14 else 6
     head = (f'<table style="font-size:{size}pt"><tr><th class="ref"></th>'
             + "".join(f'<th class="col">{c}</th>' for c in columns) + "</tr>")
-    out, open_table = [f"<h2>{escape(name)}</h2>", head], True
+    out, open_table = [f"<h2>{escape(name)}</h2>"] + ([head] if rows else []), bool(rows)
     for number, cells in rows:
         key = f"r{number}"
         lines[key] = rc.Line(rc.ROW, cells, sheet=name, row=number)
@@ -208,7 +210,11 @@ def _part(name: str, rows: list[tuple[int, list]], columns: list[str]) -> rc.Par
                    + "".join(rc.cell_html(by_column.get(c, "")) for c in columns) + "</tr>")
     if open_table:
         out.append("</table>")
-    return rc.Part(html="".join(out), lines=lines, wide=len(columns) > rc.WIDE_FROM_COLUMNS)
+    for picture in pictures:
+        where = f"Picture at {picture.cell}" if picture.cell else "Picture"
+        out.append(f'<p><b>{where}</b></p><p><img src="{escape(picture.name, quote=True)}"></p>')
+    return rc.Part(html="".join(out), lines=lines, wide=len(columns) > rc.WIDE_FROM_COLUMNS,
+                   pictures={picture.name: picture.data for picture in pictures})
 
 
 def unzipped_too_large(filename: str, data: bytes) -> None:
@@ -260,6 +266,7 @@ def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) ->
         formulas = openpyxl.load_workbook(io.BytesIO(data), data_only=False)
     except Exception as exc:  # noqa: BLE001 - openpyxl raises several types for a broken file
         raise unreadable(filename, EXCEL) from exc
+    pictures = sheet_pictures(data)
     sheets, parts, order = [], {}, []
     total = grid = 0
     for sheet in values.worksheets:
@@ -280,8 +287,9 @@ def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) ->
             raise Refused(f"{filename} spreads its cells over more than {MAX_GRID:,} places, so upload the "
                           "financial statements on their own.")
         info.update(rows=len(rows), empty_formulas=empty)
-        if rows:
-            parts[sheet.title] = _part(sheet.title, rows, columns)
+        placed = pictures.get(sheet.title, [])
+        if rows or placed:
+            parts[sheet.title] = _part(sheet.title, rows, columns, placed)
             order.append(sheet.title)
     # Sheets a person brought in go last, in the order they brought them in.
     order.sort(key=lambda name: list(brought_in).index(name) + 1 if name in brought_in else 0)

@@ -3,6 +3,7 @@ in for real statements (which are never committed)."""
 from __future__ import annotations
 
 import io
+import zipfile
 
 import docx
 import openpyxl
@@ -95,3 +96,38 @@ def excel(*, hidden: bool = True, formula: bool = False, wide: int = 0) -> bytes
         old["A1"], old["B1"] = "Superseded total", 999
         old.sheet_state = "hidden"
     return _saved(book)
+
+
+def with_pictures(workbook: bytes, sheets: dict[str, str]) -> bytes:
+    """A workbook with one picture placed on each named sheet part (such as "sheet2.xml") at the given cell
+    corner ("col,row", both counted from 0), added as Excel writes it: a drawing, its link and the image."""
+    picture = _picture()
+    source, out = zipfile.ZipFile(io.BytesIO(workbook)), io.BytesIO()
+    with zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            data = source.read(info)
+            if info.filename == "[Content_Types].xml":
+                data = data.replace(b"</Types>", b'<Default Extension="png" ContentType="image/png"/>'
+                                    b'<Override PartName="/xl/drawings/drawing1.xml" ContentType='
+                                    b'"application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>')
+            target.writestr(info, data)
+        for number, (part, corner) in enumerate(sheets.items(), start=1):
+            col, row = corner.split(",")
+            target.writestr(f"xl/worksheets/_rels/{part}.rels",
+                            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                            f'<Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+                            f'relationships/drawing" Target="../drawings/drawing{number}.xml"/></Relationships>')
+            target.writestr(f"xl/drawings/drawing{number}.xml",
+                            '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"'
+                            ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+                            ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                            f'<xdr:oneCellAnchor><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff>'
+                            f'<xdr:row>{row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="1" cy="1"/>'
+                            '<xdr:pic><xdr:blipFill><a:blip r:embed="rId1"/></xdr:blipFill></xdr:pic>'
+                            '<xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>')
+            target.writestr(f"xl/drawings/_rels/drawing{number}.xml.rels",
+                            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+                            f'relationships/image" Target="../media/image{number}.png"/></Relationships>')
+            target.writestr(f"xl/media/image{number}.png", picture)
+    return out.getvalue()
