@@ -92,6 +92,9 @@ def test_a_cell_is_shown_as_its_number_format_shows_it():
     assert shown(2.675, "0.00") == "2.68" and shown(0.5, "0") == "1"
     # A negative takes the format's second section, with that section's decimals and brackets.
     assert shown(-1.25, "#,##0;(#,##0.00)") == "(1.25)" and shown(-3, "0;-0") == "-3"
+    # Brackets or a minus the section writes escaped or quoted still mark it negative; padding does not.
+    assert shown(-1234, "#,##0;\\(#,##0\\)") == "(1,234)" and shown(-1234, '#,##0;"("#,##0")"') == "(1,234)"
+    assert shown(-1234, "#,##0;\\-#,##0") == "-1,234" and shown(-1234, "#,##0_);#,##0_)") == "1,234"
     # An amount too long for ordinary decimal arithmetic is still shown in full.
     assert shown(1e30, "#,##0") == "1,000,000,000,000,000,000,000,000,000,000"
     assert shown(1234, '"RM"#,##0') == "1,234"

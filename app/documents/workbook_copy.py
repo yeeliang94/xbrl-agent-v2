@@ -53,6 +53,12 @@ def _section(section: str) -> str:
     return re.sub(r'"[^"]*"|\\.|_.', "", section)
 
 
+def _literal(section: str) -> str:
+    """The characters a format section writes as they are: quoted text and escaped characters such as
+    `\\(`, without padding (`_)` only leaves room) or fill (`*`)."""
+    return re.sub(r'"([^"]*)"|\\(.)|[_*].', lambda m: m.group(1) or m.group(2) or "", section)
+
+
 def _decimals(section: str) -> int | None:
     """The decimal places a format section shows, or None for General."""
     section = _section(section)
@@ -105,7 +111,7 @@ def shown(value: Any, number_format: str = "General") -> str:
         grouped = re.search(r"[0#],[0#]", _section(section)) is not None
         body = f"{rounded:,.{decimals}f}" if grouped else f"{rounded:.{decimals}f}"
         if signed:                   # the section writes the sign itself, as brackets or a minus
-            mark = _section(section)
+            mark = _literal(section)
             body = f"({body})" if "(" in mark else f"-{body}" if "-" in mark else body
         elif value < 0 and rounded != 0:
             body = f"-{body}"
