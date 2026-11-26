@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, errorMessage, type SheetGrid as Grid } from "../api";
 import "./SheetGrid.css";
+import { PagePicture } from "./PagePicture";
 import "./PagePicture.css";
 
 /** A sheet of an Excel run's workbook, loaded once per run and name. `error` is one plain sentence. */
@@ -58,7 +59,8 @@ export function SheetGrid({ sheet, row = null, cell = null }: { sheet: Grid; row
   );
 }
 
-/** A sheet in its frame: where it sits in the workbook above the grid. */
+/** A sheet in its frame: where it sits in the workbook above the grid. A sheet with pictures on it (a
+ * statement pasted as a picture) also shows its reading-copy pages, where the pictures are drawn. */
 export function SheetView({ runId, name, place, row = null, cell = null }: { runId: number; name: string; place?: string; row?: number | null; cell?: string | null }) {
   const { sheet, error } = useSheet(runId, name);
   if (error)
@@ -76,7 +78,11 @@ export function SheetView({ runId, name, place, row = null, cell = null }: { run
           Sheet {sheet.position} of {sheet.count}
         </span>
       </div>
-      <SheetGrid sheet={sheet} row={row} cell={cell} />
+      {sheet.rows.length > 0 && <SheetGrid sheet={sheet} row={row} cell={cell} />}
+      {sheet.pictures > 0 &&
+        Array.from({ length: sheet.last_page - sheet.first_page + 1 }, (_, i) => sheet.first_page + i).map((page) => (
+          <PagePicture key={page} runId={runId} page={page} kind="excel" />
+        ))}
     </div>
   );
 }

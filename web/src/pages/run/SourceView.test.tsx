@@ -26,7 +26,7 @@ const fromWorkbook: Statement = {
 };
 
 const grid: SheetGrid = {
-  name: "SOFP", position: 2, count: 3, columns: ["A", "B", "C"], first_page: 7, last_page: 7,
+  name: "SOFP", position: 2, count: 3, columns: ["A", "B", "C"], first_page: 7, last_page: 7, pictures: 0,
   rows: [{ row: 9, cells: { A: "Cash and bank balances", B: "1,264,900", C: "986,750" } }],
 };
 
@@ -55,6 +55,14 @@ describe("Where a figure comes from", () => {
     expect(marked).toHaveClass("mk");
     expect(screen.getByText("Sheet 2 of 3")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("shows a sheet's reading-copy page below its cells when pictures sit on the sheet", async () => {
+    mockFetch({ "GET /api/runs/1/sheets/SOFP": { body: { sheet: { ...grid, pictures: 1 } } } });
+    show(fromWorkbook, { kind: "cell", ...cellPlace(fromWorkbook, cash, thisYear) });
+
+    expect(await screen.findByText("1,264,900", { selector: "td" })).toHaveClass("mk");
+    expect(screen.getByAltText("Page 7")).toBeInTheDocument();
   });
 
   it("opens an Excel run's figure on its page picture when its line is not among the sheet's cells", () => {

@@ -290,7 +290,7 @@ def test_pictures_on_a_sheet_are_drawn_and_a_sheet_of_only_a_picture_is_kept():
 
     copy, sheet_list = workbook_copy("pictures.xlsx", data)
 
-    assert [(s["name"], s["used"]) for s in sheet_list] == [("SOFP", True), ("Scanned note", True)]
+    assert [(s["name"], s["used"], s["pictures"]) for s in sheet_list] == [("SOFP", True, 1), ("Scanned note", True, 1)]
     pages = pymupdf.open(stream=copy.pdf, filetype="pdf")
     assert pages[0].get_images() and "Picture at B12" in pages[0].get_text()
     assert pages[1].get_images() and "Picture at A1" in pages[1].get_text()

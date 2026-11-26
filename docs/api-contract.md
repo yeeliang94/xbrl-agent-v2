@@ -698,7 +698,7 @@ too, so a reading run can be told apart before its company is known.
   `size_bytes` are the uploaded file's; `page_count` and `pages` are the
   reading copy's for a Word or Excel run.
 - An Excel run's `Document` also has `sheets`, in the workbook's order:
-  `{"name", "hidden", "used", "first_page", "last_page", "rows",
+  `{"name", "hidden", "used", "first_page", "last_page", "rows", "pictures",
   "empty_formulas", "notice"}`. `used` says the sheet is laid out in the
   reading copy, on `first_page` to `last_page`; `notice` is the sentence
   about formulas saved without a result, or null.
@@ -707,7 +707,7 @@ too, so a reading run can be told apart before its company is known.
 
 | Route | Body | Returns |
 |---|---|---|
-| `GET /api/runs/{run_id}/sheets/{name}` | | `{"sheet": {"name", "position", "count", "columns", "first_page", "last_page", "rows": [{"row", "cells": {"B": "1,284,300"}}]}}`: a used sheet's filled cells as shown. 404 "This run has no sheet called <name>." |
+| `GET /api/runs/{run_id}/sheets/{name}` | | `{"sheet": {"name", "position", "count", "columns", "first_page", "last_page", "pictures", "rows": [{"row", "cells": {"B": "1,284,300"}}]}}`: a used sheet's filled cells as shown, and how many pictures sit on it (they are drawn only on its reading-copy pages). 404 "This run has no sheet called <name>." |
 | `POST /api/runs/{run_id}/sheets/bring-in` | `{"sheet"}` | `{"run": Run, "document": Document}`. A hidden sheet is laid out after the pages already read, the run goes back to `reading`, only the new pages are transcribed and the Reader maps the whole workbook again, then the run waits at setup |
 
 - Bring-in refusals, 409: "A sheet can be brought in only while the run

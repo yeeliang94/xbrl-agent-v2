@@ -275,7 +275,7 @@ def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) ->
         hidden = sheet.sheet_state != "visible"
         wanted = not hidden or sheet.title in brought_in
         info = {"name": sheet.title, "hidden": hidden, "used": False, "first_page": None, "last_page": None,
-                "rows": 0, "empty_formulas": 0}
+                "rows": 0, "empty_formulas": 0, "pictures": 0}
         sheets.append(info)
         if not wanted:
             continue
@@ -288,7 +288,7 @@ def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) ->
         if grid > MAX_GRID:
             raise Refused(f"{filename} spreads its cells over more than {MAX_GRID:,} places, so upload the "
                           "financial statements on their own.")
-        info.update(rows=len(rows), empty_formulas=empty)
+        info.update(rows=len(rows), empty_formulas=empty, pictures=len(pictures.get(sheet.title, [])))
         placed = pictures.get(sheet.title, [])
         if rows or placed:
             parts[sheet.title] = _part(sheet.title, rows, columns, placed)

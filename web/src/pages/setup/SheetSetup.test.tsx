@@ -20,7 +20,7 @@ const workbook: RunDocument = {
 };
 
 const grid = (name: string, position: number): SheetGrid => ({
-  name, position, count: 4, columns: ["A", "B", "C"], first_page: position, last_page: position,
+  name, position, count: 4, columns: ["A", "B", "C"], first_page: position, last_page: position, pictures: 0,
   rows: [{ row: 5, cells: { A: "Property, plant and equipment", B: "1,284,300", C: "1,196,450" } }],
 });
 

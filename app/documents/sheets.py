@@ -37,7 +37,8 @@ def sheet_of_page(row: sqlite3.Row, page: Optional[int]) -> Optional[str]:
 
 
 def grid(conn: sqlite3.Connection, run_id: int, name: str) -> Optional[dict]:
-    """One sheet's filled cells as the review screen draws them, or None when the run has no such sheet."""
+    """One sheet's filled cells as the screens draw them, and how many pictures sit on it (drawn only on its
+    reading-copy pages), or None when the run has no such sheet."""
     row = store.document_row(conn, run_id)
     used = sorted(_used(row), key=lambda s: s["first_page"])
     found = next((s for s in used if s["name"] == name), None)
@@ -46,7 +47,7 @@ def grid(conn: sqlite3.Connection, run_id: int, name: str) -> Optional[dict]:
     lines = file_lines.of_run(conn, run_id, sheet=name)
     letters = sorted({cell[0] for line in lines for cell in line.cells}, key=lambda c: (len(c), c))
     return {"name": name, "position": used.index(found) + 1, "count": len(used), "columns": letters,
-            "first_page": found["first_page"], "last_page": found["last_page"],
+            "first_page": found["first_page"], "last_page": found["last_page"], "pictures": found.get("pictures", 0),
             "rows": [{"row": line.row, "cells": {cell[0]: cell[1] for cell in line.cells}} for line in lines]}
 
 

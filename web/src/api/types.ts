@@ -140,6 +140,8 @@ export interface SheetGrid {
   columns: string[];
   first_page: number;
   last_page: number;
+  /** Pictures placed on the sheet: drawn only on its reading-copy pages, not among its cells. */
+  pictures: number;
   rows: { row: number; cells: Record<string, string> }[];
 }
 
