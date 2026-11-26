@@ -296,6 +296,62 @@ def test_pictures_on_a_sheet_are_drawn_and_a_sheet_of_only_a_picture_is_kept():
     assert pages[1].get_images() and "Picture at A1" in pages[1].get_text()
 
 
+def test_a_sheet_row_of_several_long_cells_is_drawn_in_full():
+    import openpyxl
+
+    book = openpyxl.Workbook()
+    for column in range(1, 9):
+        book.active.cell(row=1, column=column, value=" ".join(f"c{column}w{i}" for i in range(150))
+                         + f" end-of-cell-{column}")
+    out = io.BytesIO()
+    book.save(out)
+
+    copy, _ = workbook_copy("eight.xlsx", out.getvalue())
+
+    drawn = "".join(page.get_text() for page in pymupdf.open(stream=copy.pdf, filetype="pdf"))
+    assert all(f"end-of-cell-{column}" in drawn for column in range(1, 9))
+
+
+def test_a_long_cell_squeezed_by_the_other_rows_of_its_sheet_is_drawn_in_full():
+    import openpyxl
+
+    book = openpyxl.Workbook()
+    for row in range(1, 4):
+        for column in range(2, 9):
+            book.active.cell(row=row, column=column, value=" ".join(f"r{row}c{column}w{i}" for i in range(35)))
+    book.active["A4"] = " ".join(f"long{i}" for i in range(400)) + " ENDOFTARGET"
+    out = io.BytesIO()
+    book.save(out)
+
+    copy, _ = workbook_copy("squeezed.xlsx", out.getvalue())
+
+    drawn = "".join(page.get_text() for page in pymupdf.open(stream=copy.pdf, filetype="pdf"))
+    assert "ENDOFTARGET" in drawn
+    assert next(line for line in copy.lines if line.row == 4).page <= copy.page_count
+
+
+def test_a_sheet_picture_the_reading_copy_cannot_draw_is_said_on_its_page_and_at_setup():
+    import openpyxl
+    from app.documents.store import sheet_notice
+
+    book = openpyxl.Workbook()
+    book.active.title = "SOFP"
+    book.active["A1"] = "Statement of financial position"
+    out = io.BytesIO()
+    book.save(out)
+    data = samples.pictures_as_emf(samples.with_pictures(out.getvalue(), {"sheet1.xml": "1,11"}))
+
+    copy, sheet_list = workbook_copy("emf.xlsx", data)
+
+    assert (sheet_list[0]["pictures"], sheet_list[0]["pictures_not_drawn"]) == (1, 1)
+    page = pymupdf.open(stream=copy.pdf, filetype="pdf")[0]
+    assert "A picture at B12 is not shown: it is saved as EMF" in " ".join(page.get_text().split())
+    assert not page.get_images()
+    assert sheet_notice(sheet_list[0]) == ("The sheet SOFP has 1 picture saved in a format the reading copy cannot "
+                                           "draw, so it is not shown. Paste the pictures in again as PNG or JPEG "
+                                           "and upload the workbook again.")
+
+
 def test_a_sparse_workbook_that_would_draw_too_large_a_grid_is_refused(monkeypatch):
     import openpyxl
     from app.documents import workbook_copy as wc

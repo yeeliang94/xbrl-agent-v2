@@ -18,6 +18,7 @@ from app.db import now
 from app.documents import file_lines
 from app.documents.intake import Prepared
 from app.documents.pdf_check import PageFacts
+from app.documents.reading_copy import REDRAW
 from app.documents.source_file import EXCEL, PDF, WORD
 from app.runs import status as run_status, store as runs
 from app.utils.atomic_io import write_bytes_atomic
@@ -96,21 +97,35 @@ def create_run(conn: sqlite3.Connection, upload: Prepared, *, owner_email: str) 
     conn.execute(
         "INSERT INTO events(run_id, source, kind, message, created_at) VALUES (?, 'upload', 'finished', ?, ?)",
         (run_id, _stored_message(upload), stamp))
-    for sheet in upload.sheets or []:
-        if sheet["empty_formulas"]:
-            conn.execute(
-                "INSERT INTO events(run_id, source, kind, message, created_at) VALUES (?, 'upload', 'notice', ?, ?)",
-                (run_id, empty_formulas_sentence(sheet), stamp))
+    notices = [sheet_notice(sheet) for sheet in upload.sheets or []] + [_word_notice(upload.pictures_not_drawn)]
+    for notice in filter(None, notices):
+        conn.execute(
+            "INSERT INTO events(run_id, source, kind, message, created_at) VALUES (?, 'upload', 'notice', ?, ?)",
+            (run_id, notice, stamp))
     start_reading(conn, run_id)
     return run_id
 
 
-def empty_formulas_sentence(sheet: dict) -> str:
-    """What a person is told about formulas Excel saved without a result."""
-    count = sheet["empty_formulas"]
-    return (f"The sheet {sheet['name']} has {_counted(count, 'formula')} saved without a result, so "
-            f"{'they read' if count != 1 else 'it reads'} as empty. Open the workbook in Excel, save it and "
-            "upload it again.")
+def sheet_notice(sheet: dict) -> Optional[str]:
+    """What a person is told about a sheet the reading copy shows only in part: formulas Excel saved
+    without a result, and pictures in a format the reading copy cannot draw. None when there is neither."""
+    out = []
+    if count := sheet.get("empty_formulas", 0):
+        out.append(f"The sheet {sheet['name']} has {_counted(count, 'formula')} saved without a result, so "
+                   f"{'they read' if count != 1 else 'it reads'} as empty. Open the workbook in Excel, save it "
+                   "and upload it again.")
+    if count := sheet.get("pictures_not_drawn", 0):
+        out.append(f"The sheet {sheet['name']} has {_not_drawn(count)} upload the workbook again.")
+    return " ".join(out) or None
+
+
+def _word_notice(count: int) -> Optional[str]:
+    return f"The Word file has {_not_drawn(count)} upload it again." if count else None
+
+
+def _not_drawn(count: int) -> str:
+    return (f"{_counted(count, 'picture')} saved in a format the reading copy cannot draw, so "
+            f"{'they are' if count != 1 else 'it is'} not shown. {REDRAW}")
 
 
 READ_JOB = "read"
@@ -159,8 +174,7 @@ def document(conn: sqlite3.Connection, run_id: int) -> dict:
            "scanned_pages": sum(not p["has_text_layer"] for p in pages),
            "uploaded_by": row["uploaded_by"], "uploaded_at": row["uploaded_at"], "pages": pages}
     if row["kind"] == EXCEL:
-        out["sheets"] = [{**s, "notice": empty_formulas_sentence(s) if s["empty_formulas"] else None}
-                         for s in sheets(row)]
+        out["sheets"] = [{**s, "notice": sheet_notice(s)} for s in sheets(row)]
     return out
 
 

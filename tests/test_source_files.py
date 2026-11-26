@@ -116,6 +116,45 @@ def test_a_picture_in_a_word_list_item_is_drawn_in_the_reading_copy():
     assert pymupdf.open(stream=copy.pdf, filetype="pdf")[0].get_images()
 
 
+def test_a_word_file_of_pictures_alone_is_read_from_its_pages():
+    document = samples.docx.Document()
+    document.add_paragraph().add_run().add_picture(io.BytesIO(samples._picture()))
+    out = io.BytesIO()
+    document.save(out)
+
+    copy = word_copy("scanned.docx", out.getvalue())
+
+    assert copy.page_count == 1 and copy.lines == []
+    assert pymupdf.open(stream=copy.pdf, filetype="pdf")[0].get_images()
+
+
+def test_a_word_picture_the_reading_copy_cannot_draw_is_said_on_its_page_and_on_upload():
+    from app.documents.intake import prepare
+    from app.documents.store import _word_notice
+
+    upload = prepare("emf.docx", samples.pictures_as_emf(samples.word(picture=True)))
+
+    page = pymupdf.open(stream=upload.pdf, filetype="pdf")[0]
+    assert "A picture is not shown: it is saved as EMF" in " ".join(page.get_text().split())
+    assert not page.get_images()
+    assert not any("is not shown" in str(cell) for line in upload.lines for cell in line.cells)
+    assert _word_notice(upload.pictures_not_drawn) == (
+        "The Word file has 1 picture saved in a format the reading copy cannot draw, so it is not shown. Paste the "
+        "pictures in again as PNG or JPEG and upload it again.")
+
+
+def test_a_word_file_of_pictures_the_reading_copy_cannot_draw_is_refused():
+    from app.documents.source_file import Refused
+
+    document = samples.docx.Document()
+    document.add_paragraph().add_run().add_picture(io.BytesIO(samples._picture()))
+    out = io.BytesIO()
+    document.save(out)
+
+    with pytest.raises(Refused, match="emf.docx holds only pictures saved in a format the reading copy cannot draw"):
+        word_copy("emf.docx", samples.pictures_as_emf(out.getvalue()))
+
+
 def test_a_table_row_taller_than_a_page_is_drawn_in_full():
     document = samples.docx.Document()
     table = document.add_table(rows=1, cols=2)
@@ -129,6 +168,35 @@ def test_a_table_row_taller_than_a_page_is_drawn_in_full():
     assert "closing-word" in drawn and "The paragraph after the table." in drawn
     row = next(line for line in copy.lines if line.kind == "row")
     assert row.cells[0] == "Basis of preparation" and row.page == 1
+
+
+def test_a_row_of_several_long_cells_is_drawn_in_full():
+    document = samples.docx.Document()
+    table = document.add_table(rows=1, cols=6)
+    for number, cell in enumerate(table.rows[0].cells):
+        cell.text = " ".join(f"w{number}x{i}" for i in range(170)) + f" end-of-cell-{number}"
+    out = io.BytesIO()
+    document.save(out)
+
+    copy = word_copy("six.docx", out.getvalue())
+
+    drawn = "".join(page.get_text() for page in pymupdf.open(stream=copy.pdf, filetype="pdf"))
+    assert all(f"end-of-cell-{number}" in drawn for number in range(6))
+
+
+def test_a_long_cell_squeezed_by_the_other_rows_of_its_table_is_drawn_in_full():
+    document = samples.docx.Document()
+    table = document.add_table(rows=2, cols=6)
+    table.rows[0].cells[0].text = " ".join(f"token{i}" for i in range(200)) + " ENDOFTARGET"
+    for number, cell in enumerate(table.rows[1].cells):
+        cell.text = f"Heading {number:02}"
+    out = io.BytesIO()
+    document.save(out)
+
+    copy = word_copy("squeezed.docx", out.getvalue())
+
+    drawn = " ".join("".join(page.get_text() for page in pymupdf.open(stream=copy.pdf, filetype="pdf")).split())
+    assert "ENDOFTARGET" in drawn and "Heading 05" in drawn
 
 
 def test_a_wide_table_is_laid_out_on_a_wide_page():
@@ -227,3 +295,76 @@ def test_a_workbook_whose_merged_cells_cover_too_much_is_refused_before_it_is_lo
                 target.writestr(info, data)
         with pytest.raises(Refused, match="merged cells"):
             workbook_copy("merged.xlsx", respelled.getvalue())
+
+
+def _rezipped(data: bytes, change) -> bytes:
+    """The zip with each part passed through `change(name, data)`, which returns the new (name, data) pairs."""
+    source, out = zipfile.ZipFile(io.BytesIO(data)), io.BytesIO()
+    with zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            for name, part in change(info.filename, source.read(info)):
+                target.writestr(name, part)
+    return out.getvalue()
+
+
+def _spare_sheet_workbook() -> bytes:
+    """A workbook whose hidden second sheet keeps eleven empty cells Excel saved for their style."""
+    book = samples.openpyxl.Workbook()
+    book.active["A1"] = "Statement"
+    hidden = book.create_sheet("Spare")
+    hidden.sheet_state = "hidden"
+    for row in range(1, 12):
+        hidden.cell(row=row, column=1).number_format = "0.00"
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
+
+
+def _moved(name: str, data: bytes):
+    """The hidden sheet's part moved out of xl/worksheets/, and the workbook's link and content types with it."""
+    if name == "xl/worksheets/sheet2.xml":
+        return [("xl/elsewhere/sheet2.xml", data)]
+    if name in ("xl/_rels/workbook.xml.rels", "[Content_Types].xml"):
+        return [(name, data.replace(b"worksheets/sheet2.xml", b"elsewhere/sheet2.xml"))]
+    return [(name, data)]
+
+
+def _junk_first(name: str, data: bytes):
+    """An unlinked part that is not XML, placed before the sheets."""
+    return [("xl/worksheets/aaa.xml", b"<not xml"), (name, data)] if name == "[Content_Types].xml" else [(name, data)]
+
+
+@pytest.mark.parametrize("change", [lambda name, data: [(name, data)], _moved, _junk_first],
+                         ids=["as saved", "sheet stored elsewhere", "junk part first"])
+def test_a_workbook_storing_too_many_cells_is_refused_before_it_is_loaded(monkeypatch, change):
+    import openpyxl
+    from app.documents import workbook_copy as wc
+    from app.documents.source_file import Refused
+
+    data = _rezipped(_spare_sheet_workbook(), change)
+    monkeypatch.setattr(wc, "MAX_STORED", 10)
+    loaded = []
+    monkeypatch.setattr(openpyxl, "load_workbook", lambda *a, **k: loaded.append(1))
+
+    with pytest.raises(Refused, match="keeps more than 10 rows and cells, counting the empty ones Excel saved"):
+        wc.workbook_copy("stored.xlsx", data)
+    assert loaded == []
+
+
+def test_a_workbook_of_many_empty_rows_is_refused_before_it_is_loaded(monkeypatch):
+    import openpyxl
+    from app.documents import workbook_copy as wc
+    from app.documents.source_file import Refused
+
+    book = samples.openpyxl.Workbook()
+    book.active["A1"] = "Statement"
+    out = io.BytesIO()
+    book.save(out)
+    rows = b"".join(b'<row r="%d" ht="20" customHeight="1"/>' % n for n in range(2, 13))   # rows with no cells
+    data = _rezipped(out.getvalue(), lambda name, part: [(name, part.replace(b"</sheetData>", rows + b"</sheetData>")
+                                                          if name == "xl/worksheets/sheet1.xml" else part)])
+    monkeypatch.setattr(wc, "MAX_STORED", 12)
+    monkeypatch.setattr(openpyxl, "load_workbook", lambda *a, **k: None)
+
+    with pytest.raises(Refused, match="keeps more than 12 rows and cells"):
+        wc.workbook_copy("rows.xlsx", data)

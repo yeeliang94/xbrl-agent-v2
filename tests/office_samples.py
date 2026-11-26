@@ -131,3 +131,19 @@ def with_pictures(workbook: bytes, sheets: dict[str, str]) -> bytes:
                             f'relationships/image" Target="../media/image{number}.png"/></Relationships>')
             target.writestr(f"xl/media/image{number}.png", picture)
     return out.getvalue()
+
+
+def pictures_as_emf(office_file: bytes) -> bytes:
+    """The same Word or Excel file with its PNG pictures saved as EMF, a format the reading copy cannot draw:
+    each picture's part, its links and the file's content types are renamed."""
+    source, out = zipfile.ZipFile(io.BytesIO(office_file)), io.BytesIO()
+    with zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            data = source.read(info)
+            if info.filename == "[Content_Types].xml":
+                data = data.replace(b'Extension="png" ContentType="image/png"',
+                                    b'Extension="emf" ContentType="image/x-emf"')
+            elif info.filename.endswith(".rels"):
+                data = data.replace(b".png", b".emf")
+            target.writestr(info.filename.replace(".png", ".emf"), data)
+    return out.getvalue()

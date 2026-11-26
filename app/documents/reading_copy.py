@@ -20,6 +20,7 @@ from html import escape
 from typing import Optional
 
 import pymupdf
+from pymupdf import Story
 
 from app.documents.pdf_check import MAX_PAGES
 
@@ -30,8 +31,10 @@ A4_WIDE = pymupdf.paper_rect("a4-l")
 MARGIN = 40
 # A table with more columns than this is laid out on a wide (landscape) page.
 WIDE_FROM_COLUMNS = 8
-# A table row cannot break across pages, so a row with a cell longer than this is drawn as paragraphs.
-LONG_CELL = 1200
+# A table whose rows all hold less text than this is not measured (`table_html`): such a row fills a
+# page only among very many narrow columns.
+MEASURE_FROM = 300
+_COLUMN = 10_000_000             # points: the height a table is measured in
 
 CSS = """
 body { font-family: sans-serif; font-size: 9pt; line-height: 1.3; }
@@ -90,6 +93,70 @@ class ReadingCopy:
     page_count: int
     lines: list[Line]
     part_pages: list[tuple[int, int]]          # each part's first and last page
+    pictures_not_drawn: int = 0                # Word: pictures in a format the reading copy cannot draw
+
+
+def picture_format(content_type_or_name: str) -> str:
+    """A picture's format as a person names it: "image/x-emf" or "image1.emf" is EMF."""
+    return content_type_or_name.rsplit("/", 1)[-1].rsplit(".", 1)[-1].removeprefix("x-").upper() or "unknown"
+
+
+# What a person is asked to do about pictures the reading copy cannot draw.
+REDRAW = "Paste the pictures in again as PNG or JPEG and"
+
+
+def not_drawn(format_name: str, cell: str = "") -> str:
+    """The words drawn where a picture the reading copy cannot draw sits in the file."""
+    where = f" at {cell}" if cell else ""
+    return (f"A picture{where} is not shown: it is saved as {format_name}, which the reading copy cannot draw. "
+            "Open the file itself to see it.")
+
+
+@dataclass
+class Row:
+    """A table row as it is drawn: its HTML element and, for a row too tall for a page, the paragraphs drawn
+    in its place. Both carry the row's line id. `length` is the row's text, which says whether it is measured."""
+    key: str
+    html: str
+    paragraphs: str
+    length: int
+
+
+def table_html(table: str, rows: list[Row], wide: bool = False) -> str:
+    """The rows as a table opened by `table` (its tag, and any heading row). A table row cannot break across
+    pages, so a row taller than a page would be cut off at the page's foot: such a row is drawn as its
+    paragraphs, which can, between the table's other rows. Rows are measured in the table they are drawn in,
+    since the other rows set the column widths; taking a row out changes them, so each table left is
+    measured again."""
+    tall = _too_tall(table, rows, wide)
+    if not tall:
+        return f"{table}{''.join(row.html for row in rows)}</table>" if rows else ""
+    out, piece = [], []
+    for row in rows:
+        if row.key in tall:
+            out += [table_html(table, piece, wide), row.paragraphs]
+            piece = []
+        else:
+            piece.append(row)
+    out.append(table_html(table, piece, wide))
+    return "".join(out)
+
+
+def _too_tall(table: str, rows: list[Row], wide: bool) -> set[str]:
+    """The keys of the rows taller than most of a page, laid out together in one column as tall as needed.
+    A table whose rows are all short is not laid out."""
+    if not any(row.length >= MEASURE_FROM for row in rows):
+        return set()
+    box = A4_WIDE if wide else A4
+    page = box.height - 2 * MARGIN
+    story = Story(html=f"{table}{''.join(row.html for row in rows)}</table>", user_css=CSS)
+    keys, tall, more = {row.key for row in rows}, set(), 1
+    # A row taller than the space it is placed in is not placed at all, so the column is very tall.
+    while more:
+        more, _ = story.place(pymupdf.Rect(MARGIN, MARGIN, box.width - MARGIN, MARGIN + _COLUMN))
+        story.element_positions(lambda position: tall.add(position.id) if position.id in keys
+                                and position.rect[3] - position.rect[1] > page * 0.9 else None)
+    return tall
 
 
 def cell_html(text: str, tag: str = "td", css: str = "") -> str:

@@ -24,6 +24,7 @@ class Prepared:
     pages: list[pdf_check.PageFacts]
     lines: list[Line] = field(default_factory=list)
     sheets: Optional[list[dict]] = None        # Excel only
+    pictures_not_drawn: int = 0                # Word only: Excel counts them by sheet
 
 
 def prepare(filename: str, data: bytes, brought_in: Sequence[str] = ()) -> Prepared:
@@ -48,4 +49,5 @@ def prepare(filename: str, data: bytes, brought_in: Sequence[str] = ()) -> Prepa
     if copy.page_count > pdf_check.MAX_PAGES:
         raise Refused(f"{filename} makes more than {pdf_check.MAX_PAGES} pages, so upload the financial "
                       "statements on their own.")
-    return Prepared(kind, filename, data, copy.pdf, pdf_check.inspect_pdf(copy.pdf), copy.lines, sheets)
+    return Prepared(kind, filename, data, copy.pdf, pdf_check.inspect_pdf(copy.pdf), copy.lines, sheets,
+                    copy.pictures_not_drawn)

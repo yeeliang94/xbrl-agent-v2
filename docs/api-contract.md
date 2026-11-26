@@ -650,8 +650,16 @@ returns 404 `{"detail": "There is no such run."}`.
   "<file> is not a .docx file. Save it as .docx and upload that." (a macro
   or template Word file; the same for `.xlsx`), "<file> is not a PDF, a Word
   document (.docx) or an Excel workbook (.xlsx).", "<file> could not be read
-  as a Word file." (or "as an Excel workbook"), "<file> holds no text or
-  tables to read.", "<file> has no sheet with anything on it to read.",
+  as a Word file." (or "as an Excel workbook"), "<file> holds no text,
+  tables or pictures to read." (a file of pictures alone is read from its
+  pages, as a scanned PDF is; a picture in a format the reading copy cannot
+  draw, such as EMF, shows as a sentence saying so on its page, and the run
+  gets an upload notice), "<file> holds only pictures saved in a format the
+  reading copy cannot draw. Paste the pictures in again as PNG or JPEG and
+  upload it again.", "<file> keeps more than 500,000 rows and cells,
+  counting the empty ones Excel saved, so upload the financial statements
+  on their own." (counted across every sheet the workbook links, before it
+  is loaded), "<file> has no sheet with anything on it to read.",
   "<file> makes more than 500 pages, so upload the financial statements on
   their own.", "<file> unpacks to more than 300 MB, so upload the financial
   statements on their own." (checked before the file is parsed), "This file is empty.", "<file> is <n> MB. The largest file a
@@ -699,9 +707,12 @@ too, so a reading run can be told apart before its company is known.
   reading copy's for a Word or Excel run.
 - An Excel run's `Document` also has `sheets`, in the workbook's order:
   `{"name", "hidden", "used", "first_page", "last_page", "rows", "pictures",
-  "empty_formulas", "notice"}`. `used` says the sheet is laid out in the
-  reading copy, on `first_page` to `last_page`; `notice` is the sentence
-  about formulas saved without a result, or null.
+  "pictures_not_drawn", "empty_formulas", "notice"}`. `used` says the sheet
+  is laid out in the reading copy, on `first_page` to `last_page`;
+  `pictures` counts every picture placed on it, `pictures_not_drawn` those
+  saved in a format the reading copy cannot draw (EMF, WMF), which show
+  there as a sentence saying so; `notice` is the sentence about formulas
+  saved without a result and pictures not drawn, or null.
 
 ### An Excel run's sheets
 

@@ -128,7 +128,7 @@ export interface WorkbookSheet {
   last_page: number | null;
   rows: number;
   empty_formulas: number;
-  /** What to tell the person when formulas were saved without a result, or null. */
+  /** What to tell the person when formulas were saved without a result or pictures cannot be drawn, or null. */
   notice: string | null;
 }
 

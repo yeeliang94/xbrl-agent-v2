@@ -985,3 +985,12 @@ Five lanes were built side by side in worktrees and merged by hand.
   (Preparer renamed); version 0.1.0; the owner or an admin may delete any run that is not working;
   drafts can be cleared after 7, 30 or 90 days; the upload limit stays at 100 MB; the password minimum
   stays at 8; stopping one agent on its own and spotting working-paper sheets are not built.
+- **Full five-axis review by Codex (27 November 2026):** five findings, all fixed. A table row is measured
+  in the table it is drawn in, and one too tall for a page is drawn as paragraphs (several long cells, or
+  a long cell squeezed by the other rows, were cut off); a workbook's rows and cells are counted across
+  every sheet it links before it is loaded, and a sheet that cannot be read is refused; a Word file of
+  pictures alone is read from its pages; a picture in a format the reading copy cannot draw (EMF, WMF)
+  shows as a sentence on its page and an upload notice, not dropped unseen; a redo ends when its
+  statement is answered "not printed" and stays ended once finished, while keeping a person's figures
+  through other setup changes. The fixes had their own big-tier review (three specialists and Codex);
+  its findings are in the list above, and the fixes to them were not reviewed again.

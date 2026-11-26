@@ -24,7 +24,7 @@ from lxml import etree
 from openpyxl.utils import get_column_letter, range_boundaries
 
 from app.documents import reading_copy as rc
-from app.documents.sheet_pictures import Picture, sheet_pictures
+from app.documents.sheet_pictures import Picture, sheet_parts, sheet_pictures
 from app.documents.source_file import EXCEL, Refused, unreadable
 
 # A workbook with more filled cells than this is no set of statements, and laying it out would take minutes.
@@ -32,6 +32,8 @@ MAX_CELLS = 200_000
 # Each sheet is drawn as a grid of its used rows by its used columns, empty places included, so a few
 # cells far apart would draw millions. This bounds the grid across the workbook.
 MAX_GRID = 1_000_000
+# The rows and cells a workbook's XML may store, empty ones included, before it is loaded (`too_many_stored`).
+MAX_STORED = 500_000
 NO_RESULT = "[no saved result]"
 # A Word or Excel file is a zip; its parts unpacked may be far larger than the upload.
 MAX_UNZIPPED = 300 * 1024 * 1024
@@ -189,34 +191,29 @@ def _part(name: str, rows: list[tuple[int, list]], columns: list[str], pictures:
     """A sheet as its grid of cells, then the pictures placed on it, each named by the cell it sits on."""
     lines: dict[str, rc.Line] = {}
     size = 9 if len(columns) <= 8 else 7 if len(columns) <= 14 else 6
+    wide = len(columns) > rc.WIDE_FROM_COLUMNS
     head = (f'<table style="font-size:{size}pt"><tr><th class="ref"></th>'
             + "".join(f'<th class="col">{c}</th>' for c in columns) + "</tr>")
-    out, open_table = [f"<h2>{escape(name)}</h2>"] + ([head] if rows else []), bool(rows)
+    grid = []
     for number, cells in rows:
         key = f"r{number}"
         lines[key] = rc.Line(rc.ROW, cells, sheet=name, row=number)
-        if max(len(text) for _, text, _ in cells) > rc.LONG_CELL:
-            # A table row cannot break across pages, so a row taller than a page would be cut off. It is
-            # drawn as paragraphs, each cell named, which can; the grid picks up again after it.
-            if open_table:
-                out.append("</table>")
-            out.append(f'<div id="{key}">' + "".join(f"<p><b>{letter}{number}</b> {escape(text)}</p>"
-                                                    for letter, text, _ in cells) + "</div>")
-            open_table = False
-            continue
-        if not open_table:
-            out.append(head)
-            open_table = True
         by_column = {letter: text for letter, text, _ in cells}
-        out.append(f'<tr id="{key}"><td class="ref">{number}</td>'
-                   + "".join(rc.cell_html(by_column.get(c, "")) for c in columns) + "</tr>")
-    if open_table:
-        out.append("</table>")
+        # A row too tall for a page is drawn as paragraphs, each cell named (`rc.table_html`).
+        grid.append(rc.Row(key, f'<tr id="{key}"><td class="ref">{number}</td>'
+                           + "".join(rc.cell_html(by_column.get(c, "")) for c in columns) + "</tr>",
+                           f'<div id="{key}">' + "".join(f"<p><b>{letter}{number}</b> {escape(text)}</p>"
+                                                         for letter, text, _ in cells) + "</div>",
+                           sum(len(text) for _, text, _ in cells)))
+    out = [f"<h2>{escape(name)}</h2>", rc.table_html(head, grid, wide)]
     for picture in pictures:
+        if not picture.data:
+            out.append(f"<p><i>{escape(rc.not_drawn(picture.format, picture.cell))}</i></p>")
+            continue
         where = f"Picture at {picture.cell}" if picture.cell else "Picture"
         out.append(f'<p><b>{where}</b></p><p><img src="{escape(picture.name, quote=True)}"></p>')
-    return rc.Part(html="".join(out), lines=lines, wide=len(columns) > rc.WIDE_FROM_COLUMNS,
-                   pictures={picture.name: picture.data for picture in pictures})
+    return rc.Part(html="".join(out), lines=lines, wide=wide,
+                   pictures={picture.name: picture.data for picture in pictures if picture.data})
 
 
 def unzipped_too_large(filename: str, data: bytes) -> None:
@@ -232,37 +229,53 @@ def unzipped_too_large(filename: str, data: bytes) -> None:
                       "financial statements on their own.")
 
 
-def merged_too_large(filename: str, data: bytes) -> None:
-    """Refuse a workbook whose merged ranges cover more than `MAX_CELLS` cells, before it is loaded:
-    openpyxl makes one cell for every merged position, so a small file could fill the memory."""
-    covered = 0
+def too_many_stored(filename: str, data: bytes) -> None:
+    """Refuse a workbook that would fill the memory, before it is loaded. openpyxl makes an object for every
+    row and cell a sheet's XML stores, empty ones too, and one for every merged position, so a small file
+    could hold millions; and the workbook is loaded twice (values, then formulas). Every sheet the workbook
+    links is counted, wherever its part sits and hidden ones included, as openpyxl loads them all; the XML is
+    read as it goes and let go. A sheet that cannot be read this way is refused here, as openpyxl would."""
+    stored = covered = 0
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            for info in archive.infolist():
-                if not info.filename.startswith("xl/worksheets/"):
-                    continue
-                # Read as XML, as openpyxl will, so no spelling of the attribute slips past.
-                with archive.open(info) as stream:
-                    for _, merge in etree.iterparse(stream, tag="{*}mergeCell", resolve_entities=False,
-                                                    no_network=True, huge_tree=False):
-                        first_col, first_row, last_col, last_row = range_boundaries(merge.get("ref") or "")
-                        covered += (last_col - first_col + 1) * (last_row - first_row + 1)
-                        merge.clear()
-                        if covered > MAX_CELLS:
+            parts = [path for _, path in sheet_parts(archive) if path]
+            for part in parts:
+                with archive.open(part) as stream:
+                    # Read as XML, as openpyxl will, so no spelling of a row, cell or range slips past.
+                    for _, element in etree.iterparse(stream, tag=("{*}row", "{*}c", "{*}mergeCell"),
+                                                      resolve_entities=False, no_network=True, huge_tree=False):
+                        kind = etree.QName(element).localname
+                        if kind == "mergeCell":
+                            first_col, first_row, last_col, last_row = range_boundaries(element.get("ref") or "")
+                            covered += (last_col - first_col + 1) * (last_row - first_row + 1)
+                        else:
+                            stored += 1
+                        if kind != "c":       # a cell is let go with its row, which is read after its cells
+                            element.clear()
+                            while element.getprevious() is not None:
+                                del element.getparent()[0]
+                        if stored > MAX_STORED or covered > MAX_CELLS:
                             break
-    except (zipfile.BadZipFile, ValueError, TypeError, etree.XMLSyntaxError):
+                if stored > MAX_STORED or covered > MAX_CELLS:
+                    break
+    except zipfile.BadZipFile:
         return                       # the reader refuses it in its own words
+    except (KeyError, ValueError, TypeError, etree.XMLSyntaxError) as exc:
+        raise unreadable(filename, EXCEL) from exc
     if covered > MAX_CELLS:
         raise Refused(f"{filename} has merged cells covering more than {MAX_CELLS:,} cells, so upload the "
                       "financial statements on their own.")
+    if stored > MAX_STORED:
+        raise Refused(f"{filename} keeps more than {MAX_STORED:,} rows and cells, counting the empty ones Excel "
+                      "saved, so upload the financial statements on their own.")
 
 
 def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) -> tuple[rc.ReadingCopy, list[dict]]:
     """The reading copy of an .xlsx file and its sheets, or Refused. `brought_in` names the hidden
     sheets a person brought in, in the order they did. Each sheet: name, hidden, used (laid out),
-    first_page, last_page, rows and empty_formulas."""
+    first_page, last_page, rows, empty_formulas, pictures and pictures_not_drawn."""
     unzipped_too_large(filename, data)
-    merged_too_large(filename, data)
+    too_many_stored(filename, data)
     try:
         values = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
         formulas = openpyxl.load_workbook(io.BytesIO(data), data_only=False)
@@ -275,7 +288,7 @@ def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) ->
         hidden = sheet.sheet_state != "visible"
         wanted = not hidden or sheet.title in brought_in
         info = {"name": sheet.title, "hidden": hidden, "used": False, "first_page": None, "last_page": None,
-                "rows": 0, "empty_formulas": 0, "pictures": 0}
+                "rows": 0, "empty_formulas": 0, "pictures": 0, "pictures_not_drawn": 0}
         sheets.append(info)
         if not wanted:
             continue
@@ -288,8 +301,9 @@ def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) ->
         if grid > MAX_GRID:
             raise Refused(f"{filename} spreads its cells over more than {MAX_GRID:,} places, so upload the "
                           "financial statements on their own.")
-        info.update(rows=len(rows), empty_formulas=empty, pictures=len(pictures.get(sheet.title, [])))
         placed = pictures.get(sheet.title, [])
+        info.update(rows=len(rows), empty_formulas=empty, pictures=len(placed),
+                    pictures_not_drawn=sum(not p.data for p in placed))
         if rows or placed:
             parts[sheet.title] = _part(sheet.title, rows, columns, placed)
             order.append(sheet.title)

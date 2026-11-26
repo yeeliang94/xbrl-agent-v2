@@ -10,7 +10,7 @@ from app.extraction import outline as outline_mod, progress
 from app.figures import store
 from app.jobs import worker
 from app.models import factory
-from app.runs.events import list_events
+from app.runs.events import insert, list_events
 from tests.conftest import OWNER, login, make_user
 from tests.test_extraction_job import FINAL, PAYABLES, PLANT, SETUP, read_run, returns, script
 
@@ -199,3 +199,40 @@ def test_another_statement_waits_until_a_stopped_redo_is_finished(signed_in):
                                                                 "before redoing another statement.")
     assert _figure(run_id, ids["revenue"])["value"] == 900.0
     assert signed_in.post(f"/api/runs/{run_id}/statements/SOFP/redo").status_code == 202   # the same one may
+
+
+def _setup_changed(run_id: int, statement: str, to: str) -> None:
+    """A run-time answer that changed one statement's layout, as `app/scope/answer.py` records it."""
+    with db.connect(immediate=True) as conn:
+        insert(conn, "extraction", "setup_changed", "Setup changed.", run_id=run_id,
+               data={"field": "layout", "statement": statement, "from": "Function", "to": to, "cleared": 0})
+
+
+def test_a_stopped_redo_ends_when_its_statement_is_answered_not_printed(signed_in):
+    run_id, _ = reviewed_run(signed_in)
+    assert signed_in.post(f"/api/runs/{run_id}/statements/SOPL/redo").status_code == 202
+    assert signed_in.post(f"/api/runs/{run_id}/extract/stop").json()["run"]["status"] == "in_review"
+    _setup_changed(run_id, "SOPL", "NotPrepared")
+    assert signed_in.get(f"/api/runs/{run_id}").json()["run"]["redo"] is None
+    assert signed_in.post(f"/api/runs/{run_id}/statements/SOFP/redo").status_code == 202
+
+
+def test_a_stopped_redo_keeps_the_persons_lines_through_a_setup_change_that_refiles_its_statement(signed_in):
+    run_id, ids = reviewed_run(signed_in)
+    assert signed_in.post(f"/api/runs/{run_id}/figures/{ids['revenue']}/confirm").status_code == 200
+    assert signed_in.post(f"/api/runs/{run_id}/statements/SOPL/redo").status_code == 202
+    assert signed_in.post(f"/api/runs/{run_id}/extract/stop").json()["run"]["status"] == "in_review"
+    _setup_changed(run_id, "SOPL", "Nature")
+    assert signed_in.get(f"/api/runs/{run_id}").json()["run"]["redo"] == {"statement": "SOPL", "kept": [ids["revenue"]]}
+
+
+def test_a_finished_redo_stays_finished_when_a_setup_change_later_refiles_its_statement(signed_in):
+    run_id, _ = reviewed_run(signed_in)
+    assert signed_in.post(f"/api/runs/{run_id}/statements/SOPL/redo").status_code == 202
+    assert signed_in.post(f"/api/runs/{run_id}/extract/stop").json()["run"]["status"] == "in_review"
+    with db.connect(immediate=True) as conn:
+        progress.mark(conn, run_id, None, ("SOPL",), "Company", "Profit or loss is filled again.", {})
+    _setup_changed(run_id, "SOPL", "Nature")   # refiling it later does not open the finished redo again
+    with db.connect() as conn:
+        assert progress.open_redo(conn, run_id) is None
+    assert signed_in.post(f"/api/runs/{run_id}/statements/SOFP/redo").status_code == 202
