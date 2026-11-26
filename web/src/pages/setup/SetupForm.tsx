@@ -16,7 +16,6 @@ import {
   choicesFor,
   addNote,
   initialForm,
-  MAX_STATEMENT_PAGES,
   notePoints,
   notesCount,
   statementName,
@@ -129,7 +128,7 @@ export function SetupForm({ runId, document, setup, map, onRead }: { runId: numb
       return;
     }
     const row = form.statements[index];
-    setRow(index, { ...row, pages: [...new Set([...row.pages, ...sheetPages(sheet)])].sort((a, b) => a - b).slice(0, MAX_STATEMENT_PAGES) });
+    setRow(index, { ...row, pages: [...new Set([...row.pages, ...sheetPages(sheet)])].sort((a, b) => a - b) });
     setSelected(index);
   }
 

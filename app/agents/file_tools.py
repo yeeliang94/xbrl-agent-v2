@@ -117,11 +117,12 @@ def read_file(ctx: RunContext[PageSource], pages: list[int], note: Optional[str]
 def _matches(line: Line, needle: str, amount: Optional[float]) -> bool:
     if amount is not None:
         for cell in line.cells:
-            text, value = (cell[1], cell[2]) if line.sheet is not None else (str(cell), None)
-            found = value if value is not None else parse_amount(text)
-            # An amount is found whatever its sign is written as: brackets, a minus or none.
-            if found is not None and abs(abs(found) - abs(amount)) < 1e-9:
-                return True
+            text, value = (str(cell[1] or ""), cell[2]) if line.sheet is not None else (str(cell), None)
+            # A workbook cell is found by the amount it shows (1,235 in thousands) or the one it saves
+            # (1234567), whatever its sign is written as: brackets, a minus or none.
+            for found in (parse_amount(text), value):
+                if found is not None and abs(abs(found) - abs(amount)) < 1e-9:
+                    return True
     return needle in " ".join(row_text(line).split()).lower()
 
 

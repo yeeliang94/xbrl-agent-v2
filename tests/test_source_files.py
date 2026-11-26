@@ -90,6 +90,20 @@ def test_a_picture_in_a_word_file_is_drawn_in_the_reading_copy():
     assert pymupdf.open(stream=copy.pdf, filetype="pdf")[0].get_images()
 
 
+def test_a_picture_in_a_word_table_cell_is_drawn_in_the_reading_copy():
+    document = samples.docx.Document()
+    document.add_paragraph("Statement of financial position")
+    table = document.add_table(rows=2, cols=1)
+    table.rows[0].cells[0].text = "Pasted as a picture:"
+    table.rows[1].cells[0].paragraphs[0].add_run().add_picture(io.BytesIO(samples._picture()))
+    out = io.BytesIO()
+    document.save(out)
+
+    copy = word_copy("cell.docx", out.getvalue())
+
+    assert pymupdf.open(stream=copy.pdf, filetype="pdf")[0].get_images()
+
+
 def test_a_table_row_taller_than_a_page_is_drawn_in_full():
     document = samples.docx.Document()
     table = document.add_table(rows=1, cols=2)

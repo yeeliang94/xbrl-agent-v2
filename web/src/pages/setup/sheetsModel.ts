@@ -2,7 +2,6 @@
 // source as reading-copy pages, and each sheet is laid out on pages of its own,
 // so choosing a sheet sets the statement's pages to that sheet's pages.
 import type { MapNote, RunDocument, WorkbookSheet } from "../../api";
-import { MAX_STATEMENT_PAGES } from "./setupModel";
 
 /** The sheets laid out in the reading copy, in page order. */
 export function usedSheets(document: RunDocument): WorkbookSheet[] {
@@ -18,10 +17,11 @@ export function sheetsOf(document: RunDocument, pages: number[]): string[] {
     .map((s) => s.name);
 }
 
-/** A sheet's pages, cut to what a statement may take. */
+/** A sheet's pages, every one: a sheet longer than a statement may take is refused by the server in its
+ * own sentence, not cut short here. */
 export function sheetPages(sheet: WorkbookSheet): number[] {
   const out: number[] = [];
-  for (let p = sheet.first_page ?? 0; p >= 1 && p <= (sheet.last_page ?? 0) && out.length < MAX_STATEMENT_PAGES; p += 1) out.push(p);
+  for (let p = sheet.first_page ?? 0; p >= 1 && p <= (sheet.last_page ?? 0); p += 1) out.push(p);
   return out;
 }
 

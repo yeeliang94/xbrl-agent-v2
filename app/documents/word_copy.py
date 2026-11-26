@@ -98,18 +98,21 @@ class _Builder:
                 continue
             cells = [c for c in tr.find_all(["td", "th"]) if c.find_parent("tr") is tr]
             texts = [_text(c) for c in cells]
+            # A picture in a cell (a statement pasted as an image) is drawn below its row.
+            pictures = "".join(self._pictures(c) for c in cells)
             if not any(texts):
+                if pictures:
+                    self._close(rows)
+                    self.out.append(pictures)
                 continue
             self.widest = max(self.widest, sum(int(c.get("colspan") or 1) for c in cells))
             key = self._id(rc.Line(rc.ROW, texts, block=self.tables, row=number))
             if max(len(text) for text in texts) > LONG_CELL:
                 # A table row cannot break across pages, so a row taller than a page would be cut off.
                 # It is drawn as paragraphs instead, which can; the row's line keeps its cells.
-                if rows:
-                    self.out.append(f"<table>{''.join(rows)}</table>")
-                    rows = []
+                self._close(rows)
                 paragraphs = "".join(f"<p>{escape(text)}</p>" for text in texts if text)
-                self.out.append(f'<div id="{key}">{paragraphs}</div>')
+                self.out.append(f'<div id="{key}">{paragraphs}{pictures}</div>')
                 continue
             drawn = []
             for cell, text in zip(cells, texts):
@@ -118,8 +121,16 @@ class _Builder:
                                if str(cell.get(name) or "").isdigit() and int(cell[name]) > 1)
                 drawn.append(html.replace("<td", f"<td{span}", 1) if span else html)
             rows.append(f'<tr id="{key}">{"".join(drawn)}</tr>')
+            if pictures:
+                self._close(rows)
+                self.out.append(pictures)
+        self._close(rows)
+
+    def _close(self, rows: list[str]) -> None:
+        """Draw the table rows gathered so far and start afresh."""
         if rows:
             self.out.append(f"<table>{''.join(rows)}</table>")
+            rows.clear()
 
 
 def word_copy(filename: str, data: bytes) -> rc.ReadingCopy:

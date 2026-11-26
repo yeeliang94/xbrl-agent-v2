@@ -81,13 +81,25 @@ def _amounts(row: dict) -> list[tuple[str, float]]:
     return out
 
 
+def _holds(cell: list, amount: float) -> bool:
+    """Whether a cell holds the amount whatever its sign: as the sheet shows it (a rounded or scaled cell
+    shows less than it saves) or as it saves it."""
+    return any(found is not None and abs(abs(found) - abs(amount)) < 0.005
+               for found in (parse_amount(str(cell[1] or "")), cell[2]))
+
+
 def _holding(line: Line, amount: float, taken: set[str]) -> Optional[str]:
-    """The first cell of the line, not yet used, that holds the amount whatever its sign: as the sheet
-    shows it (a rounded or scaled cell shows less than it saves) or as it saves it."""
-    def holds(cell: list) -> bool:
-        return any(found is not None and abs(abs(found) - abs(amount)) < 0.005
-                   for found in (parse_amount(str(cell[1] or "")), cell[2]))
-    return next((cell[0] for cell in line.cells if cell[0] not in taken and holds(cell)), None)
+    """The first cell of the line, not yet used, that holds the amount."""
+    return next((cell[0] for cell in line.cells if cell[0] not in taken and _holds(cell, amount)), None)
+
+
+def _sure(line: Line, amount: float, taken: set[str], left: list[tuple[str, float]]) -> bool:
+    """Whether the cell for this amount is known: no more free cells hold it than the row's figures still
+    to be placed that share it. When only one year is saved and both years show the same amount, either
+    cell could be its source, so neither is named."""
+    holding = sum(1 for cell in line.cells if cell[0] not in taken and _holds(cell, amount))
+    sharing = sum(1 for _, other in left if abs(abs(other) - abs(amount)) < 0.005)
+    return holding <= sharing
 
 
 def _find_line(lines: list[Line], label: str, amounts: list[tuple[str, float]]) -> Optional[Line]:
@@ -130,9 +142,9 @@ def annotate(conn: sqlite3.Connection, run_id: int, view: dict) -> dict:
                           amounts)
         item["source"] = {"sheet": sheet, "row": line.row if line else None}
         taken: set[str] = set()
-        for key, amount in amounts if line else []:
+        for index, (key, amount) in enumerate(amounts if line else []):
             letter = _holding(line, amount, taken)
-            if letter:
+            if letter and _sure(line, amount, taken, amounts[index:]):
                 taken.add(letter)
                 item["cells"][key]["source_cell"] = f"{letter}{line.row}"
     return view

@@ -87,6 +87,13 @@ def test_a_cell_is_shown_as_its_number_format_shows_it():
     assert shown(None) == "" and shown("  Trade   payables ") == "Trade payables"
     # A comma after the last digit divides by a thousand, as a sheet kept in RM'000 shows it.
     assert shown(1234567, "#,##0,") == "1,235" and shown(1234567, "0.0,,") == "1.2"
+    # A half rounds away from zero, as Excel shows it, not to even.
+    assert shown(1284500, "#,##0,") == "1,285" and shown(-1284500, "#,##0,_);(#,##0,)") == "(1,285)"
+    assert shown(2.675, "0.00") == "2.68" and shown(0.5, "0") == "1"
+    # A negative takes the format's second section, with that section's decimals and brackets.
+    assert shown(-1.25, "#,##0;(#,##0.00)") == "(1.25)" and shown(-3, "0;-0") == "-3"
+    # An amount too long for ordinary decimal arithmetic is still shown in full.
+    assert shown(1e30, "#,##0") == "1,000,000,000,000,000,000,000,000,000,000"
     assert shown(1234, '"RM"#,##0') == "1,234"
 
 
@@ -97,11 +104,16 @@ def test_a_scaled_cell_gives_the_value_the_file_holds_too(signed_in):
     book.active.title = "SOFP"
     book.active["A1"], book.active["B1"] = "Inventories", 342150
     book.active["B1"].number_format = "#,##0,"
+    book.active["A2"], book.active["B2"] = "Payables", 1234567
+    book.active["B2"].number_format = "#,##0,"
     out = io.BytesIO()
     book.save(out)
     run_id = upload(signed_in, out.getvalue(), "k.xlsx")["run"]["id"]
 
     assert "row 1: A1 Inventories | B1 342 (saved value 342150)" in file_tools.read_file(ctx(run_id, 1), [1])
+    # The amount is found by what the sheet shows and by what the file saves.
+    assert "B2 1,235" in file_tools.search_file(ctx(run_id, 1), "1235")
+    assert "B2 1,235" in file_tools.search_file(ctx(run_id, 1), "1,234,567")
 
 
 def test_two_cells_far_apart_read_quickly_as_two_cells():
@@ -211,6 +223,42 @@ def test_a_figures_sheet_and_cell_are_found_from_its_page_label_and_amount(signe
     assert "source" not in rows[3]
     assert rows[4]["cells"]["Company:CY"]["source_cell"] == "B10"
     assert view["source_kind"] == "excel"
+
+
+def test_a_cell_is_not_named_when_both_years_show_the_amount_and_one_is_saved(signed_in):
+    import openpyxl
+
+    book = openpyxl.Workbook()
+    book.active.title = "SOFP"
+    book.active.append(["Share capital", 100000, 100000])
+    out = io.BytesIO()
+    book.save(out)
+    run_id = upload(signed_in, out.getvalue(), "same.xlsx")["run"]["id"]
+    cell = {"figure_id": 1, "printed": 100000, "value": 100000}
+    view = {"rows": [{"page": 1, "printed_label": "Share capital", "label": "x", "cells": {"Company:PY": dict(cell)}},
+                     {"page": 1, "printed_label": "Share capital", "label": "x",
+                      "cells": {"Company:CY": dict(cell), "Company:PY": dict(cell)}}]}
+
+    with db.connect() as conn:
+        rows = sheets.annotate(conn, run_id, view)["rows"]
+
+    assert rows[0]["source"] == {"sheet": "SOFP", "row": 1} and "source_cell" not in rows[0]["cells"]["Company:PY"]
+    assert [c["source_cell"] for c in rows[1]["cells"].values()] == ["B1", "C1"]
+
+
+def test_a_sparse_workbook_that_would_draw_too_large_a_grid_is_refused(monkeypatch):
+    import openpyxl
+    from app.documents import workbook_copy as wc
+    from app.documents.source_file import Refused
+
+    book = openpyxl.Workbook()
+    for i in range(1, 101):              # 100 cells on a diagonal draw a 100 by 100 grid
+        book.active.cell(row=i, column=i, value=i)
+    out = io.BytesIO()
+    book.save(out)
+    monkeypatch.setattr(wc, "MAX_GRID", 5_000)
+    with pytest.raises(Refused, match="spreads its cells over more than 5,000 places"):
+        wc.workbook_copy("sparse.xlsx", out.getvalue())
 
 
 def test_every_statement_view_says_what_the_run_started_from(signed_in):

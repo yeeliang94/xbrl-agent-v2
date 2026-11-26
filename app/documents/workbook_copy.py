@@ -11,9 +11,11 @@ after the others, so the pages already read keep their numbers.
 from __future__ import annotations
 
 import io
+import math
 import re
 import zipfile
 from datetime import date, datetime, time
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 from html import escape
 from typing import Any, Sequence
 
@@ -26,20 +28,34 @@ from app.documents.source_file import EXCEL, Refused, unreadable
 
 # A workbook with more filled cells than this is no set of statements, and laying it out would take minutes.
 MAX_CELLS = 200_000
+# Each sheet is drawn as a grid of its used rows by its used columns, empty places included, so a few
+# cells far apart would draw millions. This bounds the grid across the workbook.
+MAX_GRID = 1_000_000
 NO_RESULT = "[no saved result]"
 # A Word or Excel file is a zip; its parts unpacked may be far larger than the upload.
 MAX_UNZIPPED = 300 * 1024 * 1024
 
 
-def _section(number_format: str) -> str:
-    """The format's first section, without its quoted text and padding (`_)`), which hold no digits."""
-    section = re.sub(r'"[^"]*"|\\.|_.', "", number_format.split(";")[0])
-    return section
+def _pick(number_format: str, value: float | int) -> tuple[str, bool]:
+    """The format section Excel uses for this value, and whether that section writes the sign itself.
+    A format has up to four sections, `positive;negative;zero;text`: a negative takes the second when
+    there is one, and a zero the third."""
+    sections = number_format.split(";")
+    if value < 0 and len(sections) > 1:
+        return sections[1], True
+    if value == 0 and len(sections) > 2:
+        return sections[2], True
+    return sections[0], False
 
 
-def _decimals(number_format: str) -> int | None:
-    """The decimal places a number format shows, or None for General."""
-    section = _section(number_format)
+def _section(section: str) -> str:
+    """A format section without its quoted text and padding (`_)`), which hold no digits."""
+    return re.sub(r'"[^"]*"|\\.|_.', "", section)
+
+
+def _decimals(section: str) -> int | None:
+    """The decimal places a format section shows, or None for General."""
+    section = _section(section)
     if "0" not in section and "#" not in section:
         return None
     if "." not in section:
@@ -47,11 +63,22 @@ def _decimals(number_format: str) -> int | None:
     return len(re.match(r"[0#]*", section.split(".", 1)[1]).group(0))
 
 
-def _scale(number_format: str) -> int:
-    """How many times a format divides by a thousand: a comma after the last digit, as in `#,##0,`
-    (thousands) or `0.0,,` (millions)."""
-    found = re.search(r"[0#](,+)[^0#]*$", _section(number_format))
+def _scale(section: str) -> int:
+    """How many times a format section divides by a thousand: a comma after the last digit, as in
+    `#,##0,` (thousands) or `0.0,,` (millions)."""
+    found = re.search(r"[0#](,+)[^0#]*$", _section(section))
     return len(found.group(1)) if found else 0
+
+
+def _rounded(value: float | int, scale_by: Decimal, decimals: int) -> Decimal | None:
+    """The value's size rounded as Excel rounds, a half away from zero (1,284,500 in thousands shows
+    1,285; Python's own formatting rounds it to even). None for a value that is not a finite number."""
+    exact = Decimal(str(value)) * scale_by
+    if not exact.is_finite():
+        return None
+    with localcontext() as context:
+        context.prec = max(28, exact.adjusted() + decimals + 4)     # a huge amount keeps every digit
+        return abs(exact).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP)
 
 
 def shown(value: Any, number_format: str = "General") -> str:
@@ -68,22 +95,28 @@ def shown(value: Any, number_format: str = "General") -> str:
     if isinstance(value, time):
         return value.strftime("%H:%M")
     if isinstance(value, (int, float)):
-        fmt = number_format or "General"
-        percent = "%" in fmt
-        number = value * 100 if percent else value / 1000 ** _scale(fmt)
-        decimals = _decimals(fmt)
-        if decimals is None:
-            return plain(number) + ("%" if percent else "")
-        grouped = re.search(r"[0#],[0#]", _section(fmt)) is not None
-        body = f"{abs(number):,.{decimals}f}" if grouped else f"{abs(number):.{decimals}f}"
-        if number < 0 and float(body.replace(",", "")) != 0:
-            body = f"({body})" if "(" in fmt else f"-{body}"
+        section, signed = _pick(number_format or "General", value)
+        percent = "%" in _section(section)
+        scale_by = Decimal(100) if percent else Decimal(1000) ** -_scale(section)
+        decimals = _decimals(section)
+        rounded = None if decimals is None else _rounded(value, scale_by, decimals)
+        if rounded is None:
+            return plain(value * float(scale_by)) + ("%" if percent else "")
+        grouped = re.search(r"[0#],[0#]", _section(section)) is not None
+        body = f"{rounded:,.{decimals}f}" if grouped else f"{rounded:.{decimals}f}"
+        if signed:                   # the section writes the sign itself, as brackets or a minus
+            mark = _section(section)
+            body = f"({body})" if "(" in mark else f"-{body}" if "-" in mark else body
+        elif value < 0 and rounded != 0:
+            body = f"-{body}"
         return body + ("%" if percent else "")
     return " ".join(str(value).split())
 
 
 def plain(number: float | int) -> str:
     """A number in full, with no separators: 1284300, -0.125."""
+    if not math.isfinite(number):
+        return str(number)
     if isinstance(number, int) or (number == int(number) and abs(number) < 1e15):
         return str(int(number))
     return f"{number:.10f}".rstrip("0").rstrip(".")
@@ -195,7 +228,7 @@ def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) ->
     except Exception as exc:  # noqa: BLE001 - openpyxl raises several types for a broken file
         raise unreadable(filename, EXCEL) from exc
     sheets, parts, order = [], {}, []
-    total = 0
+    total = grid = 0
     for sheet in values.worksheets:
         hidden = sheet.sheet_state != "visible"
         wanted = not hidden or sheet.title in brought_in
@@ -209,6 +242,10 @@ def workbook_copy(filename: str, data: bytes, brought_in: Sequence[str] = ()) ->
         if total > MAX_CELLS:
             raise Refused(f"{filename} holds more than {MAX_CELLS:,} filled cells, so upload the financial "
                           "statements on their own.")
+        grid += len(rows) * len(columns)
+        if grid > MAX_GRID:
+            raise Refused(f"{filename} spreads its cells over more than {MAX_GRID:,} places, so upload the "
+                          "financial statements on their own.")
         info.update(rows=len(rows), empty_formulas=empty)
         if rows:
             parts[sheet.title] = _part(sheet.title, rows, columns)
