@@ -14,6 +14,7 @@ type Session = { state: "loading" } | { state: "out" } | { state: "in"; user: Us
 
 export function App() {
   const [session, setSession] = useState<Session>({ state: "loading" });
+  const [version, setVersion] = useState<string | null>(null);
   const route = useRoute();
 
   useEffect(() => {
@@ -22,6 +23,10 @@ export function App() {
       .me()
       .then((user) => setSession({ state: "in", user }))
       .catch(() => setSession({ state: "out" }));
+    api
+      .version()
+      .then(setVersion)
+      .catch(() => {}); // the shell then shows no version
     return () => setUnauthorizedHandler(() => {});
   }, []);
 
@@ -46,6 +51,8 @@ export function App() {
     <AppShell
       user={user}
       onLogout={logout}
+      runId={route.name === "run" || route.name === "setup" ? route.runId : null}
+      version={version}
       nav={[
         { href: hrefFor({ name: "runs" }), label: "Runs", active: route.name !== "settings" && route.name !== "run" },
         { href: hrefFor({ name: "settings" }), label: "Settings", active: route.name === "settings" },

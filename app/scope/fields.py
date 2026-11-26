@@ -15,13 +15,14 @@ from typing import Mapping, Optional
 
 from app.catalog.statements import NOT_PREPARED, StatementType, layout_choices, layout_label, printed_layouts
 from app.reading.map_schema import STATEMENTS
+from app.runs import units
 
 FIELDS = ("standard", "level", "year_end", "unit", "layout")
 # A run-time question's "not printed" choice: the same name setup uses for a statement not printed.
 NOT_PRINTED = NOT_PREPARED
 STANDARDS = ("MFRS", "MPERS")
 LEVELS = ("Company", "Group")
-UNITS = ("RM", "RM'000")
+UNITS = units.UNITS
 # What the agents and the questions call each statement.
 STATEMENT_WORDS = {"SOFP": "statement of financial position", "SOPL": "statement of profit or loss",
                    "SOCI": "statement of comprehensive income", "SOCF": "statement of cash flows",
@@ -80,7 +81,7 @@ def valid(field: str, value: str, statement: Optional[str] = None) -> bool:
 
 def label(field: str, value: str, statement: Optional[str] = None) -> str:
     if field == "unit":
-        return "RM thousands" if value == "RM'000" else "RM"
+        return units.unit_words(value)
     if field == "layout":
         return "Not printed" if value == NOT_PRINTED else layout_label(StatementType(statement), value)
     return value
@@ -121,7 +122,7 @@ def setup_questions(setup: dict) -> list[dict]:
     out = []
     standard = setup["standard"]["value"] if setup["standard"]["value"] in STANDARDS else None
     questions = {"standard": "Which standard applies?", "level": "Is this a Company or a Group filing?",
-                 "unit": "Are the amounts in RM or RM thousands?"}
+                 "unit": "Are the amounts in RM, RM thousands or RM millions?"}
     for field, question in questions.items():
         finding = setup[field]
         if not finding.get("unsure"):
@@ -138,6 +139,17 @@ def setup_questions(setup: dict) -> list[dict]:
                     "question": f"Which layout does the {STATEMENT_WORDS[statement]} use?",
                     "reason": st.get("reason"), "pages": st.get("pages") or [],
                     "choices": layout_card_choices(statement, standard or "MFRS", st)})
+    first = setup.get("first_statements") or {}
+    if first.get("value") == "yes":
+        # The Reader found no figures for last year. It only suggests: the person says which it is.
+        out.append({"field": "period", "statement": None,
+                    "question": "No figures for last year were found. Are these the company's first financial "
+                                "statements?",
+                    "reason": first.get("reason"), "pages": first.get("pages") or [],
+                    "choices": [{"value": "only", "label": "Yes, this year only",
+                                 "effect": "Files this year's figures only", "suggested": True},
+                                {"value": "both", "label": "No, this year and last year",
+                                 "effect": "Files this year's and last year's figures", "suggested": False}]})
     return out
 
 
@@ -164,7 +176,8 @@ def layout_card_choices(statement: str, standard: str, suggestion: dict) -> list
 def current_setup(conn: sqlite3.Connection, run_id: int) -> dict:
     """The confirmed setup as a `ConfirmedSetup` body, so a change can go
     through the same check as confirming the setup."""
-    run = conn.execute("SELECT r.standard, r.level, c.name AS company, s.unit, s.year_end, s.notes_included "
+    run = conn.execute("SELECT r.standard, r.level, c.name AS company, s.unit, s.year_end, s.notes_included, "
+                       "s.first_statements "
                        "FROM runs r LEFT JOIN companies c ON c.id = r.company_id "
                        "LEFT JOIN run_setup s ON s.run_id = r.id WHERE r.id = ?", (run_id,)).fetchone()
     rows = {r["statement"]: r for r in conn.execute(
@@ -180,4 +193,5 @@ def current_setup(conn: sqlite3.Connection, run_id: int) -> dict:
         "SELECT number, title, first_page, last_page FROM run_notes WHERE run_id = ? ORDER BY position", (run_id,))]
     return {"company": run["company"], "year_end": run["year_end"], "standard": run["standard"],
             "level": run["level"], "unit": run["unit"], "statements": statements,
-            "notes_included": bool(run["notes_included"]), "notes": notes}
+            "notes_included": bool(run["notes_included"]), "notes": notes,
+            "first_statements": bool(run["first_statements"])}

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { User } from "../api";
 import { admin, member, mockFetch, models, settings } from "../test-utils";
 import { SettingsPage } from "./SettingsPage";
 
@@ -8,6 +9,12 @@ afterEach(() => vi.unstubAllGlobals());
 const firm = (lines: string[], version = 1) => ({
   company_id: null, version, lines, saved_by: "aina@firm.my", saved_at: "2026-11-22T09:00:00Z", source: "typed", comment_id: null, restored_from: null,
 });
+
+/** The Settings page on one of its sections. */
+function show(user: User, section: string) {
+  render(<SettingsPage user={user} />);
+  fireEvent.click(screen.getByRole("radio", { name: section }));
+}
 
 function routes(extra = {}) {
   return {
@@ -21,7 +28,7 @@ function routes(extra = {}) {
 describe("Settings page", () => {
   it("lists the models and blocks the unavailable ones", async () => {
     mockFetch(routes());
-    render(<SettingsPage user={admin} />);
+    show(admin, "System");
     const reading = (await screen.findByLabelText("Reading")) as HTMLSelectElement;
     expect(reading.value).toBe("gpt-6-luna");
     const options = Array.from(reading.options).map((o) => [o.textContent, o.disabled]);
@@ -37,7 +44,7 @@ describe("Settings page", () => {
 
   it("offers exactly the house-style values the contract allows", async () => {
     mockFetch(routes());
-    render(<SettingsPage user={admin} />);
+    show(admin, "General");
     const values = async (label: string) =>
       Array.from(((await screen.findByLabelText(label)) as HTMLSelectElement).options).map((o) => o.value);
     expect(await values("Body text")).toEqual(["justified", "left"]);
@@ -48,7 +55,7 @@ describe("Settings page", () => {
 
   it("shows the gateway set-up when it is live", async () => {
     mockFetch(routes({ "GET /api/settings": { body: { ...settings(), route: "gateway" } } }));
-    render(<SettingsPage user={admin} />);
+    show(admin, "System");
     expect(await screen.findByText("Gateway")).toBeInTheDocument();
   });
 
@@ -71,10 +78,11 @@ describe("Settings page", () => {
         },
       }),
     );
-    render(<SettingsPage user={admin} />);
+    show(admin, "System");
     fireEvent.change(await screen.findByLabelText("Extraction"), { target: { value: "gpt-6.1-terra" } });
     await waitFor(() => expect((screen.getByLabelText("Extraction") as HTMLSelectElement).value).toBe("gpt-6.1-terra"));
     expect(puts[0]).toEqual({ models: { extraction: "gpt-6.1-terra" } });
+    fireEvent.click(screen.getByRole("radio", { name: "General" }));
 
     fireEvent.click(screen.getByRole("switch", { name: "Code workbench" }));
     await waitFor(() => expect(screen.getByRole("switch", { name: "Code workbench" })).toHaveAttribute("aria-checked", "false"));
@@ -91,7 +99,7 @@ describe("Settings page", () => {
     const models = new Promise<Response>((resolve) => (answer = resolve));
     const real = fetch.getMockImplementation()!;
     fetch.mockImplementation((input, init) => (String(input) === "/api/models" ? models : real(input, init)));
-    render(<SettingsPage user={admin} />);
+    show(admin, "System");
     expect(screen.getByText("Loading settings")).toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(screen.getByText("Loading settings")).toBeInTheDocument();
@@ -103,7 +111,7 @@ describe("Settings page", () => {
 
   it("shows only the error line when loading fails", async () => {
     mockFetch(routes({ "GET /api/models": { status: 500, body: { detail: "The model list could not be read." } } }));
-    render(<SettingsPage user={admin} />);
+    show(admin, "General");
     expect(await screen.findByRole("alert")).toHaveTextContent("The model list could not be read.");
     expect(screen.queryByText("Loading settings")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
@@ -113,7 +121,7 @@ describe("Settings page", () => {
     const odd = { id: "gpt-7-nova", provider: "openai" as const, family: "other" as const, label: "GPT-7 Nova", available: true };
     const saved = { ...settings(), models: { reading: "gpt-6-luna", extraction: "gpt-7-nova", review: "gpt-6-luna" } };
     mockFetch(routes({ "GET /api/settings": { body: saved }, "GET /api/models": { body: { models: [...models, odd] } } }));
-    render(<SettingsPage user={admin} />);
+    show(admin, "System");
     await screen.findByLabelText("Reading");
     const notices = screen.getAllByText("Not a recognised model family. Default settings are used.");
     expect(notices).toHaveLength(1);
@@ -122,7 +130,7 @@ describe("Settings page", () => {
 
   it("shows the server's sentence when a save fails", async () => {
     mockFetch(routes({ "PUT /api/settings": { status: 400, body: { detail: "That model cannot be used." } } }));
-    render(<SettingsPage user={admin} />);
+    show(admin, "General");
     fireEvent.click(await screen.findByRole("switch", { name: "Bold totals" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("That model cannot be used.");
@@ -134,10 +142,10 @@ describe("Settings page", () => {
   it("clears a save error when the next save works, and shows a new one beside its own control", async () => {
     let fail = true;
     mockFetch(routes({ "PUT /api/settings": () => (fail ? { status: 422, body: { detail: "Pick a listed model." } } : { body: settings() }) }));
-    render(<SettingsPage user={admin} />);
-    fireEvent.change(await screen.findByLabelText("Review"), { target: { value: "gpt-6.1-terra" } });
+    show(admin, "General");
+    fireEvent.change(await screen.findByLabelText("Table font size"), { target: { value: "11" } });
     const alert = await screen.findByRole("alert");
-    expect(alert.closest(".line")).toContainElement(screen.getByLabelText("Review"));
+    expect(alert.closest(".line")).toContainElement(screen.getByLabelText("Table font size"));
     fail = false;
     fireEvent.click(screen.getByRole("switch", { name: "Bold totals" }));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
@@ -145,21 +153,21 @@ describe("Settings page", () => {
 
   it("tells someone who is not an admin why the controls are greyed out", async () => {
     mockFetch(routes());
-    render(<SettingsPage user={member} />);
+    show(member, "General");
     expect(await screen.findByText("Only an admin can change these settings.")).toBeInTheDocument();
   });
 
   it("does not show the admin note to an admin", async () => {
     mockFetch(routes());
-    render(<SettingsPage user={admin} />);
-    await screen.findByLabelText("Reading");
+    show(admin, "General");
+    await screen.findByLabelText("Body text");
     expect(screen.queryByText("Only an admin can change these settings.")).toBeNull();
   });
 
   it("is read-only for a user who is not an admin", async () => {
     const fetch = mockFetch(routes());
-    render(<SettingsPage user={member} />);
-    await screen.findByLabelText("Reading");
+    show(member, "General");
+    await screen.findByLabelText("Body text");
     for (const control of [...screen.getAllByRole("combobox"), ...screen.getAllByRole("switch")]) {
       expect(control).toBeDisabled();
     }
@@ -178,7 +186,7 @@ describe("Settings page", () => {
         },
       }),
     );
-    render(<SettingsPage user={admin} />);
+    show(admin, "System");
     const idle = (await screen.findByLabelText("Sign out after idle")) as HTMLSelectElement;
     expect(idle.value).toBe("60");
     expect(Array.from(idle.options).map((o) => o.textContent)).toContain("1 hour");
@@ -191,7 +199,7 @@ describe("Settings page", () => {
 
   it("keeps a saved sign-in limit that is not among the choices", async () => {
     mockFetch(routes({ "GET /api/settings": { body: { ...settings(), login: { idle_timeout_minutes: 45, max_attempts: 7, lockout_minutes: 15 } } } }));
-    render(<SettingsPage user={admin} />);
+    show(admin, "System");
     expect(((await screen.findByLabelText("Sign out after idle")) as HTMLSelectElement).value).toBe("45");
     expect((screen.getByLabelText("Attempts before lockout") as HTMLSelectElement).value).toBe("7");
   });
@@ -201,7 +209,7 @@ describe("Settings page", () => {
     const created = vi.fn(() => "blob:x");
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: created, revokeObjectURL: vi.fn() }));
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    render(<SettingsPage user={admin} />);
+    show(admin, "General");
     fireEvent.click(await screen.findByRole("button", { name: "Download server logs" }));
     await waitFor(() => expect(created).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: "Download usage" }));
@@ -215,14 +223,14 @@ describe("Settings page", () => {
 
   it("shows the server's sentence when a download fails", async () => {
     mockFetch(routes({ "GET /api/settings/records/usage": { status: 403, body: { detail: "Only an admin can do this." } } }));
-    render(<SettingsPage user={admin} />);
+    show(admin, "General");
     fireEvent.click(await screen.findByRole("button", { name: "Download usage" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Only an admin can do this.");
   });
 
   it("does not offer the records to someone who is not an admin", async () => {
     mockFetch(routes());
-    render(<SettingsPage user={member} />);
+    show(member, "General");
     expect(await screen.findByRole("button", { name: "Download server logs" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Download usage" })).toBeDisabled();
   });
@@ -238,7 +246,7 @@ describe("Settings page", () => {
         },
       }),
     );
-    render(<SettingsPage user={admin} />);
+    show(admin, "General");
     fireEvent.change(await screen.findByLabelText("Add to firm guidance"), { target: { value: "Goods in transit are part of inventories." } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(await screen.findByText("Goods in transit are part of inventories.")).toBeInTheDocument();
@@ -247,7 +255,7 @@ describe("Settings page", () => {
 
   it("shows firm guidance read-only to someone who is not an admin", async () => {
     mockFetch(routes());
-    render(<SettingsPage user={member} />);
+    show(member, "General");
     expect(await screen.findByText("Leave non-controlling interest blank when the report prints no split.")).toBeInTheDocument();
     expect(screen.queryByLabelText("Add to firm guidance")).toBeNull();
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();

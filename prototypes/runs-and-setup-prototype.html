@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runs and setup prototype</title>
+<style>
+/* Builds on review-prototype-v3.html, polish-prototype.html and setup-prototype.html (approved).
+   Proposal for go-live packages A3, A4 and B2. All data is invented. */
+:root{
+  --bg:#EEEFF1;--panel:#FFFFFF;--tint:#F5F7F8;--line:#DFE3E6;--edge:#CBD1D6;--ink:#111111;--ink-hover:#2B2B2B;--muted:#6B7280;--faint:#B5BCC4;
+  --nav:#000000;--nav-ink:#FFFFFF;--nav-muted:#9AA1A9;--nav-on:#1F1F1F;--nav-accent:#FE7C39;
+  --accent:#FD5108;--accent-text:#D64000;--accent-soft:#FFF5ED;
+  --scrim:rgba(20,20,19,.36);
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;
+  --radius:12px;--radius-sm:8px;--pill:999px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.16,1,.3,1);--fast:120ms;
+}
+*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--edge) transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:400 14px/20px var(--sans);-webkit-font-smoothing:antialiased;min-width:1280px}
+h1,h2,p{margin:0}
+h1{font-weight:500;font-size:22px;line-height:28px;letter-spacing:-.015em}
+h2{font-weight:500;font-size:16px;line-height:24px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.mono{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.meta{color:var(--muted)}
+.sp{flex:1}
+[hidden]{display:none!important}
+.app{height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr)}
+
+/* sidebar */
+.nav{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding:var(--s4) var(--s3)}
+.brand{display:flex;align-items:center;gap:var(--s2);height:32px;padding:0 var(--s3);margin-bottom:var(--s4);font-weight:500}
+.brand i{width:14px;height:14px;border-radius:3px;background:var(--nav-accent);display:block}
+.nav a{display:flex;align-items:center;height:32px;padding:0 var(--s3);border-radius:var(--radius-sm);cursor:pointer;color:var(--nav-muted);transition:background var(--fast),color var(--fast)}
+.nav a:hover{color:var(--nav-ink)}
+.nav a.on{background:var(--nav-on);color:var(--nav-ink)}
+.who{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s3);color:var(--nav-muted)}
+.avatar{width:24px;height:24px;border-radius:50%;background:var(--nav-on);color:var(--nav-ink);display:grid;place-items:center;font-size:11px}
+
+/* page */
+main{min-width:0;min-height:0;display:flex;flex-direction:column;padding:0 var(--s5) var(--s5);position:relative}
+.ph{display:flex;align-items:center;gap:var(--s3);height:80px;flex:none}
+.panel{background:var(--panel);border-radius:var(--radius);min-height:0}
+.pad{padding:var(--s5)}
+.sec{display:flex;flex-direction:column;gap:var(--s4)}
+.narrow{width:100%;max-width:880px;display:flex;flex-direction:column;gap:var(--s4);overflow:auto}
+.narrow>*{flex:none}
+
+/* one button family */
+.btn{height:36px;padding:0 var(--s4);border-radius:var(--pill);border:1px solid transparent;background:none;cursor:pointer;display:inline-flex;align-items:center;gap:var(--s2);white-space:nowrap;transition:transform var(--fast) var(--ease),background var(--fast),border-color var(--fast),color var(--fast),opacity var(--fast)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.primary:hover{background:var(--ink-hover)}
+.btn.outline{border-color:var(--edge)}
+.btn.outline:hover{background:var(--tint)}
+.btn.quiet{padding:0 var(--s2);color:var(--muted)}
+.btn.quiet:hover{color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:default;transform:none}
+.btn.sm{height:28px;padding:0 var(--s3);font-size:13px}
+.icon{width:28px;height:28px;border-radius:var(--radius-sm);border:0;background:none;cursor:pointer;display:grid;place-items:center;color:var(--muted);transition:background var(--fast),color var(--fast),opacity var(--fast)}
+.icon:hover{background:var(--bg);color:var(--ink)}
+.icon svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* status: a dot and a word. A failure is the one filled label. */
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;white-space:nowrap}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--faint);flex:none}
+.status.finished::before{background:var(--ink);box-shadow:none}
+.status.attention::before{background:var(--accent);box-shadow:none}
+.status.failure{background:var(--accent-text);color:#fff;padding:0 var(--s2);border-radius:var(--pill);font-size:12px}
+.status.failure::before,.status.working::before{display:none}
+.spin{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--accent);border-top-color:transparent;display:inline-block;flex:none;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* one segmented control, one input, one select, one switch */
+.seg{display:inline-flex;background:var(--bg);border-radius:var(--pill);padding:var(--s1)}
+.ph .seg{background:var(--panel)}
+.seg button{height:28px;padding:0 var(--s3);border:0;border-radius:var(--pill);background:none;cursor:pointer;color:var(--muted);white-space:nowrap;transition:background var(--fast),color var(--fast)}
+.seg button.on{background:var(--panel);color:var(--ink)}
+.ph .seg button.on{background:var(--bg);color:var(--ink)}
+.seg.locked{opacity:.5}
+.seg.locked button{cursor:default}
+.in{width:100%;height:36px;padding:0 var(--s3);border:0;border-radius:var(--radius);background:var(--bg);outline:none;transition:box-shadow var(--fast)}
+.in::placeholder{color:var(--muted)}
+.in:focus-visible{box-shadow:0 0 0 2px var(--ink);outline:none}
+select.in{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:var(--s6);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+select.in:disabled{opacity:.5;cursor:default}
+.switch{width:36px;height:20px;border-radius:var(--pill);border:0;background:var(--edge);position:relative;cursor:pointer;flex:none;transition:background var(--fast)}
+.switch::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .18s var(--ease)}
+.switch.on{background:var(--ink)}
+.switch.on::after{transform:translateX(16px)}
+
+/* one table: no row lines, hover tint */
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+.tbl th{position:sticky;top:0;background:var(--panel);font-weight:400;color:var(--muted);text-align:left;height:36px;padding:0 var(--s3);z-index:1}
+.tbl td{height:48px;padding:0 var(--s3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background var(--fast)}
+.tbl td:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.tbl td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:0 var(--s2);overflow:visible}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover td{background:var(--tint)}
+.tbl .icon{opacity:0}
+.tbl tr:hover .icon,.tbl .icon:focus-visible{opacity:1}
+.empty{color:var(--muted);padding:var(--s7) 0;text-align:center}
+
+/* run list */
+.runs{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tools{flex:none;height:68px;display:flex;align-items:center;gap:var(--s2);padding:0 var(--s5)}
+.tools .search{width:300px}
+.tools select.in{width:auto}
+.runs .body{flex:1;min-height:0;overflow:auto;padding:0 var(--s3)}
+.foot{flex:none;height:60px;display:flex;align-items:center;gap:var(--s2);padding:0 var(--s5) 0 var(--s4)}
+.foot .count{margin-right:var(--s2)}
+
+/* new run */
+.drop{border:1.5px dashed var(--edge);border-radius:var(--radius);height:240px;display:grid;place-items:center;text-align:center}
+.drop>div{display:flex;flex-direction:column;gap:var(--s4);align-items:center}
+.line{display:flex;align-items:center;gap:var(--s4);min-height:36px}
+.line>:first-child{flex:1;min-width:0}
+.file{display:grid;grid-template-columns:minmax(0,1fr) 72px 112px 72px;align-items:center;gap:var(--s4);min-height:44px}
+.file .r{text-align:right}
+.file .end{display:flex;justify-content:flex-end}
+
+/* setup */
+.setup{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:var(--s4)}
+.setup .form{overflow:auto;display:flex;flex-direction:column;gap:var(--s4)}
+.setup .form>*{flex:none}
+.setup .side{overflow:auto}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4) var(--s5)}
+.field{display:flex;flex-direction:column;gap:var(--s2);min-width:0}
+.field>span{color:var(--muted)}
+.span2{grid-column:span 2}
+.unsure{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;margin-left:var(--s2);vertical-align:middle}
+.line.pick{cursor:pointer;border-radius:var(--radius);margin:0 calc(-1 * var(--s3));padding:0 var(--s3);transition:background var(--fast)}
+.line.pick:hover{background:var(--tint)}
+.line.pick.sel{background:var(--accent-soft)}
+.pg{color:var(--muted);width:40px;flex:none}
+.line .ctl{width:220px;flex:none}
+.scan{background:var(--tint);border-radius:var(--radius);padding:var(--s5);display:flex;flex-direction:column;gap:var(--s3)}
+.scan i{display:block;height:8px;border-radius:4px;background:#E6E9EC}
+/* question card, as the app's QuestionCard */
+.qc{animation:pop .3s var(--ease)}
+.ev{display:flex;align-items:baseline;gap:var(--s3)}
+.lk{border:0;background:none;padding:0;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.lk:hover{color:var(--ink)}
+.opts{display:flex;flex-direction:column;gap:var(--s2)}
+.opt{display:grid;grid-template-columns:20px 1fr;gap:var(--s3);align-items:center;text-align:left;padding:var(--s3) var(--s4);border-radius:var(--radius);border:1px solid var(--line);background:var(--panel);cursor:pointer;transition:border-color var(--fast),background var(--fast)}
+.opt:hover{border-color:var(--edge);background:var(--tint)}
+kbd{width:20px;height:20px;border-radius:6px;background:var(--bg);display:grid;place-items:center;font-family:var(--mono);font-size:12px;line-height:1;color:var(--muted)}
+
+/* one dialog */
+.scrim{position:fixed;inset:0;background:var(--scrim);display:grid;place-items:center;z-index:20;animation:fade .2s}
+.dlg{width:520px;background:var(--panel);border-radius:var(--radius);padding:var(--s5);display:flex;flex-direction:column;gap:var(--s4);animation:pop .3s var(--ease)}
+.dlg-actions{display:flex;justify-content:flex-end;align-items:center;gap:var(--s2);margin-top:var(--s2)}
+.dlg .line .in{width:160px;flex:none}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.toast{position:absolute;left:50%;bottom:var(--s7);transform:translate(-50%,8px);opacity:0;background:var(--ink);color:#fff;border-radius:var(--pill);padding:var(--s2) var(--s4);transition:opacity 160ms,transform 160ms;pointer-events:none;z-index:5}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* prototype switcher: sits in the sidebar so it covers nothing */
+.proto{position:fixed;left:12px;bottom:64px;width:208px;background:#fff;color:var(--ink);border-radius:var(--radius);padding:var(--s3);display:flex;flex-direction:column;gap:var(--s2);font-size:13px;z-index:30}
+.proto .t{font-weight:500;padding:0 var(--s1)}
+.proto .seg{padding:2px;align-self:flex-start}
+.proto .seg button{height:24px;padding:0 var(--s2)}
+.proto .states{display:flex;flex-direction:column}
+.proto .states button{height:26px;padding:0 var(--s2);border:0;background:none;border-radius:var(--radius-sm);text-align:left;cursor:pointer;color:var(--muted)}
+.proto .states button:hover{color:var(--ink)}
+.proto .states button.on{background:var(--bg);color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head><body><div id="root"></div><div id="dlg"></div>
+<script>
+/* ---------- invented data ---------- */
+const ME = 'Ana';
+const NOW = new Date(2026, 10, 25, 10, 30);
+const PER_PAGE = 25;
+const STATUS = {
+  reading:{label:'Reading',kind:'working'}, setup:{label:'Setup',kind:'attention'}, ready:{label:'Ready',kind:'neutral'},
+  extracting:{label:'Extracting',kind:'working'}, needs_answer:{label:'Needs you',kind:'attention'}, in_review:{label:'In review',kind:'attention'},
+  correcting:{label:'Correcting',kind:'working'}, filed:{label:'Filed',kind:'finished'}, failed:{label:'Failed',kind:'failure'}, stopped:{label:'Stopped',kind:'neutral'}
+};
+const WORKING = ['reading','extracting','correcting'];
+let seed = 7;
+const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+const pick = list => list[Math.floor(rnd() * list.length)];
+function makeRuns(){
+  const first = ['Contoh','Demo','Sampel','Rekaan','Olok','Example','Placeholder','Tiruan'];
+  const second = ['Logistik','Trading','Plantations','Teknologi','Hartanah','Makanan','Engineering','Resources','Marine','Tekstil','Perabot','Farmasi','Agro','Motor','Solar'];
+  const owners = ['Ana','Ana','Farid','Mei','Ravi'];
+  const mix = ['filed','filed','filed','filed','filed','filed','filed','filed','in_review','in_review','in_review','setup','setup','setup','needs_answer','failed','stopped','ready','extracting','correcting'];
+  const top = [['extracting','Ana'],['in_review','Ana'],['setup','Farid'],['needs_answer','Mei'],['filed','Ana'],['reading','Ravi'],['failed','Ana'],['in_review','Farid']];
+  const runs = [];
+  for (let i = 0; i < 200; i++){
+    const age = Math.floor(i * i / 110);
+    let status = pick(mix), owner = pick(owners);
+    if (top[i]) [status, owner] = top[i];
+    if (WORKING.includes(status) && age > 0) status = 'filed';
+    const standard = rnd() < .6 ? 'MFRS' : 'MPERS';
+    const level = standard === 'MFRS' && rnd() < .4 ? 'Group' : 'Company';
+    const name = pick(first) + ' ' + pick(second);
+    const company = name + (level === 'Group' ? ' Berhad' : ' Sdn. Bhd.');
+    const updated = new Date(NOW.getTime() - age * 86400000 - i * 7 * 60000);
+    const year = updated.getFullYear() - 1 + (rnd() < .15 ? 1 : 0);
+    const early = status === 'setup' || status === 'reading';
+    runs.push({id:i + 1, company: early ? null : company, file:`${name} AFS ${year}.pdf`, year: early ? null : year,
+      standard: early ? null : standard, level: early ? null : level, status, owner, age, updated,
+      figures: 180 + Math.floor(rnd() * 420), notes: 12 + Math.floor(rnd() * 22)});
+  }
+  return runs;
+}
+let RUNS = makeRuns();
+
+const FILES = [
+  ['Contoh Logistik AFS 2025.pdf','4.2 MB'],
+  ['Demo Makanan AFS 2025.pdf','2.8 MB'],
+  ['Rekaan Solar AFS 2026.pdf','1.9 MB'],
+  ['Sampel Hartanah AFS 2025.pdf','6.1 MB','This PDF is locked with a password. Remove the password and add it again.'],
+  ['Example Marine AFS 2025.pdf','3.4 MB'],
+  ['Tiruan Agro AFS 2025.pdf','2.2 MB']
+];
+const DOCS = {
+  two:{file:'Contoh Logistik AFS 2025.pdf', pages:38, co:'Contoh Logistik Sdn. Bhd.', ye:'2025-12-31', unit:'RM thousands',
+    rows:[['Financial position',13,['Current and non-current','Order of liquidity'],'Page 13 shows current and non-current assets and liabilities with their own totals.'],
+      ['Profit or loss',12,['By function','By nature'],'Page 12 groups costs by role: administrative, selling and distribution, other operating.'],
+      ['Comprehensive income',12,['Net of tax','Before tax','Not printed'],'Page 12 ends at total comprehensive income. There are no other items, so net of tax.'],
+      ['Changes in equity',14,['Changes in equity'],'Page 14.'],
+      ['Cash flows',15,['Indirect','Direct'],'Page 15 starts from profit before tax and adjusts it.']], notes:20},
+  first:{file:'Rekaan Solar AFS 2026.pdf', pages:24, co:'Rekaan Solar Sdn. Bhd.', ye:'2026-12-31', unit:'RM',
+    rows:[['Financial position',9,['Current and non-current','Order of liquidity'],'Page 9 shows current and non-current sections. It has one column of amounts.'],
+      ['Profit or loss',10,['By function','By nature'],'Page 10 groups costs by role. It covers 3 March 2026 to 31 December 2026.'],
+      ['Comprehensive income',10,['Net of tax','Before tax','Not printed'],'Page 10 ends at total comprehensive income.'],
+      ['Changes in equity',11,['Changes in equity'],'Page 11 starts at the date of incorporation.'],
+      ['Cash flows',12,['Indirect','Direct'],'Page 12 starts from loss before tax and adjusts it.']], notes:14}
+};
+
+/* ---------- state ---------- */
+const st = {screen:'runs', state:'list', role:'member', view:'all', q:'', status:'', std:'', date:'', page:0, dlg:null,
+  up:null, setup:{doc:'two', period:'both', asking:false, unit:'RM thousands', std:'MFRS', level:'Company', sel:null}};
+let timer = null, toastTimer = null;
+
+const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const pad = n => String(n).padStart(2, '0');
+function when(run){
+  if (run.age === 0) return `Today, ${pad(run.updated.getHours())}:${pad(run.updated.getMinutes())}`;
+  if (run.age === 1) return 'Yesterday';
+  const base = `${run.updated.getDate()} ${run.updated.toLocaleString('en-GB', {month:'short'})}`;
+  return run.updated.getFullYear() === NOW.getFullYear() ? base : `${base} ${run.updated.getFullYear()}`;
+}
+const statusHtml = key => {
+  const s = STATUS[key];
+  return `<span class="status ${s.kind}">${s.kind === 'working' ? '<span class="spin"></span>' : ''}${s.label}</span>`;
+};
+const options = (list, value) => list.map(([v, label]) => `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(label)}</option>`).join('');
+const seg = (name, list, value, locked) => `<div class="seg${locked ? ' locked' : ''}">${list.map(([v, label]) =>
+  `<button class="${v === value ? 'on' : ''}" data-a="seg" data-k="${name}" data-v="${esc(v)}"${locked ? ' disabled' : ''}>${esc(label)}</button>`).join('')}</div>`;
+const runName = run => run.company ? `${run.company} ${run.year}` : run.file;
+const TRASH = '<svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5M6.75 7v3.5M9.25 7v3.5"/></svg>';
+
+/* ---------- run list ---------- */
+function shownRuns(){
+  const q = st.q.trim().toLowerCase();
+  const status = st.view === 'in_review' ? 'in_review' : st.status;
+  return RUNS.filter(run => {
+    if (st.view === 'mine' && run.owner !== ME) return false;
+    if (status === 'working' ? !WORKING.includes(run.status) : status && run.status !== status) return false;
+    if (st.std && run.standard !== st.std) return false;
+    if (st.date === 'today' && run.age !== 0) return false;
+    if (st.date === '7' && run.age >= 7) return false;
+    if (st.date === '30' && run.age >= 30) return false;
+    if (st.date === 'year' && run.updated.getFullYear() !== NOW.getFullYear()) return false;
+    if (q && !(run.file.toLowerCase().includes(q) || (run.company || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+const filtered = () => st.q.trim() !== '' || st.status !== '' || st.std !== '' || st.date !== '';
+function runsScreen(){
+  const inReview = st.view === 'in_review';
+  return `<div class="ph"><h1>Runs</h1><span class="sp"></span>
+    ${seg('view', [['all','All'],['mine','Mine'],['in_review','In review']], st.view)}
+    <button class="btn primary" data-a="nav" data-s="new">New run</button></div>
+  <section class="panel runs">
+    <div class="tools">
+      <input class="in search" id="q" type="search" placeholder="Search company or file" aria-label="Search company or file" value="${esc(st.q)}">
+      <select class="in" data-f="status" aria-label="Status"${inReview ? ' disabled' : ''}>${options([['','Any status'],['setup','Setup'],['working','Working'],['needs_answer','Needs you'],['in_review','In review'],['ready','Ready'],['filed','Filed'],['failed','Failed'],['stopped','Stopped']], inReview ? 'in_review' : st.status)}</select>
+      <select class="in" data-f="std" aria-label="Standard">${options([['','Any standard'],['MFRS','MFRS'],['MPERS','MPERS']], st.std)}</select>
+      <select class="in" data-f="date" aria-label="Updated">${options([['','Any time'],['today','Today'],['7','Last 7 days'],['30','Last 30 days'],['year','This year']], st.date)}</select>
+      <button class="btn quiet" id="reset" data-a="reset">Clear filters</button>
+    </div>
+    <div class="body" id="list"></div>
+    <div class="foot" id="foot"></div>
+  </section>`;
+}
+function drawList(){
+  const list = document.getElementById('list');
+  if (!list) return;
+  const rows = shownRuns();
+  const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
+  st.page = Math.min(st.page, pages - 1);
+  const from = st.page * PER_PAGE, slice = rows.slice(from, from + PER_PAGE);
+  document.getElementById('reset').hidden = !filtered();
+  list.innerHTML = rows.length === 0 ? `<div class="empty">No runs match</div>` :
+    `<table class="tbl"><colgroup><col><col style="width:24%"><col style="width:64px"><col style="width:136px"><col style="width:124px"><col style="width:116px"><col style="width:72px"><col style="width:44px"></colgroup>
+     <thead><tr><th>Company</th><th>File</th><th>Year</th><th>Filing</th><th>Status</th><th>Updated</th><th>Owner</th><th></th></tr></thead>
+     <tbody>${slice.map(run => `<tr data-a="open" data-id="${run.id}">
+       <td>${esc(run.company || '')}</td><td class="meta">${esc(run.file)}</td><td class="mono">${run.year || ''}</td>
+       <td>${[run.standard, run.level].filter(Boolean).join(', ')}</td><td>${statusHtml(run.status)}</td>
+       <td class="meta">${when(run)}</td><td class="meta">${run.owner}</td>
+       <td><button class="icon" data-a="del" data-id="${run.id}" title="Delete run" aria-label="Delete run">${TRASH}</button></td></tr>`).join('')}</tbody></table>`;
+  list.scrollTop = 0;
+  document.getElementById('foot').innerHTML =
+    (st.role === 'admin' ? `<button class="btn quiet" data-a="drafts">Clear abandoned drafts</button>` : '') + `<span class="sp"></span>` +
+    (rows.length ? `<span class="meta mono count">${from + 1}–${from + slice.length} of ${rows.length}</span>
+      <button class="btn outline sm" data-a="page" data-d="-1"${st.page === 0 ? ' disabled' : ''}>Previous</button>
+      <button class="btn outline sm" data-a="page" data-d="1"${st.page >= pages - 1 ? ' disabled' : ''}>Next</button>` : '');
+}
+
+/* ---------- dialogs ---------- */
+const staleDrafts = days => RUNS.filter(run => run.status === 'setup' && run.age >= days);
+function askDelete(id){
+  const run = RUNS.find(r => r.id === id);
+  if (!run) return;
+  if (WORKING.includes(run.status)) st.dlg = {kind:'working', id};
+  else if (st.role !== 'admin' && run.owner !== ME) st.dlg = {kind:'owner', id};
+  else st.dlg = {kind:'delete', id};
+  drawDialog();
+}
+function drawDialog(){
+  const host = document.getElementById('dlg'), d = st.dlg;
+  if (!d){ host.innerHTML = ''; return; }
+  const run = RUNS.find(r => r.id === d.id);
+  let title, body, actions;
+  const close = `<button class="btn outline" data-a="close">Close</button>`;
+  if (d.kind === 'working'){
+    title = "This run can't be deleted yet";
+    body = `<p>${esc(runName(run))} is still ${STATUS[run.status].label.toLowerCase()}. Stop it or wait until it finishes, then delete it.</p>`;
+    actions = close;
+  } else if (d.kind === 'owner'){
+    title = "This run isn't yours to delete";
+    body = `<p>Only its owner, ${run.owner}, or an admin can delete ${esc(runName(run))}.</p>`;
+    actions = close;
+  } else if (d.kind === 'delete'){
+    title = `Delete ${esc(runName(run))}?`;
+    const gone = run.company
+      ? `its ${run.figures} figures and ${run.notes} notes, the uploaded PDF${run.status === 'filed' ? ' and filled workbook' : ''}, and the agents' traces`
+      : `the uploaded PDF and everything read from it`;
+    body = `<p>This removes ${gone}. It can't be undone.</p>`;
+    actions = `<button class="btn quiet" data-a="close">Cancel</button><button class="btn primary" data-a="confirm-delete">Delete run</button>`;
+  } else {
+    const n = staleDrafts(d.days).length;
+    title = 'Clear abandoned drafts?';
+    body = `<div class="line"><span>Not touched for</span><select class="in" id="days" aria-label="Not touched for">${options([['7','7 days'],['30','30 days'],['90','90 days']], String(d.days))}</select></div>
+      <p>${n === 0 ? `No runs at setup are that old.` : `${n} ${n === 1 ? 'run is' : 'runs are'} still at setup and ${n === 1 ? 'has' : 'have'} not been touched for ${d.days} days or more. Their uploaded PDFs and everything read from them are removed. It can't be undone.`}</p>`;
+    actions = `<button class="btn quiet" data-a="close">Cancel</button><button class="btn primary" data-a="confirm-drafts"${n === 0 ? ' disabled' : ''}>Clear ${n} ${n === 1 ? 'draft' : 'drafts'}</button>`;
+  }
+  host.innerHTML = `<div class="scrim" data-a="scrim"><div class="dlg" role="dialog" aria-modal="true"><h2>${title}</h2>${body}<div class="dlg-actions">${actions}</div></div></div>`;
+  const focus = host.querySelector('.btn.quiet, .btn.outline');
+  if (focus) focus.focus();
+}
+function toast(text){
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = text; el.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), 2400);
+}
+
+/* ---------- new run ---------- */
+function newScreen(){
+  const up = st.up;
+  if (!up) return `<div class="ph"><h1>New run</h1></div>
+    <div class="narrow"><section class="panel pad"><div class="drop" data-a="choose"><div><span>Drop PDFs</span><button class="btn outline">Choose files</button></div></div></section></div>`;
+  const done = up.n >= FILES.length;
+  const good = FILES.filter((f, i) => i < up.n && !f[2]).length;
+  const rows = FILES.map((f, i) => {
+    let status, end = '';
+    if (i < up.n && f[2]) status = `<span class="status failure">Refused</span>`;
+    else if (i < up.n){ status = `<span class="status finished">Uploaded</span>`; end = `<button class="btn outline sm" data-a="nav" data-s="setup">Set up</button>`; }
+    else if (i === up.n) status = `<span class="status working"><span class="spin"></span>Uploading</span>`;
+    else status = `<span class="status">Waiting</span>`;
+    return `<div class="file"><div>${esc(f[0])}${i < up.n && f[2] ? `<div>${esc(f[2])}</div>` : ''}</div><span class="meta mono r">${f[1]}</span><span>${status}</span><span class="end">${end}</span></div>`;
+  }).join('');
+  return `<div class="ph"><h1>New run</h1><span class="sp"></span>${done ? `<button class="btn primary" data-a="nav" data-s="runs">View runs</button>` : ''}</div>
+    <div class="narrow"><section class="panel pad sec">
+      <div class="line"><h2>${done ? `${good} runs waiting at setup` : `Uploading ${Math.min(up.n + 1, FILES.length)} of ${FILES.length}`}</h2>
+        ${done ? `<button class="btn outline sm" data-a="choose">Add more files</button>` : ''}</div>
+      <div>${rows}</div>
+    </section></div>`;
+}
+function startUpload(n){
+  clearInterval(timer);
+  st.up = {n};
+  if (n >= FILES.length) return;
+  timer = setInterval(() => {
+    st.up.n++;
+    if (st.up.n >= FILES.length){ clearInterval(timer); st.state = 'finished'; }
+    render();
+  }, 1100);
+}
+
+/* ---------- setup ---------- */
+function setupScreen(){
+  const s = st.setup, d = DOCS[s.doc];
+  const ready = !s.asking;
+  const card = s.asking ? `<section class="panel pad sec qc">
+      <h2>No figures for last year were found. Are these the company's first financial statements?</h2>
+      <div class="ev"><span>Every statement has one column of amounts, and note 1 says the company was incorporated on 3 March 2026.</span><button class="lk">p9</button></div>
+      <div class="opts">
+        <button class="opt" data-a="answer" data-v="only"><kbd>1</kbd><span>Yes, this year only</span></button>
+        <button class="opt" data-a="answer" data-v="both"><kbd>2</kbd><span>No, this year and last year</span></button>
+      </div>
+    </section>` : '';
+  const rows = d.rows.map((r, i) => `<div class="line pick${s.sel === i ? ' sel' : ''}" data-a="pick" data-i="${i}">
+      <span>${r[0]}</span><span class="pg mono">p${r[1]}</span>
+      <div class="ctl"><select class="in" aria-label="${r[0]} layout">${options(r[2].map(o => [o, o]), r[2][0])}</select></div>
+      <button class="switch on" data-a="sw" aria-label="${r[0]}"></button></div>`).join('');
+  const picked = s.sel === null ? null : d.rows[s.sel];
+  const side = picked
+    ? `<section class="panel pad sec"><div class="line"><h2>${picked[0]}</h2><span class="meta mono">Page ${picked[1]} of ${d.pages}</span></div><p>${esc(picked[3])}</p>
+       <div class="scan">${'<i></i>'.repeat(12)}</div></section>`
+    : `<section class="panel pad sec"><h2>Source</h2><p class="meta">Choose a statement to see the page it was found on and why.</p></section>`;
+  return `<div class="ph"><h1>New run</h1><span class="sp"></span><button class="btn quiet" data-a="nav" data-s="runs">Cancel</button><button class="btn primary" data-a="start"${ready ? '' : ' disabled'}>Start run</button></div>
+  <div class="setup"><div class="form">
+    ${card}
+    <section class="panel pad sec"><h2>Document</h2><div class="line"><span>${esc(d.file)}</span><span class="meta mono">${d.pages} pages</span><button class="btn outline sm">Replace</button></div></section>
+    <section class="panel pad sec"><h2>Filing</h2><div class="g2">
+      <label class="field span2"><span>Company</span><input class="in" value="${esc(d.co)}"></label>
+      <label class="field"><span>Year end</span><input class="in" type="date" value="${d.ye}"></label>
+      <label class="field"><span>Amounts in</span><select class="in" data-f="unit">${options([['RM','RM'],['RM thousands','RM thousands'],['RM millions','RM millions']], s.unit)}</select></label>
+      <div class="field"><span>Standard</span><div>${seg('std', [['MFRS','MFRS'],['MPERS','MPERS']], s.std)}</div></div>
+      <div class="field"><span>Level</span><div>${seg('level', [['Company','Company'],['Group','Group']], s.level)}</div></div>
+      <div class="field span2"><span>Reporting period${s.asking ? '<span class="unsure" title="Check this"></span>' : ''}</span>
+        <div>${seg('period', [['both','This year and last year'],['only','This year only']], s.asking ? '' : s.period, s.asking)}</div></div>
+    </div></section>
+    <section class="panel pad sec"><h2>Statements</h2><div>${rows}
+      <div class="line"><span>Notes</span><span class="meta">${d.notes} notes</span><button class="switch on" data-a="sw" aria-label="Notes"></button></div></div></section>
+  </div><div class="side">${side}</div></div>`;
+}
+function openSetup(doc, asking, period, unit){
+  st.setup = {doc, period, asking, unit: unit || DOCS[doc].unit, std:'MFRS', level:'Company', sel:null};
+}
+
+/* ---------- prototype switcher ---------- */
+const STATES = {
+  runs:[['list','List'],['empty','No runs match'],['delete','Delete a run'],['working','Refused: still working'],['owner','Refused: not the owner'],['drafts','Clear abandoned drafts']],
+  new:[['choose','Choose files'],['uploading','Uploading'],['finished','Finished']],
+  setup:[['two','This year and last year'],['suggest','Suggests this year only'],['confirmed','This year only, confirmed'],['millions','Amounts in RM millions']]
+};
+function go(screen, state){
+  clearInterval(timer);
+  st.screen = screen; st.state = state; st.dlg = null;
+  if (screen === 'runs'){
+    Object.assign(st, {view:'all', q:'', status:'', std:'', date:'', page:0});
+    if (state === 'empty') Object.assign(st, {q:'quarterly report', status:'failed'});
+    if (state === 'delete') st.dlg = {kind:'delete', id: RUNS.find(r => r.owner === ME && r.status === 'filed').id};
+    if (state === 'working') st.dlg = {kind:'working', id: RUNS.find(r => WORKING.includes(r.status)).id};
+    if (state === 'owner'){ st.role = 'member'; st.dlg = {kind:'owner', id: RUNS.find(r => r.owner !== ME && !WORKING.includes(r.status)).id}; }
+    if (state === 'drafts'){ st.role = 'admin'; st.dlg = {kind:'drafts', days:30}; }
+  } else if (screen === 'new'){
+    st.up = null;
+    if (state === 'uploading') startUpload(2);
+    if (state === 'finished') startUpload(FILES.length);
+  } else {
+    if (state === 'two') openSetup('two', false, 'both');
+    if (state === 'suggest') openSetup('first', true, 'both');
+    if (state === 'confirmed') openSetup('first', false, 'only');
+    if (state === 'millions') openSetup('two', false, 'both', 'RM millions');
+  }
+  render();
+}
+function switcher(){
+  return `<div class="proto"><span class="t">Prototype</span>
+    ${seg('screen', [['runs','Runs'],['new','New run'],['setup','Setup']], st.screen)}
+    <div class="states">${STATES[st.screen].map(([v, label]) => `<button class="${st.state === v ? 'on' : ''}" data-a="state" data-v="${v}">${label}</button>`).join('')}</div>
+    ${st.screen === 'runs' ? seg('role', [['member','Member'],['admin','Admin']], st.role) : ''}</div>`;
+}
+
+/* ---------- render and events ---------- */
+function render(){
+  const view = {runs: runsScreen, new: newScreen, setup: setupScreen}[st.screen]();
+  document.getElementById('root').innerHTML = `<div class="app">
+    <nav class="nav"><div class="brand"><i></i>XBRL Agent</div><a class="on" data-a="nav" data-s="runs">Runs</a><a>Settings</a><span class="sp"></span>
+      <div class="who"><span class="avatar">AN</span>${ME}</div></nav>
+    <main>${view}<div class="toast" id="toast"></div></main></div>${switcher()}`;
+  drawList();
+  drawDialog();
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]');
+  if (!t) return;
+  const a = t.dataset.a;
+  if (a === 'scrim'){ if (e.target === t){ st.dlg = null; drawDialog(); } return; }
+  if (a === 'close'){ st.dlg = null; drawDialog(); return; }
+  if (a === 'del'){ e.stopPropagation(); askDelete(+t.dataset.id); return; }
+  if (a === 'drafts'){ st.dlg = {kind:'drafts', days:30}; drawDialog(); return; }
+  if (a === 'confirm-delete'){
+    RUNS = RUNS.filter(r => r.id !== st.dlg.id); st.dlg = null; drawDialog(); drawList(); toast('Run deleted'); return;
+  }
+  if (a === 'confirm-drafts'){
+    const gone = staleDrafts(st.dlg.days).map(r => r.id);
+    RUNS = RUNS.filter(r => !gone.includes(r.id)); st.dlg = null; drawDialog(); drawList();
+    toast(`${gone.length} ${gone.length === 1 ? 'draft' : 'drafts'} cleared`); return;
+  }
+  if (a === 'page'){ st.page += +t.dataset.d; drawList(); return; }
+  if (a === 'reset'){ Object.assign(st, {q:'', status:'', std:'', date:'', page:0}); render(); return; }
+  if (a === 'open'){
+    if (e.target.closest('button')) return;
+    const run = RUNS.find(r => r.id === +t.dataset.id);
+    if (run && run.status === 'setup') go('setup', 'two'); else toast('Opens the run');
+    return;
+  }
+  if (a === 'nav'){ const s = t.dataset.s; go(s, STATES[s][0][0]); return; }
+  if (a === 'state'){ go(st.screen, t.dataset.v); return; }
+  if (a === 'choose'){ st.state = 'uploading'; startUpload(0); render(); return; }
+  if (a === 'sw'){ e.stopPropagation(); t.classList.toggle('on'); return; }
+  if (a === 'pick'){
+    if (e.target.closest('select, button')) return;
+    const i = +t.dataset.i; st.setup.sel = st.setup.sel === i ? null : i; render(); return;
+  }
+  if (a === 'answer'){ st.setup.period = t.dataset.v; st.setup.asking = false; st.state = t.dataset.v === 'only' ? 'confirmed' : st.state; render(); return; }
+  if (a === 'start'){ toast('Starts the run'); return; }
+  if (a === 'seg'){
+    const k = t.dataset.k, v = t.dataset.v;
+    if (k === 'screen'){ go(v, STATES[v][0][0]); return; }
+    if (k === 'role'){ st.role = v; drawList(); document.querySelector('.proto').outerHTML = switcher(); return; }
+    if (k === 'view'){ st.view = v; st.page = 0; render(); return; }
+    st.setup[k] = v; render();
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'q'){ st.q = e.target.value; st.page = 0; drawList(); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'days'){ st.dlg.days = +t.value; drawDialog(); return; }
+  const f = t.dataset.f;
+  if (!f) return;
+  if (f === 'unit'){ st.setup.unit = t.value; return; }
+  st[f] = t.value; st.page = 0; drawList();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && st.dlg){ st.dlg = null; drawDialog(); return; }
+  if (st.screen === 'setup' && st.setup.asking && (e.key === '1' || e.key === '2') && !e.target.closest('input, select')){
+    st.setup.period = e.key === '1' ? 'only' : 'both'; st.setup.asking = false; if (e.key === '1') st.state = 'confirmed'; render();
+  }
+});
+document.addEventListener('dragover', e => { if (st.screen === 'new') e.preventDefault(); });
+document.addEventListener('drop', e => {
+  if (st.screen !== 'new') return;
+  e.preventDefault();
+  if (!st.up || st.up.n >= FILES.length){ st.state = 'uploading'; startUpload(0); render(); }
+});
+render();
+</script></body></html>

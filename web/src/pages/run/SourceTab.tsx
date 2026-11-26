@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, type Comment, type CommentScope, type Statement, type StatementCode } from "../../api";
-import { PagePicture } from "../../components/PagePicture";
 import { Status } from "../../components/Status";
 import { statementName } from "../setup/setupModel";
 import { CommentBox } from "./CommentBox";
 import { AgentComments, FieldSelect, FigureDetail, type DetailProps } from "./FigureDetail";
+import { SourceLine, SourceView, sourcePlace } from "./SourceView";
 import { cellPlace, commentIsOn, findCell, findLine, formatAmount, rowLabels, rowStatus, targetFor, type Selection } from "./runModel";
 
 /** Template lines a figure may move to: loaded once per statement. */
@@ -43,7 +43,11 @@ export function SourceTab({ runId, statement, selection, why, comments, busy, ch
   const line = findLine(statement, selection);
   const fields = useFields(runId, statement.statement, !busy && (found !== null || line !== null));
   const agentComments = comments.filter((c) => c.author_kind === "agent" && c.status === "open" && commentIsOn(c, selection));
-  const firstPage = statement.rows.find((r) => r.page !== null)?.page ?? null;
+  const kind = statement.source_kind;
+  const firstRow = statement.rows.find((r) => r.page !== null) ?? null;
+  const firstPage = firstRow?.page ?? null;
+  // A line with no page of its own shows the statement's first page or sheet, with nothing marked on it.
+  const fallback = firstRow?.source ? { ...firstRow, source: { ...firstRow.source, row: null } } : firstRow;
 
   async function comment(text: string, scope: CommentScope) {
     await api.addComment(runId, { target: targetFor(found || line ? selection : null, statement.statement), text, ...(found || line ? { scope } : {}) });
@@ -57,7 +61,7 @@ export function SourceTab({ runId, statement, selection, why, comments, busy, ch
       <>
         {why && <p className="why">{why}</p>}
         <FigureDetail key={`${found.row.concept_uuid}|${found.column.key}`} row={found.row} column={found.column} {...props} />
-        <PagePicture runId={runId} page={found.row.page ?? firstPage} />
+        <SourceView runId={runId} kind={kind} row={found.row.page !== null ? found.row : fallback} page={found.row.page ?? firstPage} cell={found.row.cells[found.column.key]?.source_cell ?? null} />
       </>
     );
   }
@@ -99,10 +103,11 @@ export function SourceTab({ runId, statement, selection, why, comments, busy, ch
               }}
             />
           )}
+          <SourceLine kind={kind} place={sourcePlace(kind, line, line.page)} />
           <AgentComments runId={runId} comments={agentComments} onChanged={onChanged} />
           {!busy && <CommentBox chips scoped={line.kind === "line"} onAdd={comment} />}
         </div>
-        <PagePicture runId={runId} page={line.page ?? firstPage} />
+        <SourceView runId={runId} kind={kind} row={line.page !== null ? line : fallback} page={line.page ?? firstPage} />
       </>
     );
   }
@@ -115,10 +120,11 @@ export function SourceTab({ runId, statement, selection, why, comments, busy, ch
           <div className="dh">
             <h3>{statementName(statement.statement, statement.variant)}</h3>
           </div>
+          <SourceLine kind={kind} place={firstRow?.source ? firstRow.source.sheet : sourcePlace(kind, null, firstPage)} />
           <CommentBox onAdd={comment} />
         </div>
       )}
-      <PagePicture runId={runId} page={firstPage} />
+      <SourceView runId={runId} kind={kind} row={fallback} page={firstPage} />
     </>
   );
 }

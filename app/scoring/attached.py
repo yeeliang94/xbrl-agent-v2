@@ -20,6 +20,7 @@ from app.catalog.lookup import RunFamily, run_family
 from app.figures.sums import known_value
 from app.scoring.compare import RunValue, compare
 from app.catalog.fields import run_edges, run_fields
+from app.scoring import workbook_notes
 from app.scoring.workbook_read import PersonCell, Unread, WorkbookRead, read_filled_workbook
 from app.utils.atomic_io import write_bytes_atomic
 from app.utils.paths import output_dir, safe_entry_path, safe_path
@@ -32,10 +33,14 @@ class NoWorkbook(LookupError):
 
 
 def _read_for(family: RunFamily) -> str:
-    return json.dumps(sorted(family.all_template_ids()))
+    """What a stored read covers: the run's templates, and the notes. A workbook read before notes
+    were read (no "notes" mark) is read again on its next comparison."""
+    return json.dumps([*sorted(family.all_template_ids()), "notes"])
 
 
-def _store(conn: sqlite3.Connection, run_id: int, read: WorkbookRead) -> None:
+def _store(conn: sqlite3.Connection, run_id: int, read: WorkbookRead,
+           notes: list[workbook_notes.WorkbookNote]) -> None:
+    workbook_notes.store(conn, run_id, notes)
     conn.execute("DELETE FROM filled_workbook_cells WHERE run_id = ?", (run_id,))
     rows = [(run_id, *key, c.value, int(c.is_formula), c.workbook_cell, None, None, 0)
             for key, c in read.cells.items()]
@@ -78,6 +83,7 @@ def attach(run_id: int, data: bytes, *, filename: str, uploaded_by: str) -> dict
         with db.connect() as conn:
             family = run_family(conn, run_id)
             read = read_filled_workbook(conn, family, str(path))
+            notes = workbook_notes.read_filled_notes(conn, run_id, str(path))
         with db.connect(immediate=True) as conn:
             old = _stored_path(conn, run_id)
             conn.execute(
@@ -87,7 +93,7 @@ def attach(run_id: int, data: bytes, *, filename: str, uploaded_by: str) -> dict
                 "uploaded_by = excluded.uploaded_by, uploaded_at = excluded.uploaded_at, read_for = excluded.read_for",
                 (run_id, Path(filename).name[:255] or "workbook.xlsx", sha, relative, read.layout, uploaded_by,
                  db.now(), _read_for(family)))
-            _store(conn, run_id, read)
+            _store(conn, run_id, read, notes)
             result = record(conn, run_id)
     except BaseException:
         _discard(run_id, relative)
@@ -104,6 +110,7 @@ def remove(run_id: int) -> None:
         if relative is None:
             raise NoWorkbook("This run has no filled workbook.")
         conn.execute("DELETE FROM filled_workbook_cells WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM filled_workbook_notes WHERE run_id = ?", (run_id,))
         conn.execute("DELETE FROM filled_workbooks WHERE run_id = ?", (run_id,))
     _discard(run_id, relative)
 
@@ -150,7 +157,7 @@ def score(conn: sqlite3.Connection, family: RunFamily, read: WorkbookRead) -> di
 
 
 def comparison(run_id: int) -> dict:
-    """The comparison with the run's current figures. Raises NoWorkbook.
+    """The comparison with the run's current figures and notes. Raises NoWorkbook.
 
     When the run's templates changed since the workbook was read, it is read
     again outside the write lock, then stored in a short write that checks it
@@ -164,7 +171,9 @@ def comparison(run_id: int) -> dict:
     read_for = _read_for(family)
     if row["read_for"] != read_for:   # the run's templates changed since the workbook was read
         with db.connect() as conn:    # reads only; the file is parsed before its first query
-            read = read_filled_workbook(conn, family, str(safe_path(output_dir() / row["stored_path"])))
+            path = str(safe_path(output_dir() / row["stored_path"]))
+            read = read_filled_workbook(conn, family, path)
+            notes = workbook_notes.read_filled_notes(conn, run_id, path)
         with db.connect(immediate=True) as conn:
             current = conn.execute("SELECT stored_path, read_for FROM filled_workbooks WHERE run_id = ?",
                                    (run_id,)).fetchone()
@@ -172,7 +181,7 @@ def comparison(run_id: int) -> dict:
                            and current["read_for"] != read_for
                            and _read_for(run_family(conn, run_id)) == read_for)
             if still_stale:
-                _store(conn, run_id, read)
+                _store(conn, run_id, read, notes)
                 conn.execute("UPDATE filled_workbooks SET read_for = ? WHERE run_id = ?", (read_for, run_id))
     with db.connect() as conn:
         workbook = record(conn, run_id)
@@ -180,4 +189,5 @@ def comparison(run_id: int) -> dict:
             raise NoWorkbook("This run has no filled workbook.")
         cells, unread, loose = person_cells(conn, run_id)
         result = score(conn, run_family(conn, run_id), WorkbookRead(workbook["layout"], cells, unread, loose))
-    return {"workbook": workbook, **result}
+        notes_result = workbook_notes.comparison(conn, run_id)
+    return {"workbook": workbook, **result, "notes": notes_result}

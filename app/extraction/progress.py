@@ -13,6 +13,9 @@ unfinished.
 A `setup_changed` event (`app/scope/answer.py`) clears the agents' figures of
 the statements it refiles, so it drops their marks: every statement for a
 whole-run field (`fields.WHOLE_RUN`), else the one whose layout changed.
+A `redo` event (`app/runs/redo.py`: a person asked for one statement to be
+filled again) drops that statement's marks the same way, and stays open
+until the statement is finished again (`open_redo`).
 Events were chosen over a new column because every finish already writes
 one and it is in the run's export.
 """
@@ -32,9 +35,12 @@ SOURCE = "extraction"
 def finished(conn: sqlite3.Connection, run_id: int) -> set[tuple[str, str]]:
     """(statement, entity) pairs finished and not refiled since."""
     out: set[tuple[str, str]] = set()
-    for row in conn.execute("SELECT kind, data_json FROM events WHERE run_id = ? AND ((source = ? AND kind = "
-                            "'finished') OR kind = 'setup_changed') ORDER BY id", (run_id, SOURCE)):
+    for row in conn.execute("SELECT kind, data_json FROM events WHERE run_id = ? AND ((source = ? AND kind IN "
+                            "('finished', 'redo')) OR kind = 'setup_changed') ORDER BY id", (run_id, SOURCE)):
         data = json.loads(row["data_json"] or "{}")
+        if row["kind"] == "redo":
+            out = {(s, e) for s, e in out if s != data.get("statement")}
+            continue
         if row["kind"] == "setup_changed":
             refiled = set(ORDER) if data.get("field") in WHOLE_RUN else {data.get("statement")}
             out = {(s, e) for s, e in out if s not in refiled}
@@ -63,6 +69,31 @@ def mark(conn: sqlite3.Connection, run_id: int, job_id: Optional[int], statement
     """The finished mark of an agent run: one event naming the statements it finished."""
     insert(conn, SOURCE, "finished", message, run_id=run_id, job_id=job_id,
            data={**data, "statement": statements[0], "statements": list(statements), "entity": entity})
+
+
+def mark_redo(conn: sqlite3.Connection, run_id: int, statement: str, message: str, keep_mine: bool,
+              kept: Sequence[int], cleared: int, email: str) -> None:
+    """A person asked for one statement to be filled again: its finished marks are dropped. `keep_mine` says
+    whether what a person edited or confirmed is kept (worked out again each time the agent starts, so an edit
+    made after a stopped redo is kept too); `kept` records the ids kept when the redo started."""
+    insert(conn, SOURCE, "redo", message, run_id=run_id,
+           data={"statement": statement, "keep_mine": keep_mine, "kept": list(kept), "cleared": cleared,
+                 "by": email})
+
+
+def open_redo(conn: sqlite3.Connection, run_id: int, entities: Sequence[str] = (COMPANY,)) -> Optional[dict]:
+    """The run's latest redo while its statement is not finished again for every entity: `{"statement",
+    "keep_mine"}`, else None. It stays open through a stop and a retry, so a person's figures stay kept
+    (`app/figures/redo.held`)."""
+    row = conn.execute("SELECT data_json FROM events WHERE run_id = ? AND source = ? AND kind = 'redo' "
+                       "ORDER BY id DESC LIMIT 1", (run_id, SOURCE)).fetchone()
+    if row is None:
+        return None
+    data = json.loads(row["data_json"] or "{}")
+    done = finished(conn, run_id)
+    if all((data.get("statement"), entity) in done for entity in entities):
+        return None
+    return {"statement": data.get("statement"), "keep_mine": bool(data.get("keep_mine", data.get("kept")))}
 
 
 def todo(statements: Sequence[str], entities: Sequence[str], done: set[tuple[str, str]]

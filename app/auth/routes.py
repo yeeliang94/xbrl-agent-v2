@@ -134,6 +134,7 @@ def change_password(
             conn, account.email, passwords.hash_password(body.new_password),
             must_change_password=False,
         )
+        store.add_audit(conn, account.email, "password_changed", account.email)
         if account.must_change_password:
             # No session opened with the temporary password keeps access.
             store.delete_sessions_for(conn, account.email)

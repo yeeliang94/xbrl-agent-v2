@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accuracy</title>
+<style>
+/* Builds on polish-prototype.html (approved). Proposal: notes in the compare view (A6), accuracy over time (C1), learning from corrections (C2). Data is invented. */
+:root{
+  --bg:#EEEFF1;--panel:#FFFFFF;--tint:#F5F7F8;--line:#DFE3E6;--edge:#CBD1D6;--ink:#111111;--muted:#6B7280;--faint:#B5BCC4;
+  --nav:#000000;--nav-ink:#FFFFFF;--nav-muted:#9AA1A9;--nav-on:#1F1F1F;--nav-group:#6B7280;--nav-accent:#FE7C39;--nav-scroll:#3A3A3A;
+  --accent:#FD5108;--accent-text:#D64000;--accent-soft:#FFF5ED;--fail:#B23B00;--ok:#2F7D4F;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;
+  --radius:12px;--radius-sm:8px;--pill:999px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --t-title:22px;--t-panel:16px;--t-body:14px;--t-small:12px;
+  --fig:14px;
+  --fast:120ms;
+}
+*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--edge) transparent}
+html,body{margin:0;height:100%}
+body{font-family:var(--sans);font-size:var(--t-body);line-height:20px;color:var(--ink);background:var(--bg);display:grid;grid-template-columns:232px 1fr;height:100vh}
+button,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;padding:0}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:4px}
+h1,h2,h3{font-weight:500;margin:0}
+h3{font-size:var(--t-body)}
+p{margin:0}
+.nav{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding:var(--s4) var(--s3);overflow:auto;scrollbar-color:var(--nav-scroll) transparent}
+.brand{display:flex;gap:var(--s2);align-items:center;padding:var(--s2) var(--s3) var(--s4);font-weight:500}
+.brand i{width:14px;height:14px;border-radius:4px;background:var(--nav-accent)}
+.grp{color:var(--nav-group);font-size:var(--t-small);padding:var(--s5) var(--s3) var(--s1)}
+.nav button{display:flex;justify-content:space-between;width:100%;text-align:left;height:32px;align-items:center;padding:0 var(--s3);border-radius:var(--radius-sm);color:var(--nav-muted);transition:background var(--fast),color var(--fast)}
+.nav button:hover{color:var(--nav-ink)}
+.nav button.on{background:var(--nav-on);color:var(--nav-ink)}
+main{display:flex;flex-direction:column;min-width:0;padding:0 var(--s5) var(--s5);overflow:hidden;position:relative}
+.head{height:80px;flex:none;display:flex;align-items:center;gap:var(--s3)}
+.head h1{font-size:var(--t-title);flex:1}
+/* One button family: pills. */
+.btn{height:36px;padding:0 var(--s4);border-radius:var(--pill);white-space:nowrap;transition:background var(--fast),color var(--fast)}
+.btn.sm{height:28px;padding:0 var(--s3)}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.outline{box-shadow:inset 0 0 0 1px var(--edge)}
+.btn.outline:hover{background:var(--tint)}
+.btn.quiet{color:var(--muted)}
+.btn.quiet:hover{color:var(--ink)}
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:var(--s4)}
+.cols.one{grid-template-columns:minmax(0,1fr)}
+.stack{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:var(--s4)}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:var(--s4)}
+.panel{background:var(--panel);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.stack .panel{flex:none}
+.ph{height:64px;flex:none;display:flex;align-items:center;gap:var(--s3);padding:0 var(--s5)}
+.ph h2{font-size:var(--t-panel);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp{flex:1}
+.meta{color:var(--muted)}
+.pb{flex:1;min-height:0;overflow:auto;padding:0 var(--s5) var(--s5);display:flex;flex-direction:column;gap:var(--s5)}
+.seg{display:inline-flex;background:var(--tint);border-radius:var(--pill);padding:2px}
+.seg button{height:28px;padding:0 var(--s3);border-radius:var(--pill);color:var(--muted);transition:background var(--fast),color var(--fast)}
+.seg button.on{background:var(--panel);color:var(--ink)}
+.head .seg{background:var(--line)}
+.tabs{display:flex;gap:var(--s5);height:40px;align-items:flex-start;flex:none}
+.tabs button{color:var(--muted);height:32px;transition:color var(--fast),box-shadow var(--fast)}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+.count{display:inline-block;min-width:20px;height:20px;line-height:20px;border-radius:var(--pill);background:var(--tint);font-size:var(--t-small);text-align:center;margin-left:var(--s1);padding:0 var(--s1)}
+.tabs .count{background:var(--line)}
+/* One table style everywhere: no row lines, hover tint, selection soft orange, numbers right. */
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th{color:var(--muted);font-weight:400;text-align:left;height:32px;padding:0 var(--s3);white-space:nowrap}
+th.n,td.v{text-align:right}
+td{height:36px;padding:0 var(--s3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fig)}
+td.plot,th.plot{padding:0 var(--s3)}
+tbody tr.line{cursor:pointer}
+tbody tr td{transition:background var(--fast)}
+tbody tr.line:hover td{background:var(--tint)}
+tbody tr.sel td,tbody tr.sel:hover td{background:var(--accent-soft)}
+tbody tr td:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+tbody tr td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.tw{margin:0 calc(-1 * var(--s3))}
+.tw.wrap td{white-space:normal;padding-top:var(--s2);padding-bottom:var(--s2);vertical-align:top}
+.det{display:flex;flex-direction:column;gap:var(--s3)}
+.st{display:inline-flex;align-items:center;gap:var(--s2);color:var(--muted)}
+.st i{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:none}
+.st.ok i{background:var(--ok)}
+.st.run i{background:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s4)}
+.stat{background:var(--tint);border-radius:var(--radius);padding:var(--s4)}
+.stat b{display:block;font-weight:500;font-size:var(--t-title);line-height:32px;font-family:var(--mono)}
+.stat span{color:var(--muted)}
+.kv{display:grid;grid-template-columns:96px 1fr;gap:var(--s2) var(--s4)}
+.kv span:nth-child(odd){color:var(--muted)}
+.page{height:160px;border-radius:var(--radius);background:var(--tint);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.empty{color:var(--muted);padding:var(--s5) 0}
+.blank{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s4);color:var(--muted);min-height:320px}
+.gl{display:flex;align-items:center;min-height:36px;padding:var(--s2) var(--s3);background:var(--tint);border-radius:var(--radius)}
+.gl.off{color:var(--muted)}
+.in{height:36px;padding:0 var(--s3);border:0;border-radius:var(--radius);background:var(--tint);outline:none}
+select.in{flex:1;min-width:0}
+textarea.in{width:100%;height:104px;padding:var(--s3);resize:none;line-height:20px}
+.in:focus-visible{box-shadow:inset 0 0 0 1px var(--ink);outline:none}
+.bar{display:flex;align-items:center;gap:var(--s2)}
+.item{padding:var(--s2) var(--s3);margin:0 calc(-1 * var(--s3));border-radius:var(--radius-sm);cursor:pointer;transition:background var(--fast);display:block;width:calc(100% + 2 * var(--s3));text-align:left}
+.item:hover{background:var(--tint)}
+.item .t{display:flex;gap:var(--s2)}
+.item .t span:first-child{flex:1}
+.item .mono{font-family:var(--mono);font-size:13px}
+.h3row{display:flex;align-items:center;gap:var(--s3)}
+.h3row h3{flex:1}
+/* Charts: thin lines, ink and muted, direct labels. */
+svg{display:block}
+svg text{font-family:var(--sans);font-size:12px;fill:var(--muted)}
+svg text.k{fill:var(--ink)}
+svg .grid{stroke:var(--line);stroke-width:1}
+svg .l-acc{fill:none;stroke:var(--ink);stroke-width:1.5}
+svg .l-com{fill:none;stroke:var(--faint);stroke-width:1.5}
+svg .hit{fill:transparent}
+.key{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:var(--s1);vertical-align:1px}
+.key.acc{background:var(--ink)}
+.key.com{box-shadow:inset 0 0 0 1.5px var(--muted)}
+.scrim{position:fixed;inset:0;background:rgba(20,20,19,.36);display:grid;place-items:center;z-index:20}
+.dlg{width:520px;background:var(--panel);border-radius:var(--radius);padding:var(--s5);display:flex;flex-direction:column;gap:var(--s4)}
+.dlg h2{font-size:var(--t-panel)}
+.toast{position:absolute;left:50%;bottom:var(--s6);transform:translate(-50%,8px);opacity:0;background:var(--ink);color:#fff;border-radius:var(--pill);padding:var(--s2) var(--s4);transition:opacity 160ms,transform 160ms;pointer-events:none;z-index:8}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.proto{position:fixed;left:16px;bottom:16px;background:#fff;border-radius:var(--radius);box-shadow:0 4px 24px rgba(0,0,0,.12);padding:var(--s3) var(--s4);display:flex;flex-direction:column;gap:var(--s2);font-size:13px;z-index:30;width:200px}
+.proto b{font-weight:500}
+.proto .seg{flex-wrap:wrap;border-radius:var(--radius)}
+.proto .seg button{height:26px}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<main>
+  <div class="head"><h1 id="title"></h1><span id="headacts" class="bar"></span></div>
+  <div id="body" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
+  <div class="toast" id="toast"></div>
+</main>
+<div id="modal"></div>
+<div class="proto">
+  <b>Prototype</b>
+  <span class="seg" id="p-screen"></span>
+  <span class="seg" id="p-state"></span>
+</div>
+<script>
+const CO='Contoh Maju Sdn. Bhd.';
+const st={screen:'compare',cmp:'notes',cmpTab:'notes',nsel:null,acc:'data',view:'chart',by:'model',cor:'data',psel:'sign',editing:false,dialog:false};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pct=v=>v===null?'–':v.toFixed(1)+'%';
+
+/* ---------- Invented data ---------- */
+const STATEMENTS=[
+ ['Financial position',64,98.4,96.9],['Profit or loss',31,96.8,93.5],['Comprehensive income',6,100,100],
+ ['Changes in equity',22,95.5,95.5],['Cash flows',38,97.4,94.7],
+];
+const DIFFS=[
+ ['Finance costs, this year','41,200','(41,200)','Sign only'],
+ ['Finance costs, last year','38,750','(38,750)','Sign only'],
+ ['Other receivables, this year','1,204,000','1,240,000','Different'],
+ ['Deposits, this year','-','86,400','Missing'],
+ ['Dividends paid, this year','(250,000)','(250)','Scale'],
+ ['Other payables, last year','12,800','-','Extra'],
+];
+const NOTES=[
+ {id:'n1',t:'Related party disclosures',p:'Pages 31 to 32',run:'Disclosure of other related party transactions',wb:'Disclosure of related party',k:'Different field'},
+ {id:'n2',t:'Lease liabilities',p:'Page 27',run:'Disclosure of borrowings',wb:'Disclosure of leases',k:'Different field'},
+ {id:'n3',t:'Significant accounting judgements',p:'Page 18',run:'Disclosure of accounting policies',wb:'Disclosure of accounting judgements and estimates',k:'Different field'},
+ {id:'n4',t:'Capital commitments',p:'Page 34',run:null,wb:'Disclosure of commitments',k:'Missing'},
+ {id:'n5',t:'Events after the reporting period',p:'Page 35',run:null,wb:'Disclosure of events after reporting period',k:'Missing'},
+];
+const MONTHS=[
+ ['Apr',3,91.0,88.4],['May',4,92.4,90.1],['Jun',6,93.1,89.6],['Jul',5,94.0,92.3],
+ ['Aug',8,95.2,93.8],['Sep',7,96.8,94.1],['Oct',9,97.1,95.6],['Nov',6,97.9,96.2],
+];
+const BY={
+ model:{h:'Model',rows:[['gpt-6-luna',22,97.2,95.8],['gpt-6-terra',17,95.1,92.4],['fable-5-mini',9,92.6,89.9]]},
+ statement:{h:'Statement',rows:[['Financial position',48,97.8,96.1],['Profit or loss',48,95.9,92.7],['Comprehensive income',48,99.1,98.6],['Changes in equity',48,93.4,91.8],['Cash flows',48,94.2,90.3]]},
+ company:{h:'Company',rows:[[CO,12,97.4,96.0],['Syarikat Rekaan Berhad',11,96.2,94.3],['Sample Trading Sdn. Bhd.',9,95.0,93.1],['Example Holdings Berhad',9,93.8,90.2],['Placeholder Logistik Sdn. Bhd.',7,92.1,88.7]]},
+};
+const KINDS=[['Different',118],['Missing',97],['Sign only',64],['Extra',43],['Scale',21]];
+const FIRM='Firm guidance';
+const PATTERNS=[
+ {id:'sign',t:'Sign flipped on finance costs',k:'Sign flipped',times:7,runs:5,cos:4,status:'draft',target:FIRM,targets:[FIRM],
+  draft:"Enter each amount with the sign the template field expects, not the sign the report prints. Read the field's label before saving a cost or a deduction.",
+  ex:[[CO,'Year to 31 December 2025','21 Nov','Finance costs','41,200 → (41,200)'],['Syarikat Rekaan Berhad','Year to 30 June 2025','14 Nov','Finance costs','9,860 → (9,860)'],['Example Holdings Berhad','Year to 31 March 2025','2 Nov','Interest expense','112,400 → (112,400)']]},
+ {id:'note',t:'Related party note moved to a different field',k:'Note moved',times:4,runs:4,cos:1,status:'draft',target:'Guidance for '+CO,targets:[FIRM,'Guidance for '+CO],
+  draft:'Place a note by what it discloses, not by its heading. When a note covers two subjects, use the field for the larger part.',
+  ex:[[CO,'Year to 31 December 2025','21 Nov','Related party disclosures','Other related party transactions → Related party'],[CO,'Year to 31 December 2024','9 Oct','Related party disclosures','Other related party transactions → Related party'],[CO,'Year to 31 December 2023','3 Sep','Related party disclosures','Other notes → Related party']]},
+ {id:'field',t:'Lease liabilities moved out of borrowings',k:'Field moved',times:4,runs:3,cos:3,status:'draft',target:FIRM,targets:[FIRM],
+  draft:'When the template has a field for a specific item, use it before a broader field that could also hold it.',
+  ex:[['Sample Trading Sdn. Bhd.','Year to 31 December 2025','18 Nov','Lease liabilities','Borrowings → Lease liabilities'],['Placeholder Logistik Sdn. Bhd.','Year to 30 September 2025','6 Nov','Lease liabilities','Other payables → Lease liabilities'],[CO,'Year to 31 December 2025','21 Nov','Lease liabilities','Borrowings → Lease liabilities']]},
+ {id:'scale',t:'Amounts in thousands retyped in full',k:'Scale changed',times:9,runs:3,cos:2,status:'accepted',target:FIRM,targets:[FIRM],by:'Admin A',on:'12 Nov',
+  draft:'Check the unit the report states on each statement and note, and enter every amount in the unit the filing uses.',
+  ex:[['Example Holdings Berhad','Year to 31 March 2025','2 Nov','Dividends paid','(250) → (250,000)'],['Syarikat Rekaan Berhad','Year to 30 June 2025','20 Oct','Directors’ remuneration','480 → 480,000'],['Example Holdings Berhad','Year to 31 March 2024','8 Oct','Revenue','18,204 → 18,204,000']]},
+ {id:'zero',t:'Zero typed into blank lines',k:'Value changed',times:5,runs:3,cos:3,status:'rejected',target:FIRM,targets:[FIRM],
+  draft:'Leave a line empty when the report gives no figure for it. A missing line is not zero.',
+  ex:[['Sample Trading Sdn. Bhd.','Year to 31 December 2025','18 Nov','Investment properties','0 → blank'],['Placeholder Logistik Sdn. Bhd.','Year to 30 September 2025','6 Nov','Goodwill','0 → blank'],['Syarikat Rekaan Berhad','Year to 30 June 2025','14 Nov','Biological assets','0 → blank']]},
+ {id:'pol',t:'Accounting policies note placed twice',k:'Note re-placed',times:2,runs:2,cos:2,status:'none',targets:[],
+  ex:[['Syarikat Rekaan Berhad','Year to 30 June 2025','14 Nov','Accounting policies','Other notes → Accounting policies'],['Placeholder Logistik Sdn. Bhd.','Year to 30 September 2025','6 Nov','Accounting policies','Basis of preparation → Accounting policies']]},
+ {id:'tax',t:'Deferred tax figure retyped',k:'Value changed',times:1,runs:1,cos:1,status:'none',targets:[],
+  ex:[['Example Holdings Berhad','Year to 31 March 2025','2 Nov','Deferred tax liabilities','64,100 → 61,400']]},
+];
+const STATUS={draft:['run','Draft waiting'],accepted:['ok','In use'],rejected:['','Rejected'],none:['','No draft']};
+const waiting=()=>st.cor==='empty'?0:PATTERNS.filter(p=>p.status==='draft').length;
+const status=s=>`<span class="st ${STATUS[s][0]}"><i></i>${STATUS[s][1]}</span>`;
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('on'),2600)}
+
+/* ---------- Shell ---------- */
+function nav(){
+  const item=(id,l)=>`<button data-a="go" data-v="${id}" class="${id==='accuracy'&&st.screen==='corrections'||st.screen===id?'on':''}"><span>${l}</span></button>`;
+  const dead=l=>`<button data-a="dead"><span>${l}</span></button>`;
+  $('#nav').innerHTML=`<div class="brand"><i></i>XBRL Agent</div>${dead('Runs')}${item('accuracy','Accuracy')}${dead('Settings')}`
+   +(st.screen==='compare'?`<div class="grp">Statements</div>${dead('Financial position')}${dead('Profit or loss')}${dead('Cash flows')}${dead('Checks')}
+   <div class="grp">Notes</div>${dead('Placement map')}${dead('Accounting policies')}
+   <div class="grp">Run</div>${item('compare','Compare')}${dead('Guidance')}`:'');
+}
+function seg(a,opts,on){return `<span class="seg">${opts.map(([v,l])=>`<button data-a="${a}" data-v="${v}" class="${v===on?'on':''}">${l}</button>`).join('')}</span>`}
+function table(head,rows,opt={}){
+  // head: [label, class, width]; rows: {cells:[html], id}
+  return `<div class="tw${opt.wrap?' wrap':''}"><table><thead><tr>${head.map(([l,c,w])=>`<th class="${c||''}"${w?` style="width:${w}px"`:''}>${l}</th>`).join('')}</tr></thead><tbody>${
+    rows.map(r=>`<tr class="${opt.click?'line':''}${opt.sel&&opt.sel===r.id?' sel':''}"${opt.click?` data-a="${opt.click}" data-v="${r.id}" tabindex="0"`:''}>${r.cells.map((c,i)=>`<td class="${head[i][1]||''}">${c}</td>`).join('')}</tr>`).join('')
+  }</tbody></table></div>`;
+}
+
+/* ---------- Compare (A6) ---------- */
+function compare(){
+  const has=st.cmp!=='none', notes=st.cmp==='notes'?NOTES:[];
+  const same=st.cmp==='nonotes'?null:st.cmp==='same'?100:86.8;
+  $('#title').textContent=CO;
+  $('#headacts').innerHTML='<button class="btn quiet" data-a="dead">Download traces</button><button class="btn primary" data-a="dead">Prepare mTool file</button>';
+  const head=`<div class="ph"><h2>Compare</h2>${has?`<span class="meta">ContohMaju_filled_2025.xlsx</span><button class="btn quiet sm" data-a="dead">Remove</button><button class="btn outline sm" data-a="dead">Replace</button>`:'<button class="btn outline sm" data-a="pstate" data-v="notes">Attach workbook</button>'}</div>`;
+  if(!has) return `<div class="cols one"><section class="panel">${head}<div class="pb"><p class="empty">No filled workbook</p></div></section></div>`;
+  const stats=`<div class="stats">
+    <div class="stat"><b>94.4%</b><span>Complete and accurate</span></div>
+    <div class="stat"><b>97.5%</b><span>Completeness</span></div>
+    <div class="stat"><b>95.7%</b><span>Accuracy</span></div>
+    <div class="stat"><b>${pct(same)}</b><span>Notes in the same field</span></div></div>`;
+  const tabs=`<div>${seg('cmptab',[['figures',`Figures <span class="count">${DIFFS.length}</span>`],['notes',`Notes <span class="count">${notes.length}</span>`]],st.cmpTab)}</div>`;
+  let inner;
+  if(st.cmpTab==='figures'){
+    inner=table([['Statement'],['Filled','n v',96],['Completeness','n v',120],['Accuracy','n v',96]],STATEMENTS.map(s=>({cells:[s[0],s[1],pct(s[2]),pct(s[3])]})))
+     +`<section class="det"><h3>Differences</h3>${table([['Field'],['Run','n v',128],['Workbook','n v',128],['Kind','',112]],DIFFS.map((d,i)=>({id:i,cells:d})),{click:'dead'})}</section>`;
+  }else if(st.cmp==='nonotes'){
+    inner='<p class="empty">The workbook has no notes</p>';
+  }else{
+    inner=table([['Notes in workbook','n v'],['Same field','n v'],['Different field','n v'],['Missing','n v']].map(h=>[h[0],h[1],null]),[{cells:[38,38-notes.length,notes.filter(n=>n.run).length,notes.filter(n=>!n.run).length]}])
+     +`<section class="det"><h3>Different field or missing</h3>${notes.length?table([['Note'],['Run’s field'],['Workbook’s field'],['Kind','',128]],notes.map(n=>({id:n.id,cells:[n.t,n.run||'–',n.wb,n.k]})),{click:'nsel',sel:st.nsel,wrap:true}):'<p class="empty">Every note is in the same field</p>'}</section>`;
+  }
+  const n=st.cmpTab==='notes'&&notes.find(x=>x.id===st.nsel);
+  const side=n?`<section class="panel"><div class="ph"><h2>${n.t}</h2><button class="btn quiet sm" data-a="nsel" data-v="">Close</button></div>
+    <div class="pb"><div class="kv"><span>Kind</span><span>${n.k}</span><span>Run</span><span>${n.run||'Not placed'}</span><span>Workbook</span><span>${n.wb}</span><span>Source</span><span>${n.p}</span></div>
+    <div class="page">${n.p}</div><div class="bar"><span class="sp"></span><button class="btn outline" data-a="say" data-v="Opens this note on the Notes screen">Open note</button></div></div></section>`:'';
+  return `<div class="cols${n?'':' one'}"><section class="panel">${head}<div class="pb">${stats}${tabs}${inner}</div></section>${side}</div>`;
+}
+
+/* ---------- Accuracy over time (C1) ---------- */
+const X0=44,XW=760,Y0=20,YH=180,LO=80,HI=100;
+const mx=i=>X0+i*XW/(MONTHS.length-1), my=v=>Y0+(HI-v)/(HI-LO)*YH;
+function lineChart(){
+  const path=k=>MONTHS.map((m,i)=>`${i?'L':'M'}${mx(i).toFixed(1)} ${my(m[k]).toFixed(1)}`).join(' ');
+  const last=MONTHS[MONTHS.length-1], lx=mx(MONTHS.length-1)+12;
+  const step=XW/(MONTHS.length-1);
+  return `<svg viewBox="0 0 980 240" role="img" aria-label="Completeness and accuracy by month">
+   ${[80,90,100].map(v=>`<line class="grid" x1="${X0}" x2="${X0+XW}" y1="${my(v)}" y2="${my(v)}"/><text x="${X0-12}" y="${my(v)+4}" text-anchor="end">${v}%</text>`).join('')}
+   ${MONTHS.map((m,i)=>`<text x="${mx(i)}" y="226" text-anchor="middle">${m[0]}</text>`).join('')}
+   <path class="l-com" d="${path(2)}"/><path class="l-acc" d="${path(3)}"/>
+   <circle cx="${mx(MONTHS.length-1)}" cy="${my(last[2])}" r="3" fill="var(--faint)"/><circle cx="${mx(MONTHS.length-1)}" cy="${my(last[3])}" r="3" fill="var(--ink)"/>
+   <text x="${lx}" y="${my(last[2])}">Completeness ${pct(last[2])}</text><text class="k" x="${lx}" y="${my(last[3])+12}">Accuracy ${pct(last[3])}</text>
+   <g id="hov"></g>
+   ${MONTHS.map((m,i)=>`<rect class="hit" data-i="${i}" x="${mx(i)-step/2}" y="0" width="${step}" height="240"/>`).join('')}
+  </svg>`;
+}
+function hover(i){
+  const g=$('#hov');if(!g)return;
+  if(i===null||i===MONTHS.length-1){g.innerHTML='';return}
+  const m=MONTHS[i],x=mx(i);
+  g.innerHTML=`<line x1="${x}" x2="${x}" y1="${Y0}" y2="${Y0+YH}" stroke="var(--edge)" stroke-width="1"/>
+   <circle cx="${x}" cy="${my(m[2])}" r="3.5" fill="var(--accent)"/><circle cx="${x}" cy="${my(m[3])}" r="3.5" fill="var(--accent)"/>
+   <text x="${x}" y="${my(m[2])-10}" text-anchor="middle">${pct(m[2])}</text><text class="k" x="${x}" y="${my(m[3])+20}" text-anchor="middle">${pct(m[3])}</text>`;
+}
+const dots=(c,a)=>{const x=v=>4+(Math.max(v,LO)-LO)/(HI-LO)*132;
+  return `<svg viewBox="0 0 140 16" width="140" height="16" aria-hidden="true"><line class="grid" x1="4" x2="136" y1="8" y2="8"/><circle cx="${x(c)}" cy="8" r="3.5" fill="var(--panel)" stroke="var(--muted)" stroke-width="1.5"/><circle cx="${x(a)}" cy="8" r="4" fill="var(--ink)"/></svg>`};
+const bar=(n,max)=>`<svg viewBox="0 0 100 16" width="100" height="16" aria-hidden="true"><rect x="0" y="6" width="${(n/max*100).toFixed(1)}" height="4" rx="2" fill="var(--ink)"/></svg>`;
+function accuracy(){
+  const chart=st.view==='chart', b=BY[st.by], total=KINDS.reduce((s,k)=>s+k[1],0);
+  const month=chart?lineChart():table([['Month'],['Scored runs','n v',120],['Completeness','n v',140],['Accuracy','n v',120]],MONTHS.map(m=>({cells:[m[0]+' 2026',m[1],pct(m[2]),pct(m[3])]})));
+  const com='<span class="key com"></span>Completeness', acc='<span class="key acc"></span>Accuracy';
+  const brk=chart
+   ?table([[b.h],['<span style="display:flex;justify-content:space-between"><span>80%</span><span>100%</span></span>','plot',164],[com,'n v',128],[acc,'n v',104]],b.rows.map(r=>({cells:[r[0],dots(r[2],r[3]),pct(r[2]),pct(r[3])]})))
+   :table([[b.h],[st.by==='statement'?'Runs':'Scored runs','n v',112],['Completeness','n v',128],['Accuracy','n v',104]],b.rows.map(r=>({cells:[r[0],r[1],pct(r[2]),pct(r[3])]})));
+  const kinds=chart
+   ?table([['Kind'],['','plot',124],['Count','n v',72]],KINDS.map(k=>({cells:[k[0],bar(k[1],KINDS[0][1]),k[1]]})))
+   :table([['Kind'],['Count','n v',72],['Share','n v',80]],KINDS.map(k=>({cells:[k[0],k[1],pct(k[1]/total*100)]})));
+  return `<div class="stack">
+    <section class="panel"><div class="ph"><h2>By month</h2><span class="meta">48 scored runs</span></div><div class="pb">${month}</div></section>
+    <div class="pair">
+     <section class="panel"><div class="ph">${seg('by',[['model','By model'],['statement','By statement'],['company','By company']],st.by)}</div><div class="pb">${brk}</div></section>
+     <section class="panel"><div class="ph"><h2>Kinds of difference</h2></div><div class="pb">${kinds}</div></section>
+    </div></div>`;
+}
+
+/* ---------- Learning from corrections (C2) ---------- */
+function corrections(){
+  const p=PATTERNS.find(x=>x.id===st.psel)||PATTERNS[0];
+  const list=`<section class="panel"><div class="ph"><h2>Repeating corrections</h2><span class="meta">Nothing reaches the agents until an admin accepts it</span></div>
+   <div class="pb">${table([['Pattern'],['Kind','',128],['Runs','n v',64],['Times','n v',64],['Guidance','',136]],PATTERNS.map(x=>({id:x.id,cells:[x.t,x.k,x.runs,x.times,status(x.status)]})),{click:'psel',sel:p.id,wrap:true})}</div></section>`;
+  let g;
+  if(p.status==='none') g='<p class="meta">A line is drafted once a pattern shows in three runs.</p>';
+  else if(st.editing) g=`<textarea class="in" id="edit" aria-label="Guidance line">${esc(p.draft)}</textarea>
+    <div class="bar"><span class="sp"></span><button class="btn quiet" data-a="cancel">Cancel</button><button class="btn outline" data-a="save">Save</button></div>`;
+  else if(p.status==='draft') g=`<div class="gl">${esc(p.draft)}</div>
+    <div class="bar"><select class="in" id="target" aria-label="Add to">${p.targets.map(t=>`<option${t===p.target?' selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="bar"><span class="sp"></span><button class="btn quiet" data-a="reject">Reject</button><button class="btn outline" data-a="edit">Edit</button><button class="btn primary" data-a="ask">Accept</button></div>`;
+  else if(p.status==='accepted') g=`<div class="gl">${esc(p.draft)}</div>
+    <div class="kv"><span>Added to</span><span>${p.target}</span><span>Accepted by</span><span>${p.by}, ${p.on}</span></div>
+    <div class="bar"><span class="sp"></span><button class="btn outline" data-a="say" data-v="Opens ${p.target.toLowerCase()}">Open ${p.target===FIRM?'firm':'company'} guidance</button></div>`;
+  else g=`<div class="gl off">${esc(p.draft)}</div>
+    <div class="bar"><span class="sp"></span><button class="btn quiet" data-a="restore">Restore draft</button></div>`;
+  const side=`<section class="panel"><div class="ph"><h2 title="${p.t}">${p.t}</h2></div><div class="pb">
+    <div class="kv"><span>Kind</span><span>${p.k}</span><span>Seen</span><span>${p.times} ${p.times===1?'time':'times'} in ${p.runs} ${p.runs===1?'run':'runs'}</span><span>Companies</span><span>${p.cos}</span></div>
+    <section class="det"><h3>Example runs</h3><div>${p.ex.map(e=>`<button class="item" data-a="say" data-v="Opens the run at this correction"><span class="t"><span>${e[0]}</span><span class="meta">${e[2]}</span></span><span class="meta">${e[1]}</span><br><span>${e[3]}</span> <span class="mono">${e[4]}</span></button>`).join('')}</div></section>
+    <section class="det"><div class="h3row"><h3>Drafted guidance</h3>${p.status==='none'?'':status(p.status==='draft'?'draft':p.status).replace('Draft waiting','Not in use')}</div>${g}</section>
+   </div></section>`;
+  return `<div class="cols">${list}${side}</div>`;
+}
+
+function admin(){
+  $('#title').textContent='Accuracy';
+  const empty=st.screen==='accuracy'?st.acc==='empty':st.cor==='empty';
+  $('#headacts').innerHTML=st.screen==='accuracy'&&!empty?seg('view',[['chart','Chart'],['table','Table']],st.view):'';
+  const w=waiting();
+  const tabs=`<div class="tabs"><button data-a="go" data-v="accuracy" class="${st.screen==='accuracy'?'on':''}">Over time</button><button data-a="go" data-v="corrections" class="${st.screen==='corrections'?'on':''}">Corrections${w?` <span class="count">${w}</span>`:''}</button></div>`;
+  const blank=t=>`<section class="panel" style="flex:1"><div class="blank"><p>${t}</p></div></section>`;
+  if(empty) return tabs+blank(st.screen==='accuracy'?'No scored runs yet. A run is scored when a filled workbook is attached to it.':'No corrections yet');
+  return tabs+(st.screen==='accuracy'?accuracy():corrections());
+}
+
+function modal(){
+  const p=PATTERNS.find(x=>x.id===st.psel);
+  $('#modal').innerHTML=st.dialog&&p?`<div class="scrim"><div class="dlg" role="dialog" aria-modal="true"><h2>Add this line to ${p.target===FIRM?'firm guidance':esc(p.target.replace('Guidance','guidance'))}?</h2>
+    <div class="gl">${esc(p.draft)}</div><p>The agents follow it from the next run.</p>
+    <div class="bar"><span class="sp"></span><button class="btn quiet" data-a="close">Cancel</button><button class="btn primary" data-a="accept">Add line</button></div></div></div>`:'';
+}
+
+function proto(){
+  $('#p-screen').innerHTML=[['compare','Compare notes'],['accuracy','Accuracy over time'],['corrections','Corrections']].map(([v,l])=>`<button data-a="go" data-v="${v}" class="${st.screen===v?'on':''}">${l}</button>`).join('');
+  const S={compare:['cmp',[['notes','Notes differ'],['same','All in same field'],['nonotes','No notes in workbook'],['none','No workbook']]],
+    accuracy:['acc',[['data','Scored runs'],['empty','No scored runs']]],corrections:['cor',[['data','Patterns'],['empty','No corrections']]]}[st.screen];
+  $('#p-state').innerHTML=S[1].map(([v,l])=>`<button data-a="pstate" data-v="${v}" class="${st[S[0]]===v?'on':''}">${l}</button>`).join('');
+}
+
+function draw(){
+  nav();
+  $('#body').innerHTML=st.screen==='compare'?compare():admin();
+  modal();proto();
+}
+
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]');if(!b)return;
+  const a=b.dataset.a,v=b.dataset.v,p=PATTERNS.find(x=>x.id===st.psel);
+  if(a==='dead')return;
+  if(a==='say'){toast(v);return}
+  if(a==='go'){st.screen=v;st.editing=false;st.dialog=false}
+  if(a==='pstate'){const k={compare:'cmp',accuracy:'acc',corrections:'cor'}[st.screen];st[k]=v;st.nsel=null;if(st.screen==='compare')st.cmpTab='notes'}
+  if(a==='cmptab'){st.cmpTab=v;st.nsel=null}
+  if(a==='nsel')st.nsel=v||null;
+  if(a==='view')st.view=v;
+  if(a==='by')st.by=v;
+  if(a==='psel'){st.psel=v;st.editing=false}
+  if(a==='edit')st.editing=true;
+  if(a==='cancel')st.editing=false;
+  if(a==='save'){const t=$('#edit').value.trim();if(t)p.draft=t;st.editing=false}
+  if(a==='reject'){p.status='rejected';toast('Rejected. The agents are unchanged.')}
+  if(a==='restore')p.status='draft';
+  if(a==='ask')st.dialog=true;
+  if(a==='close')st.dialog=false;
+  if(a==='accept'){p.status='accepted';p.by='You';p.on='25 Nov';st.dialog=false;toast('Added to '+p.target.replace('Guidance','guidance').replace('Firm','firm'))}
+  draw();
+});
+document.addEventListener('change',e=>{if(e.target.id==='target'){const p=PATTERNS.find(x=>x.id===st.psel);if(p)p.target=e.target.value}});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&st.dialog){st.dialog=false;draw()}
+  if(e.key==='Enter'&&e.target.matches&&e.target.matches('tr.line'))e.target.click();
+});
+document.addEventListener('mouseover',e=>{const r=e.target.closest&&e.target.closest('rect.hit');hover(r?+r.dataset.i:null)});
+draw();
+</script>
+</body>
+</html>

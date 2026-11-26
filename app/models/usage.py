@@ -33,19 +33,20 @@ def tokens(usage: Any) -> tuple[int, int, int]:
 
 def record_call(run_id: Optional[int], source: str, model_id: str, usage: Any = None, *,
                 page: Optional[int] = None, duration_ms: Optional[int] = None,
-                error: Optional[str] = None) -> Optional[float]:
+                error: Optional[str] = None, agent: Optional[str] = None) -> Optional[float]:
     """Store one model call: its tokens, estimated cost, duration and, for a
-    failed call, the full error with any secret masked. Returns the cost. A
-    failure to record is logged and never ends the work."""
+    failed call, the full error with any secret masked. `agent` names the agent
+    run as a person says it, for the run's cost. Returns the cost. A failure to
+    record is logged and never ends the work."""
     inp, cached, out = tokens(usage) if usage is not None else (0, 0, 0)
     cost = cost_usd(model_id, inp, cached, out)
     try:
         with db.connect() as conn:
             conn.execute(
                 "INSERT INTO model_calls(run_id, source, page, model, input_tokens, cached_tokens, output_tokens, "
-                "cost_usd, duration_ms, error, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "cost_usd, duration_ms, error, created_at, agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (run_id, source, page, model_id, inp, cached, out, cost, duration_ms,
-                 mask(error) if error else error, db.now()))
+                 mask(error) if error else error, db.now(), agent))
     except Exception:  # noqa: BLE001 - recording usage must not end a run
         logger.warning("Could not record a model call's usage", exc_info=True)
     return cost

@@ -19,6 +19,10 @@ python-dotenv
 openpyxl
 # Reading uploaded PDFs and drawing page pictures.
 PyMuPDF
+# Reading an uploaded Word file (go-live plan C6): no Word, no LibreOffice.
+python-docx
+mammoth
+lxml          # read directly to check an Excel file before it is loaded
 # Styling notes HTML for mTool and drawing the note preview.
 beautifulsoup4
 # Tests.

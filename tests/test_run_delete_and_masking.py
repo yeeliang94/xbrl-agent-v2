@@ -71,25 +71,29 @@ def test_a_run_at_setup_or_failed_is_deleted_with_its_rows_and_files(signed_in, 
         assert conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0] == 0
 
 
-def test_anyone_who_may_open_the_run_may_delete_it(signed_in, client):
+def test_only_the_owner_or_an_admin_deletes_a_run(signed_in, client):
     run_id = upload(signed_in)
     finish_reading(run_id)
     make_user(OTHER)
     assert login(client, OTHER).status_code == 200
+    refused = client.delete(f"/api/runs/{run_id}")
+    assert refused.status_code == 403
+    assert refused.json() == {"detail": "Only the run's owner or an admin can delete this run."}
+    assert login(client, OWNER).status_code == 200
     assert client.delete(f"/api/runs/{run_id}").status_code == 204
 
 
-def test_a_run_reading_or_past_setup_is_not_deleted(signed_in):
+def test_a_run_still_reading_is_not_deleted_and_a_run_past_setup_is(signed_in):
     reading_run = upload(signed_in)
     refused = signed_in.delete(f"/api/runs/{reading_run}")
     assert refused.status_code == 409
-    assert refused.json() == {"detail": "Only a run waiting at setup, or one whose reading or extraction failed, can be deleted."}
+    assert refused.json() == {"detail": "This run is still working, so stop it or wait until it finishes, then delete it."}
+    assert (output_dir() / "runs" / f"run-{reading_run}").is_dir()
     confirmed = make_run()
     with db.connect(immediate=True) as conn:
-        conn.execute("UPDATE runs SET status = 'ready' WHERE id = ?", (confirmed,))
-    assert signed_in.delete(f"/api/runs/{confirmed}").status_code == 409
+        conn.execute("UPDATE runs SET status = 'in_review' WHERE id = ?", (confirmed,))
+    assert signed_in.delete(f"/api/runs/{confirmed}").status_code == 204
     assert signed_in.delete("/api/runs/999").json() == {"detail": "There is no such run."}
-    assert (output_dir() / "runs" / f"run-{reading_run}").is_dir()
 
 
 def test_a_run_with_work_in_progress_is_not_deleted(signed_in):
@@ -99,7 +103,7 @@ def test_a_run_with_work_in_progress_is_not_deleted(signed_in):
         conn.execute("UPDATE jobs SET status = 'working' WHERE run_id = ?", (run_id,))
     response = signed_in.delete(f"/api/runs/{run_id}")
     assert response.status_code == 409
-    assert response.json() == {"detail": "This run still has work in progress, so it cannot be deleted yet."}
+    assert response.json() == {"detail": "This run is still working, so stop it or wait until it finishes, then delete it."}
 
 
 def test_deleting_a_run_needs_a_session(client):

@@ -32,7 +32,8 @@ The route names follow v1's `auth/routes.py`.
 
 ### Users and the audit log (admin only)
 
-Brought across from v1's `auth/routes.py`. No screen uses them yet.
+Brought across from v1's `auth/routes.py`. The Settings page's Users and Audit log sections use them
+(see "Go-live A1, A2 and A7" at the end of this file for the exact shapes).
 
 | Route | Body | Returns |
 |---|---|---|
@@ -189,6 +190,16 @@ sentence>"}` and saves nothing. The refusals are listed below.
   (a person changed it).
 - `certainty` is `"unsure"` when any figure on the row is unsure, and
   `reason` is that figure's one-line reason.
+
+`Statement` also carries `source_kind`: `"pdf"`, `"word"` or `"excel"`,
+what the run started from (go-live plan C6). On a Word or Excel run every
+`page` is a page of the reading copy the server laid out, not of the
+printed report. On an Excel run each row on a sheet's pages also carries
+`source`: `{"sheet": "SOFP", "row": 7}`, with `row` null when the line
+cannot be told apart on the sheet; and each cell whose amount is found on
+that row carries `source_cell`, such as `"B7"`. Both are worked out when the
+statement is shown, from the figure's page, printed label and amount, so a
+figure a person typed is found the same way.
 
 `Cell` is:
 
@@ -430,6 +441,7 @@ workbook was read (a statement's layout confirmed again).
   "statements": [{"statement": "SOFP", "score": Score}],
   "differences": [Difference],
   "totals": {"counts": Counts, "differences": [Difference]},
+  "notes": NotesComparison,
   "not_assessed": [NotAssessed]
 }
 ```
@@ -451,7 +463,8 @@ What counts:
 - **Only data-entry fields are scored**: template lines a value is typed
   into. Headings never hold a value. Calculated totals are compared
   separately under `totals`, so one wrong line is not counted again in
-  every total above it. Notes are not scored yet (step 6).
+  every total above it. Notes are compared on their own, under `notes`
+  (see "Notes in the workbook" below), and never enter these figure scores.
 - A cell is one field, period, entity and category (and, on the equity
   statement, the equity column).
 - `person_filled`: data-entry cells the person filled with a number.
@@ -494,6 +507,59 @@ sum of that side's categories (the run uses its categories' sum when it has
 any). Where neither side filled a category, the Total column is the only
 figure and is scored as a data-entry cell. A Total beside a category that
 could not be read is a `NotAssessed` row (`line_not_read`).
+
+#### Notes in the workbook
+
+`notes` is null when the workbook holds no notes. Otherwise `NotesComparison` is:
+
+```json
+{
+  "score": 0.8684,
+  "in_workbook": 38, "same_field": 33, "different_field": 3, "missing": 2,
+  "differences": [NoteDifference],
+  "only_in_run": [{"number": "9", "title": "Inventories", "run_fields": [{"field_id": "…", "label": "…"}]}]
+}
+```
+
+`NoteDifference` is:
+
+```json
+{
+  "kind": "different_field", "number": "24", "title": "Related party disclosures",
+  "run_fields": [{"field_id": "…", "label": "Disclosure of other related party transactions"}],
+  "workbook_fields": [{"field_id": "…", "label": "Disclosure of related party"}],
+  "note_id": 12, "pages": [31, 32]
+}
+```
+
+- **"Same field" only. Wording is not compared.** The workbook's note fields
+  are read when it is attached: on an mTool workbook, the field's row is
+  found by its SSM name and its text is read from mTool's note store (or
+  from the text-block cell itself, when text was typed there); on the app's
+  template layout, the text is column B of the row whose label is the
+  field's label. Only the text's short lines are kept, to find a note's
+  printed heading.
+- The workbook is turned into an answer key and scored by the notes scoring
+  that answer keys use (`app/scoring/notes.py`). A note of the run is
+  counted in a workbook field when the run placed it in a field the
+  workbook filled, or when a line of that field's text is exactly the note's
+  printed number and title ("5. Trade and other receivables", with or
+  without "Note"). A title with no number never names a note this way.
+- `same_field`: every part of the note sits in a field the workbook filled,
+  and in each field where the workbook names it. `different_field`: the run
+  placed the note, but a part sits in a field the workbook left empty, or
+  not in the field where the workbook names it. `missing`: the run did not
+  place it. `in_workbook` is their sum and `score` is
+  `same_field / in_workbook`.
+- A filled workbook field that no note of the run sits in or is named in is
+  a `missing` row with `number` `""`, titled by the field's label: the
+  workbook has a note there and the run has nothing to match it.
+- `note_id` and `pages` are the run's note when it stored one (`note_id`
+  null otherwise), so the screen can open it.
+- `only_in_run`: notes the run placed that match nothing in the workbook.
+  Listed, never counted.
+- Worked out on every read against the run's current notes. A workbook
+  attached before notes were read is read again on its next comparison.
 
 `Difference` carries what the review screen needs to open the figure:
 
@@ -550,7 +616,7 @@ returns 404 `{"detail": "There is no such run."}`.
 
 | Route | Body | Returns |
 |---|---|---|
-| `POST /api/runs` | multipart form, one field `file` (a PDF) | `{"run": Run, "document": Document}` |
+| `POST /api/runs` | multipart form, one field `file`: a PDF, a Word document (`.docx`) or an Excel workbook (`.xlsx`) | `{"run": Run, "document": Document}` |
 
 - The run starts with status `"reading"`. Its company, year, standard and
   level are not known yet, so `company`, `year`, `standard` and `level`
@@ -558,16 +624,40 @@ returns 404 `{"detail": "There is no such run."}`.
   A reading run has no statements: its statement routes return 404 and
   its checks list is empty.
 - The signed-in person is the run's owner.
-- Uploads are PDF only, on every machine (`backend-plan.md` section 9).
-- The PDF is kept in the run's folder. Each page is looked at once, here:
-  its size, its rotation and whether it has a real text layer.
-- Refusals, 422 unless noted: "Save the Word file as a PDF in Word, then
-  upload the PDF." (a `.doc`, `.docx` or other Word file), "This file is
-  empty.", "This file is over 100 MB." (413), "This file is not a PDF, so
-  choose the PDF of the financial statements." (no PDF header),
+- A run starts from one file (owner, 25 November 2026). Its kind is
+  decided from the file's content. Nothing is converted with Word or
+  LibreOffice: for a Word or Excel file the server lays out a reading copy
+  itself (Word through `mammoth` and PyMuPDF's Story, Excel through
+  `openpyxl`), and the run reads that copy's pages as it would a PDF's. Its
+  page numbers are its own. The uploaded file is kept beside it, and the
+  file's own headings, paragraphs and table rows (an Excel sheet's cells
+  with their saved values) are stored in `file_lines`, for the agents' file
+  tools (`app/agents/file_tools.py`).
+- Excel: a formula is read by the result Excel saved with it. One saved
+  without a result reads as empty, and an event tells the person: "The
+  sheet <name> has <n> formula(s) saved without a result, so they read as
+  empty. Open the workbook in Excel, save it and upload it again." Hidden
+  sheets are left out until brought in (below).
+- The PDF, or the reading copy, is kept in the run's folder. Each page is
+  looked at once, here: its size, its rotation and whether it has a real
+  text layer.
+- Several files at once: the new-run page sends one `POST /api/runs` per
+  file, at most two at a time. Each becomes its own run.
+- Refusals name the file, 422 unless noted: "<file> is in the old Word
+  format. Save it as .docx and upload that." (`.doc`), "<file> is in the old
+  Excel format. Save it as .xlsx and upload that." (`.xls`), "<file> is
+  protected by a password. Remove the password and upload it again.",
+  "<file> is not a .docx file. Save it as .docx and upload that." (a macro
+  or template Word file; the same for `.xlsx`), "<file> is not a PDF, a Word
+  document (.docx) or an Excel workbook (.xlsx).", "<file> could not be read
+  as a Word file." (or "as an Excel workbook"), "<file> holds no text or
+  tables to read.", "<file> has no sheet with anything on it to read.",
+  "<file> makes more than 500 pages, so upload the financial statements on
+  their own.", "<file> unpacks to more than 300 MB, so upload the financial
+  statements on their own." (checked before the file is parsed), "This file is empty.", "<file> is <n> MB. The largest file a
+  run can take is 100 MB." (413),
   "This file could not be read as a PDF." (a PDF header, but PyMuPDF cannot
-  open it or it has no pages), "This PDF is protected by a password, so
-  upload a copy saved without one.", "This PDF has more than 500 pages, so
+  open it or it has no pages), "This PDF has more than 500 pages, so
   upload the financial statements on their own.", "Page <n> is larger than
   A0 paper, so upload a PDF with ordinary page sizes." (checked before any
   page is drawn).
@@ -586,7 +676,7 @@ too, so a reading run can be told apart before its company is known.
 
 ```json
 {
-  "filename": "Doc 1.pdf", "sha256": "…", "size_bytes": 2512344,
+  "filename": "Doc 1.pdf", "kind": "pdf", "sha256": "…", "size_bytes": 2512344,
   "page_count": 36, "scanned_pages": 36,
   "uploaded_by": "ana@firm.com", "uploaded_at": "…",
   "pages": [Page]
@@ -604,6 +694,32 @@ too, so a reading run can be told apart before its company is known.
   stamp or a certification line adds a few words of real text. A scan
   that carries a full searchable text layer counts as text.
 - `scanned_pages` counts the pages with no text layer.
+- `kind` is `"pdf"`, `"word"` or `"excel"`. `filename`, `sha256` and
+  `size_bytes` are the uploaded file's; `page_count` and `pages` are the
+  reading copy's for a Word or Excel run.
+- An Excel run's `Document` also has `sheets`, in the workbook's order:
+  `{"name", "hidden", "used", "first_page", "last_page", "rows",
+  "empty_formulas", "notice"}`. `used` says the sheet is laid out in the
+  reading copy, on `first_page` to `last_page`; `notice` is the sentence
+  about formulas saved without a result, or null.
+
+### An Excel run's sheets
+
+| Route | Body | Returns |
+|---|---|---|
+| `GET /api/runs/{run_id}/sheets/{name}` | | `{"sheet": {"name", "position", "count", "columns", "first_page", "last_page", "rows": [{"row", "cells": {"B": "1,284,300"}}]}}`: a used sheet's filled cells as shown. 404 "This run has no sheet called <name>." |
+| `POST /api/runs/{run_id}/sheets/bring-in` | `{"sheet"}` | `{"run": Run, "document": Document}`. A hidden sheet is laid out after the pages already read, the run goes back to `reading`, only the new pages are transcribed and the Reader maps the whole workbook again, then the run waits at setup |
+
+- Bring-in refusals, 409: "A sheet can be brought in only while the run
+  waits at setup.", "The workbook has no sheet called <name>.", "The sheet
+  <name> is already in use.", "The sheet <name> has nothing on it.", "This
+  run did not start from an Excel workbook.", "The workbook changed while
+  this sheet was laid out, so try again." The workbook is laid out again
+  outside the database's write lock; only the final write takes it.
+- At setup a statement's sheet is its `pages`: each sheet sits on pages of
+  its own, so choosing a sheet sets the statement's pages to that sheet's.
+  A spare sheet given to the notes joins the notes list as one note with no
+  number, titled with the sheet's name, on the sheet's pages.
 
 ### Page pictures
 
@@ -2790,3 +2906,239 @@ The agent's own refusals (`propose_places`), each one sentence it can act
 on: a cell that holds a formula, a locked cell, a cell that already holds a
 value, a cell the fill wrote, a cell proposed for another figure, and a
 proposal with no evidence.
+
+## Go-live A1, A2 and A7
+
+Settings sections: Account and General for everyone; System, Users, Audit log and Issues for admins.
+Every route marked admin answers 403 `{"detail": "Only an admin can do this."}` to anyone else.
+
+### Users (admin)
+
+| Route | Body | Returns |
+|---|---|---|
+| `GET /api/admin/users` | | `{"users": AdminUser[]}`, by email |
+| `POST /api/admin/users` | `{"email","name","is_admin"?}` | `{"user": AdminUser, "temporary_password"}`. 409 when the email exists |
+| `POST /api/admin/users/{email}/disable` | | `{"ok": true, "user": AdminUser}`. Ends that person's sessions |
+| `POST /api/admin/users/{email}/enable` | | `{"ok": true, "user": AdminUser}` |
+| `POST /api/admin/users/{email}/reset-password` | | `{"user": AdminUser, "temporary_password"}`. 409 for the admin's own account |
+| `POST /api/admin/users/{email}/admin` | `{"is_admin"}` | `{"user": AdminUser}` |
+
+`AdminUser` is `User` plus `{"disabled","has_password","created_at","password_set_at","last_sign_in_at"}`.
+The only enabled admin cannot be disabled or made a non-admin: 409
+`"<name> is the only admin. Make someone else an admin first."`
+
+`POST /api/auth/change-password` (everyone) is unchanged, and now writes the audit row `password_changed`.
+
+### Audit log (admin)
+
+`GET /api/admin/audit?actor=<email>&group=<group>&offset=<n>&limit=<n>` returns
+`{"events": AuditEntry[], "total": <int>, "has_more": <bool>, "people": [{"email","name"}]}`, newest first.
+`limit` is 1 to 200 (default 50). `total` counts every row that matches the filters. `people` is everyone
+with a row in the log. The older `before=<id>` paging still works.
+
+`AuditEntry` is `{"id","at","actor_email","actor_name","action","target","target_name","detail"}`.
+`group` selects actions by how their name starts:
+
+| Group | Actions start with | Actions written today |
+|---|---|---|
+| `users` | `user_`, `password_`, `role_` | `user_added`, `user_disabled`, `user_enabled`, `password_reset`, `password_changed`, `role_changed` |
+| `settings` | `setting_` | `setting_changed`: target `<group>.<name>`, detail `{"setting","from","to"}` in plain words |
+| `runs` | `run_`, `drafts_` | `run_deleted`, `drafts_cleared` |
+| `issues` | `issue_` | `issue_updated`, `issue_closed`, `issue_reopened`, `issue_deleted`, `issue_traces_downloaded` (target is the issue number) |
+
+`PUT /api/settings` writes one `setting_changed` row for each value that actually changed.
+
+### Report an issue
+
+| Route | Body | Returns |
+|---|---|---|
+| `POST /api/issues` | multipart: `text`, optional `run_id`, optional `file` | `{"issue": Issue}`. 422 with no text or a file that is not a PNG, JPEG, GIF or WebP picture; 413 over 10 MB; 404 for a run the person may not open |
+| `GET /api/issues?status=open\|closed\|all` (admin) | | `{"issues": Issue[]}`, newest first |
+| `PATCH /api/issues/{id}` (admin) | `{"status"?: "open"\|"closed", "note"?}` | `{"issue": Issue}` |
+| `DELETE /api/issues/{id}` (admin) | | 204. Removes the report and its screenshot; the run is kept |
+| `GET /api/issues/{id}/file` (admin) | | the screenshot, as a download |
+| `GET /api/issues/{id}/traces` (admin) | | the traces zip of the issue's run, as `GET /api/runs/{id}/traces` builds it without the PDF. 404 when the issue has no run or the run was deleted |
+
+`Issue` is `{"id","created_at","updated_at","reporter_email","reporter_name","text","run_id","run_label",
+"status","note","file_name"}`. `run_label` is the run's name when it was reported and is kept when the run is
+deleted (`run_id` then becomes null).
+
+### Housekeeping
+
+There is no automatic clean-up (owner, 26 November 2026): runs, their files and their traces are removed
+only by hand, by deleting a run or clearing abandoned drafts (Go-live A4).
+
+| Route | Returns |
+|---|---|
+| `POST /api/admin/connection-test` (admin) | `{"results": [{"model","ok","seconds","sentence"}]}`, one per distinct model set for reading, extraction and review |
+
+The connection test sends one made-up word to each model through the app's own model connection and records
+each call in `model_calls` with source `connection_test`.
+
+### Version
+
+`GET /api/health` already returns `version`; the shell shows it. The traces zip gains `version.txt` (the
+version, then the deployed commit when there is one) and `manifest.json` gains `app_version` and `commit`.
+
+## Go-live A4: run list search, filters, paging and delete
+
+Replaces `GET /api/runs` and `DELETE /api/runs/{run_id}` above.
+
+| Route | Body | Returns |
+|---|---|---|
+| `GET /api/runs?q=&status=&standard=&updated_since=&mine=&page=0&per_page=25` | | `{"runs": Run[], "total", "page", "per_page"}`, newest first |
+| `GET /api/runs/{run_id}/deletion` | | `{"allowed", "refused": {"code", "detail"} \| null, "figures", "notes", "filled_workbook"}` |
+| `DELETE /api/runs/{run_id}` | | 204, no body |
+| `GET /api/admin/drafts?older_than_days=30` | | `{"older_than_days", "count"}`. Admin only |
+| `POST /api/admin/drafts/clear` | `{"older_than_days"}` | `{"older_than_days", "cleared"}`. Admin only |
+
+- `q` looks in the company's name and the file's name, in any case.
+  `status` is one run status, or `"working"` (reading, extracting,
+  correcting). `standard` is `"MFRS"` or `"MPERS"`. `updated_since` is an
+  ISO time; runs updated at or after it. `mine=true` keeps the signed-in
+  person's own runs. `per_page` is 1 to 100.
+- A filter the list does not have is refused, 422, one sentence: "Choose a
+  status from the list.", "Choose MFRS or MPERS.", "Give the earliest update
+  time as a date and time."
+- A page past the end gives the last page; `page` in the answer says which.
+- Delete: the run's owner or an admin, checked on the server, else 403
+  "Only the run's owner or an admin can delete this run.". A run that is
+  working (reading, extracting, correcting, or with a job queued or
+  running) is refused, 409 "This run is still working, so stop it or wait
+  until it finishes, then delete it.". Any other status may be deleted.
+- A delete removes the run's rows (figures, notes, comments, rounds, fills,
+  traces) and then its folders on disk, and writes an audit row
+  `run_deleted` with the run's number, company, file, status and owner.
+- `deletion` names what a delete would remove, for the confirm dialog.
+  `figures` leaves out totals the app adds up. `code` is `"owner"` or
+  `"working"`.
+- Clearing drafts deletes every run still at setup, untouched for
+  `older_than_days` days or more (1 to 3650) and with no job queued, with
+  its files, and writes one audit row `drafts_cleared` naming them. A
+  wrong age: 422 "Give the age as a whole number of days from 1 to 3650.".
+
+## Go-live A3: reporting period and amounts in millions
+
+- `ConfirmedSetup` gains `first_statements` (boolean, default false): true
+  is "This year only", the company's first financial statements. It is
+  saved in `run_setup.first_statements`; anything but true or false is
+  refused, 422 "Say whether the report covers this year and last year, or
+  this year only.".
+- `unit` may now also be `"RM'000,000"` (RM millions), in the setup, the
+  document map's `unit` finding and a setup question's choices. A wrong
+  unit: 422 "Choose whether amounts are in RM, RM thousands or RM
+  millions.". Figures are still stored and filed as printed.
+- `DocumentMap` and `SuggestedSetup` gain `first_statements`: a `Finding`
+  whose value is `"yes"` when the Reader saw no prior-year figures, `"no"`
+  otherwise, or null for a map read before the Reader looked.
+- When it is `"yes"`, the setup's `questions` include one card with
+  `field: "period"` and choices `"only"` (suggested) and `"both"`. The
+  person answers it before the run can start.
+- The fill's `template.reasons` gains one sentence, and the fill needs
+  review, when the template's own level of rounding is not the run's unit:
+  "The template is in RM thousands but the report is in RM millions, so
+  mTool would read every amount in the wrong unit; make the template in
+  mTool with the same level of rounding and fill it again.".
+
+## Run controls (go-live A5, B1): redo one statement, stop reading, cost
+
+All routes need a session. A run this person may not open answers 404.
+
+### Redo one statement
+
+| Route | Returns |
+|---|---|
+| `GET /api/runs/{run_id}/statements/{statement}/redo` | `{"redo": RedoPreview}`. 404 "That statement is not part of this run." |
+| `POST /api/runs/{run_id}/statements/{statement}/redo` | Body `{"keep_mine": true}` (the default). 202 `{"run": Run, "cleared": 12, "kept": 3}`. 404 as above. 409 with one sentence |
+
+```json
+{"statement": "SOFP", "name": "statement of financial position", "refusal": null,
+ "kept": [{"concept_uuid": "…", "entity_scope": "Company", "label": "Share capital", "how": "confirmed"}]}
+```
+
+- `kept` lists the statement's lines a person edited (`"edited"`) or
+  confirmed as they stand now (`"confirmed"`), one per field and entity. A
+  confirm counts until the figure is changed again.
+- Allowed while the run is `"in_review"` and none of its jobs is queued or
+  working. Otherwise `refusal` (and the POST's 409) says "A statement can be
+  redone once the run is in review and no agent is working on it." or "This
+  run still has work in progress, so wait for it to finish before redoing a
+  statement."
+- The POST clears the statement's figures, each with a history row naming
+  the person, so any of them can be restored. With `keep_mine` true the
+  kept lines are not cleared, and the figures agent's save and clear tools
+  leave them as they are and tell the agent why. With `keep_mine` false they
+  are cleared too. Figures imported from a starting workbook are never
+  cleared.
+- It then queues the figures agent for that statement alone. The run goes
+  to `"ready"`, then `"extracting"`, then back to `"in_review"`. The other
+  statements' figures are not touched; the notes and reports stages do not
+  run again. Stop is `POST .../extract/stop`; a stopped redo is tried again
+  with `POST .../extract/retry`.
+- Events (source `extraction`): `redo` "Started redoing the statement of
+  financial position.", a `notice` "Kept 3 lines a person edited or
+  confirmed.", and at the end `finished` "The statement of financial
+  position is redone."
+- `RunDetail` gains `redo`: `{"statement": "SOFP", "kept": [12, 15]}` (the
+  ids of the kept figures) from the POST until the statement is finished
+  again, else null.
+
+### Stop reading
+
+| Route | Returns |
+|---|---|
+| `POST /api/runs/{run_id}/read/stop` | 202 `{"read": ReadProgress}`. 409 `{"detail": "Reading is not running, so there is nothing to stop."}` |
+
+- Allowed while the `read` stage waits or works. A job still waiting stops
+  at once. A working one starts no further page and the Reader takes no
+  further step, so it stops once the model calls under way have finished;
+  poll `GET .../read`.
+- `ReadProgress` gains `stop_requested` and its `status` may be
+  `"stopped"`, with `error` "Stopped on request; the pages read so far are
+  kept." The run's status is `"stopped"`, and its run-list row's
+  `failed_stage` is `"read"` (null for a stopped extraction), so the list
+  opens it at setup. An event says "Reading stopped on
+  request. The pages read so far are kept." (or "… before it started.").
+- `POST .../read/retry` now also works from a stopped reading and reads
+  only the pages not yet read. A run whose reading was stopped can be
+  deleted (`DELETE /api/runs/{run_id}`), as one whose reading failed.
+
+### Cost and time
+
+| Route | Returns |
+|---|---|
+| `GET /api/runs/{run_id}/cost` | `{"cost": RunCost}` |
+
+```json
+{"agents": [{"agent": "Reading the document", "seconds": 130, "calls": 62, "cost_usd": 0.18, "unpriced": 0}],
+ "total": {"seconds": 130, "calls": 62, "cost_usd": 0.18, "unpriced": 0}}
+```
+
+- One row per agent that made a model call, in working order: "Reading the
+  document" (transcription and the Reader), the figures agent, the notes
+  agents, "Reports", "Corrections", "Finding places in the template". An
+  agent run that names itself has a row of its own, in the order it
+  started: one per figures run ("Statement of financial position", and
+  "Statement of financial position, redone" after a redo) and one per notes
+  session ("Placing the notes"). Calls recorded before the agent's name was
+  kept fall back to "Figures" or "Notes".
+- `seconds` is the time the agent spent waiting on the model; calls made
+  side by side count once. The total adds the rows.
+- `cost_usd` is the estimate recorded with each call. It is null when none
+  of the calls has a known price; `unpriced` counts the calls with none.
+  The screen leaves a null cost blank and shows a partly priced one as
+  "$0.94+".
+- A redo is refused while a stopped redo of another statement is still
+  open: "The redo of the statement of financial position was stopped
+  before it finished, so try it again before redoing another statement."
+  The lines a redo keeps are worked out again each time the agent starts,
+  so a line a person corrects after a stopped redo is kept through the
+  retry too.
+
+### Agents are told when a limit is near (go-live B5)
+
+No route changes. Once 70% and again once 90% of an agent's time limit is
+used, the next tool result ends with one sentence, such as "[Time: 21 of 30
+minutes used, about 9 minutes left. …]", as it already did for steps. The
+Reader's tool results now carry both notes too. Nothing is refused and the
+limits are unchanged.

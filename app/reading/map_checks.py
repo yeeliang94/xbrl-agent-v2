@@ -20,8 +20,8 @@ from typing import Iterable, Optional
 from app.reading.content import table_rows
 from app.catalog.statements import printed_layouts
 from app.reading.map_schema import STATEMENT_NAMES, STATEMENTS, DocumentMap
+from app.runs import units
 
-_UNIT_FORMS = {"RM": "RM", "RM'000": "RM'000", "RM000": "RM'000", "RM'000S": "RM'000"}
 _NOTE_HEADING = re.compile(r"^\s*(?:note\s+)?(\d{1,3})(?:\s*[.)])?\s+(?=[A-Za-z(])", re.I)
 _NOTE_COLUMN = re.compile(r"^\s*notes?\s*$", re.I)
 _CITED = re.compile(r"\b(\d{1,3})(?![\d,])")
@@ -37,8 +37,10 @@ def note_number(text: str) -> Optional[int]:
 def normalise(doc_map: DocumentMap) -> None:
     """Spellings the map may arrive in, made canonical in place."""
     if doc_map.unit.value:
-        squeezed = re.sub(r"[\s’‘`]", "", doc_map.unit.value).replace("’", "'").upper()
-        doc_map.unit.value = _UNIT_FORMS.get(squeezed, doc_map.unit.value)
+        doc_map.unit.value = units.from_printed(doc_map.unit.value) or doc_map.unit.value
+    first = doc_map.first_statements
+    if first is not None and first.value:
+        first.value = first.value.strip().lower()
     for field in (doc_map.standard, doc_map.level):
         if field.value:
             field.value = field.value.strip()
@@ -90,8 +92,19 @@ def problems(doc_map: DocumentMap, page_count: int) -> list[str]:
         out.append("The standard must be MFRS, MPERS or unknown.")
     if doc_map.level.value not in ("Company", "Group"):
         out.append("The level must be Company, or Group when Group and Company columns are printed.")
-    if doc_map.unit.value not in ("RM", "RM'000"):
-        out.append("The unit must be RM or RM'000, as the statements' headings print it; figures are never rescaled.")
+    if doc_map.unit.value not in units.UNITS:
+        out.append("The unit must be RM, RM'000 or RM'000,000 (millions), as the statements' headings print it; "
+                   "figures are never rescaled.")
+    first = doc_map.first_statements
+    if first is not None:
+        if first.value not in ("yes", "no"):
+            out.append("Say yes or no for first statements: yes when no statement prints figures for a prior year.")
+        if not first.reason:
+            out.append("Give a one-sentence reason for first statements.")
+        for page in first.pages:
+            if not 1 <= page <= page_count:
+                out.append(f"Page {page} for first statements is outside the document, which has {page_count} "
+                           "pages, so cite the PDF page number, not the printed folio.")
     if doc_map.year_end.value is not None:
         try:
             date.fromisoformat(doc_map.year_end.value)

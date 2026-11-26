@@ -34,8 +34,36 @@ export interface Run {
   owner_name: string;
   owner_email: string;
   filename: string | null;
-  /** Which stage failed, when the status is "failed". */
+  /** Which stage failed, when the status is "failed"; "read" when the status is "stopped" because reading was stopped. */
   failed_stage?: "read" | "extract" | null;
+}
+
+/** The run list's search, filters and page (docs/api-contract.md, "Run list: search, filters, paging and delete"). */
+export interface RunQuery {
+  q?: string;
+  /** One status, or "working" for reading, extracting and correcting. */
+  status?: RunStatus | "working" | "";
+  standard?: Standard | "";
+  /** An ISO time: runs updated at or after it. */
+  updated_since?: string;
+  mine?: boolean;
+  page?: number;
+}
+
+export interface RunList {
+  runs: Run[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+/** What deleting a run would remove, and whether this person may delete it now. */
+export interface RunDeletion {
+  allowed: boolean;
+  refused: { code: "owner" | "working"; detail: string } | null;
+  figures: number;
+  notes: number;
+  filled_workbook: boolean;
 }
 
 export type ModelRole = "reading" | "extraction" | "review";
@@ -88,8 +116,39 @@ export interface DocumentPage {
   has_text_layer: boolean;
 }
 
+/** What a run started from. A Word or Excel run's pages are a reading copy the server laid out. */
+export type SourceKind = "pdf" | "word" | "excel";
+
+/** One sheet of an Excel run's workbook. `used`: laid out in the reading copy, on these pages. */
+export interface WorkbookSheet {
+  name: string;
+  hidden: boolean;
+  used: boolean;
+  first_page: number | null;
+  last_page: number | null;
+  rows: number;
+  empty_formulas: number;
+  /** What to tell the person when formulas were saved without a result, or null. */
+  notice: string | null;
+}
+
+/** A sheet's filled cells, as the review and setup screens draw them. */
+export interface SheetGrid {
+  name: string;
+  position: number;
+  count: number;
+  columns: string[];
+  first_page: number;
+  last_page: number;
+  rows: { row: number; cells: Record<string, string> }[];
+}
+
 export interface RunDocument {
   filename: string;
+  /** Absent on a document made before runs could start from Word or Excel: a PDF. */
+  kind?: SourceKind;
+  /** Excel runs only. */
+  sheets?: WorkbookSheet[];
   sha256: string;
   size_bytes: number;
   page_count: number;
@@ -99,7 +158,7 @@ export interface RunDocument {
   pages: DocumentPage[];
 }
 
-export type StageStatus = "waiting" | "working" | "done" | "failed";
+export type StageStatus = "waiting" | "working" | "done" | "failed" | "stopped";
 
 export interface ReadProgress {
   status: StageStatus;
@@ -108,6 +167,8 @@ export interface ReadProgress {
   error: string | null;
   pages: { total: number; read: number; blank: number; failed: number; waiting: number };
   map_saved: boolean;
+  /** A person asked the reading to stop; it stops once the calls under way finish. */
+  stop_requested?: boolean;
 }
 
 export interface RunEvent {
@@ -185,9 +246,12 @@ export interface SuggestedSetup {
   statements: SuggestedStatement[];
   /** One card for each unsure suggestion of the standard, the level, the unit or a layout. */
   questions?: SetupQuestion[];
+  /** Value "yes" when the Reader found no figures for last year; null for a map read before it looked. */
+  first_statements?: Finding | null;
 }
 
-export type Unit = "RM" | "RM'000";
+/** As printed: RM, RM thousands or RM millions. Figures are never rescaled. */
+export type Unit = "RM" | "RM'000" | "RM'000,000";
 
 export interface ConfirmedSetup {
   company: string;
@@ -198,6 +262,8 @@ export interface ConfirmedSetup {
   statements: { statement: StatementCode; layout: string; included: boolean; pages: number[] }[];
   notes_included: boolean;
   notes: MapNote[];
+  /** True for "This year only": the company's first financial statements, with no prior year. */
+  first_statements: boolean;
 }
 
 // Step 1 and step 5a: statements, figures, checks, comments, rounds, Needs you.
@@ -230,6 +296,8 @@ export interface Cell {
   sign_question?: boolean;
   /** The report's comparative for a kept last-year figure, as the agent read it (step 10e). */
   comparison?: { report_value: number; page: number | null; open: boolean } | null;
+  /** Excel runs: the cell this figure comes from on the row's sheet, e.g. "B12". */
+  source_cell?: string;
 }
 
 export type RowStatus = "does_not_tally" | "differs_from_report" | "unsure" | "edited";
@@ -251,6 +319,8 @@ export interface StatementRow {
   edited: boolean;
   entity_scope?: EntityScope | null;
   period?: Period | null;
+  /** Excel runs: the sheet the line is on, and its row when it could be told. */
+  source?: { sheet: string; row: number | null };
 }
 
 export interface Statement {
@@ -261,6 +331,8 @@ export interface Statement {
   order: "report" | "template";
   columns: StatementColumn[];
   rows: StatementRow[];
+  /** What the run started from. Absent on an older server: a PDF. */
+  source_kind?: SourceKind;
 }
 
 export interface Figure {
@@ -480,7 +552,8 @@ export interface ScopeQuestion {
 
 /** A question card on the setup screen, for an unsure suggestion. */
 export interface SetupQuestion {
-  field: "standard" | "level" | "unit" | "layout";
+  /** "period": the Reader found no figures for last year and asks whether these are first statements. */
+  field: "standard" | "level" | "unit" | "layout" | "period";
   statement: StatementCode | null;
   question: string;
   reason: string | null;
@@ -538,6 +611,38 @@ export interface RunDetail extends Run {
   working_on: StatementCode | null;
   open_question_id: number | null;
   stages: RunStage[];
+  /** The statement being redone, with the ids of the figures kept through it, until it is finished again. */
+  redo?: { statement: StatementCode; kept: number[] } | null;
+}
+
+/** A line of a statement a person edited or confirmed: a redo keeps it unless the person says otherwise. */
+export interface KeptLine {
+  concept_uuid: string;
+  entity_scope: EntityScope;
+  label: string;
+  how: "edited" | "confirmed";
+}
+
+export interface RedoPreview {
+  statement: StatementCode;
+  name: string;
+  /** Why the statement cannot be redone now, or null. */
+  refusal: string | null;
+  kept: KeptLine[];
+}
+
+export interface AgentCost {
+  agent: string;
+  seconds: number;
+  calls: number;
+  /** Null when none of the agent's calls has a known price. */
+  cost_usd: number | null;
+  unpriced: number;
+}
+
+export interface RunCost {
+  agents: AgentCost[];
+  total: Omit<AgentCost, "agent">;
 }
 
 // Step 2: a person's filled workbook and the comparison with the run.
@@ -604,8 +709,41 @@ export interface NotAssessed {
   figure_id: number | null;
 }
 
+export interface NoteFieldName {
+  field_id: string;
+  label: string;
+}
+
+/** A note of the workbook the run placed in a different field, or left out. */
+export interface NoteDifference {
+  kind: "different_field" | "missing";
+  /** The note's printed number, or "" when the run has no note to name it by. */
+  number: string;
+  /** The note's printed title, or the workbook field's label when the run has no note to name it by. */
+  title: string;
+  run_fields: NoteFieldName[];
+  workbook_fields: NoteFieldName[];
+  /** The run's note, when it stored one. */
+  note_id: number | null;
+  pages: number[];
+}
+
+/** "Same field" only: the words are not compared. */
+export interface NotesComparison {
+  /** same_field / in_workbook. */
+  score: number | null;
+  in_workbook: number;
+  same_field: number;
+  different_field: number;
+  missing: number;
+  differences: NoteDifference[];
+  only_in_run: { number: string; title: string; run_fields: NoteFieldName[] }[];
+}
+
 export interface Comparison {
   workbook: FilledWorkbook;
+  /** Null when the workbook holds no notes. */
+  notes: NotesComparison | null;
   tolerance: number;
   overall: Score;
   statements: { statement: StatementCode; score: Score }[];

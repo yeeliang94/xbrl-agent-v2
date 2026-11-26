@@ -4,6 +4,7 @@ import { Button } from "../../components/Button";
 import { Failure } from "../../components/Failure";
 import { Panel } from "../../components/Panel";
 import { Status } from "../../components/Status";
+import { activityLines } from "../run/ActivityTab";
 import { SetupForm } from "./SetupForm";
 import { DocumentPanel, SetupHeader } from "./SetupParts";
 import "./SetupPage.css";
@@ -28,22 +29,26 @@ export function elapsed(from: string | null, to: string | number): string {
 function ReadingPanel({ read, events }: { read: ReadProgress; events: RunEvent[] }) {
   const { total, waiting } = read.pages;
   const done = total - waiting;
-  const label = total === 0 ? "Waiting to read" : waiting > 0 ? `Reading page ${Math.min(done + 1, total)} of ${total}` : "Mapping the document";
-  const shown = events.slice(-FEED_LINES);
+  const stopped = read.status === "stopped";
+  // Stop takes effect once the pages being read are finished: no page is cut off half read.
+  const stopping = !stopped && Boolean(read.stop_requested);
+  const page = Math.min(done + 1, total);
+  const label = stopping
+    ? waiting > 0 ? `Stopping after page ${page}` : "Stopping"
+    : total === 0 ? "Waiting to read" : waiting > 0 ? `Reading page ${page} of ${total}` : "Mapping the document";
+  const shown = activityLines(events).slice(-FEED_LINES);
   return (
     <Panel className="sec">
       <div className="line">
-        <span>
-          <Status kind="working">{label}</Status>
-        </span>
-        <span className="meta mono">{elapsed(read.started_at, Date.now())}</span>
+        <span>{stopped ? <Status kind="neutral">Reading stopped</Status> : <Status kind="working">{label}</Status>}</span>
+        <span className="meta mono">{stopped ? `${done} of ${total} pages read` : elapsed(read.started_at, Date.now())}</span>
       </div>
       <div className="prog" role="progressbar" aria-label="Pages read" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
         <i style={{ width: total ? `${(100 * done) / total}%` : "0%" }} />
       </div>
       <div className="feed">
         {shown.map((event, index) => (
-          <div key={event.id} className={index === shown.length - 1 ? "fl act" : "fl"}>
+          <div key={event.id} className={index === shown.length - 1 && !stopped ? "fl act" : "fl"}>
             <span className="dot" aria-hidden="true" />
             <span>{event.message}</span>
             <span className="mono">{elapsed(read.started_at, event.created_at)}</span>
@@ -70,7 +75,7 @@ function FailedPanel({ read, onRetry, retrying }: { read: ReadProgress; onRetry:
   );
 }
 
-/** The setup page: reading progress, a failed reading, then the setup form. */
+/** The setup page: reading progress (which a person may stop), a failed or stopped reading, then the setup form. */
 export function SetupPage({ runId }: { runId: number }) {
   const [document, setDocument] = useState<RunDocument | null>(null);
   const [read, setRead] = useState<ReadProgress | null>(null);
@@ -79,6 +84,7 @@ export function SetupPage({ runId }: { runId: number }) {
   const [error, setError] = useState("");
   const [pollError, setPollError] = useState("");
   const [retrying, setRetrying] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [round, setRound] = useState(0);
   const lastEvent = useRef(0);
 
@@ -104,7 +110,7 @@ export function SetupPage({ runId }: { runId: number }) {
           return;
         }
         setPollError("");
-        if (progress.status === "failed") return;
+        if (progress.status === "failed" || progress.status === "stopped") return;
       } catch (failure) {
         if (!live) return;
         setPollError(errorMessage(failure));
@@ -133,15 +139,49 @@ export function SetupPage({ runId }: { runId: number }) {
     }
   }, [runId]);
 
-  if (loaded && document) return <SetupForm runId={runId} document={document} setup={loaded.setup} map={loaded.map} />;
+  const stop = useCallback(async () => {
+    setStopping(true);
+    setError("");
+    try {
+      setRead(await api.stopReading(runId));
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setStopping(false);
+    }
+  }, [runId]);
+
+  // A hidden sheet brought in: the run reads its new pages, so the page shows reading again.
+  const readAgain = useCallback((next: RunDocument) => {
+    setDocument(next);
+    setLoaded(null);
+    setRead(null);
+    setRound((n) => n + 1);
+  }, []);
+
+  if (loaded && document) return <SetupForm runId={runId} document={document} setup={loaded.setup} map={loaded.map} onRead={readAgain} />;
+
+  // While the document is read the header offers Stop; once stopped, Try again reads on from the pages kept.
+  const settled = read?.status === "failed" || read?.status === "stopped";
+  let action = null;
+  if (read?.status === "stopped") {
+    action = (
+      // Not primary: Start run stays the header's one primary button, as on a failed reading.
+      <Button disabled={retrying} onClick={retry}>
+        Try again
+      </Button>
+    );
+  } else if (read && read.status !== "failed" && read.status !== "done") {
+    action = read.stop_requested ? <Button disabled>Stopping</Button> : <Button disabled={stopping} onClick={stop}>Stop</Button>;
+  }
 
   return (
     <>
-      <SetupHeader />
+      <SetupHeader action={action ?? undefined} />
       <div className="narrow">
         {error && <Failure label="Not loaded">{error}</Failure>}
         {pollError && <Failure label="Not updated">{pollError}</Failure>}
-        <DocumentPanel document={document} runId={read?.status === "failed" ? runId : undefined} />
+        <DocumentPanel document={document} runId={settled ? runId : undefined} />
         {read?.status === "failed" ? (
           <FailedPanel read={read} onRetry={retry} retrying={retrying} />
         ) : (

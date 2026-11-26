@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XBRL Agent — admin prototype</title>
+<style>
+/* Builds on review-prototype-v3.html and polish-prototype.html (approved) and the values in
+   web/src/styles/tokens.css. Covers go-live packages A1, A2, A7, C4 and C5. All data is invented. */
+:root{
+  --bg:#EEEFF1;--panel:#FFFFFF;--tint:#F5F7F8;--line:#DFE3E6;--edge:#CBD1D6;--ink:#111111;--ink-hover:#2B2B2B;--on-ink:#FFFFFF;
+  --muted:#6B7280;--faint:#B5BCC4;--skeleton:#E6E9EC;--scrim:rgba(20,20,19,.36);--scroll:#CBD1D6;
+  --nav:#000000;--nav-ink:#FFFFFF;--nav-muted:#9AA1A9;--nav-on:#1F1F1F;--nav-group:#6B7280;
+  --accent:#FD5108;--accent-text:#D64000;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;
+  --radius-sm:8px;--radius:12px;--pill:999px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.16,1,.3,1);--fast:.15s;
+}
+*,*::before,*::after{box-sizing:border-box}
+*{scrollbar-width:thin;scrollbar-color:var(--scroll) transparent}
+html,body,#root{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-weight:400;font-size:14px;line-height:20px;-webkit-font-smoothing:antialiased;min-width:1180px}
+h1,h2,h3,p{margin:0}
+h1{font-weight:500;font-size:22px;line-height:28px;letter-spacing:-.01em}
+h2{font-weight:500;font-size:16px;line-height:24px}
+button,input,select,textarea{font:inherit;color:inherit}
+.meta{color:var(--muted)}
+.error{color:var(--accent-text)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Shell */
+.app{height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr)}
+.nav{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding:var(--s4) var(--s3);overflow:auto}
+.brand{display:flex;align-items:center;gap:var(--s2);height:32px;padding:0 var(--s3);margin-bottom:var(--s4);font-weight:500}
+.brand i{width:14px;height:14px;border-radius:3px;background:var(--accent);display:block}
+.nav a{display:flex;align-items:center;height:32px;padding:0 var(--s3);border-radius:var(--radius-sm);cursor:pointer;color:var(--nav-muted);transition:background var(--fast),color var(--fast)}
+.nav a:hover{color:var(--nav-ink)}
+.nav a.on{background:var(--nav-on);color:var(--nav-ink)}
+.nav .sp{flex:1}
+.who{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s3);color:var(--nav-muted)}
+.avatar{width:24px;height:24px;border-radius:50%;background:var(--nav-on);color:var(--nav-ink);display:grid;place-items:center;font-size:12px;flex:none}
+.who-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who-out{border:0;background:none;padding:0;cursor:pointer;color:var(--nav-muted);font-size:12px}
+.who-out:hover{color:var(--nav-ink)}
+.version{padding:0 var(--s3);color:var(--nav-group);font-size:12px}
+.main{min-width:0;min-height:0;display:flex;flex-direction:column;padding:0 var(--s5) var(--s5);overflow:hidden}
+.page-header{display:flex;align-items:center;gap:var(--s3);height:80px;flex:none}
+.tabs{flex:none;margin-bottom:var(--s4)}
+.col{width:100%;display:flex;flex-direction:column;gap:var(--s4);overflow:auto;padding-bottom:var(--s7);min-height:0}
+.col>*{flex:none}
+.col.narrow{max-width:880px}
+
+/* Panel */
+.panel{background:var(--panel);border-radius:var(--radius);padding:var(--s5);display:flex;flex-direction:column;gap:var(--s4)}
+.line{display:flex;align-items:center;gap:var(--s4);min-height:36px}
+.line>span:first-child,.line>h2{flex:1}
+.line .ctl{width:240px;flex:none}
+.field{display:flex;flex-direction:column;gap:var(--s2)}
+.field>span{color:var(--muted)}
+.form{display:flex;flex-direction:column;gap:var(--s4);max-width:360px}
+.form .btn{align-self:flex-start;margin-top:var(--s2)}
+.kv{display:grid;grid-template-columns:1fr auto;gap:var(--s2) var(--s4)}
+.kv>span:nth-child(odd){color:var(--muted)}
+.empty{color:var(--muted);padding:var(--s7) 0;text-align:center}
+.skel{height:12px;border-radius:var(--pill);background:var(--skeleton)}
+
+/* Button, segmented, switch, inputs: one of each */
+.btn{height:36px;padding:0 var(--s4);border-radius:var(--pill);border:1px solid transparent;background:none;cursor:pointer;display:inline-flex;align-items:center;gap:var(--s2);white-space:nowrap;transition:transform .12s var(--ease),background var(--fast),border-color var(--fast),opacity var(--fast)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--ink);color:var(--on-ink)}
+.btn.primary:hover{background:var(--ink-hover)}
+.btn.outline{border-color:var(--edge)}
+.btn.outline:hover{background:var(--tint)}
+.btn.quiet{padding:0 var(--s2);color:var(--muted)}
+.btn.quiet:hover{color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:default;transform:none}
+.btn.sm{height:28px;padding:0 var(--s3)}
+.btn:focus-visible,.switch:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.seg{display:inline-flex;background:var(--bg);border-radius:var(--pill);padding:var(--s1)}
+.seg button{height:28px;padding:0 var(--s3);border:0;border-radius:var(--pill);background:none;cursor:pointer;color:var(--muted);transition:background var(--fast),color var(--fast)}
+.seg button.on{background:var(--panel);color:var(--ink)}
+.seg.onbg{background:var(--skeleton)}
+.seg button:disabled{cursor:default;opacity:.5}
+.switch{width:36px;height:20px;border-radius:var(--pill);border:0;background:var(--edge);position:relative;cursor:pointer;flex:none;padding:0;transition:background var(--fast)}
+.switch::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:var(--panel);transition:transform .18s var(--ease)}
+.switch.on{background:var(--ink)}
+.switch.on::after{transform:translateX(16px)}
+.switch:disabled{opacity:.4;cursor:default}
+.in{width:100%;height:36px;padding:0 var(--s3);border:0;border-radius:var(--radius);background:var(--bg);outline:none;transition:box-shadow var(--fast)}
+textarea.in{height:96px;padding:var(--s2) var(--s3);resize:none;display:block}
+.in:focus{box-shadow:0 0 0 2px var(--ink)}
+.in:disabled{color:var(--muted);cursor:default}
+.spin{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--faint);border-top-color:var(--ink);animation:rot .8s linear infinite;flex:none}
+
+/* Status: a dot and a word. A failure is the one filled label. */
+.status{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.status i{width:6px;height:6px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--faint);flex:none}
+.status.done i{background:var(--ink);box-shadow:none}
+.status.attn i{background:var(--accent);box-shadow:none}
+.status.off{color:var(--muted)}
+.fail{background:var(--accent-text);color:var(--on-ink);padding:0 var(--s2);border-radius:var(--pill);font-size:12px;height:22px;display:inline-flex;align-items:center;flex:none}
+
+/* Table: one style */
+.tbl{border-collapse:collapse;width:100%}
+.tbl th{font-weight:400;color:var(--muted);text-align:left;height:36px;padding:0 var(--s3);white-space:nowrap}
+.tbl td{height:48px;padding:0 var(--s3)}
+.tbl tbody tr.click{cursor:pointer}
+.tbl tbody tr.click td{transition:background var(--fast)}
+.tbl tbody tr.click:hover td{background:var(--tint)}
+.tbl tbody tr.click td:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.tbl tbody tr.click td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.tbl td.nw{white-space:nowrap}
+.tbl td.cut{max-width:0;width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl th.r,.tbl td.r{text-align:right}
+.pager{display:flex;align-items:center;justify-content:flex-end;gap:var(--s2);color:var(--muted)}
+
+/* Dialog: one style */
+.scrim{position:fixed;inset:0;background:var(--scrim);display:grid;place-items:center;z-index:20;animation:fade .2s}
+.dlg{width:520px;max-height:90vh;overflow:auto;background:var(--panel);border-radius:var(--radius);padding:var(--s5);display:flex;flex-direction:column;gap:var(--s4);animation:pop .3s var(--ease)}
+.dlg.wide{width:600px}
+.dlg-actions{display:flex;justify-content:flex-end;align-items:center;gap:var(--s2)}
+.dlg-actions .sp{flex:1}
+.opts{display:flex;flex-direction:column;gap:var(--s1)}
+.opt{display:flex;align-items:center;gap:var(--s3);min-height:48px;padding:var(--s2) var(--s3);border:0;border-radius:var(--radius);background:none;cursor:pointer;text-align:left;transition:background var(--fast)}
+.opt:hover{background:var(--tint)}
+.opt.on{background:var(--bg)}
+.opt i{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--edge);flex:none}
+.opt.on i{box-shadow:inset 0 0 0 5px var(--ink)}
+.opt span:nth-of-type(1){width:80px;flex:none}
+.opt span:nth-of-type(2){color:var(--muted)}
+.secret{display:flex;align-items:center;gap:var(--s3);background:var(--bg);border-radius:var(--radius);padding:var(--s2) var(--s2) var(--s2) var(--s4)}
+.secret span{flex:1;font-family:var(--mono);font-size:16px}
+
+/* Login */
+.auth{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s5);padding:var(--s7) var(--s4)}
+.auth-brand{display:flex;align-items:center;gap:var(--s2);font-weight:500}
+.auth-brand i{width:14px;height:14px;border-radius:3px;background:var(--accent);display:block}
+.auth-card{width:100%;max-width:400px}
+.auth-card .btn{justify-content:center}
+
+/* Prototype switcher (not part of the app) */
+.proto{position:fixed;right:16px;bottom:16px;background:#fff;border-radius:var(--radius);box-shadow:0 4px 24px rgba(0,0,0,.12);padding:var(--s3) var(--s4);display:flex;flex-direction:column;gap:var(--s2);font-size:13px;z-index:30;width:320px}
+.proto b{font-weight:500}
+.proto .row{display:flex;align-items:center;gap:var(--s2);justify-content:space-between}
+.proto.min{width:auto}
+.proto.min>:not(.row:first-child){display:none}
+.proto.min .row:first-child b{display:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="dlg"></div>
+<div class="proto" id="proto">
+  <div class="row"><b>Prototype</b><button class="btn quiet sm" data-act="proto-min" id="protoMin">Hide</button></div>
+  <div class="row"><span class="meta">Signed in as</span><span class="seg" id="pMe"><button data-act="p-me" data-v="admin">Admin</button><button data-act="p-me" data-v="preparer">Preparer</button></span></div>
+  <div class="row"><span class="meta">Data</span><span class="seg" id="pData"><button data-act="p-data" data-v="filled">Filled</button><button data-act="p-data" data-v="empty">Empty</button></span></div>
+  <select class="in" id="pJump" data-chg="p-jump" aria-label="Jump to a state"></select>
+  <div class="row"><button class="btn outline sm" data-act="p-prev">Previous state</button><button class="btn outline sm" data-act="p-next">Next state</button></div>
+</div>
+<script>
+'use strict';
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const VERSION = '2.1.0';
+const RUN = 'Demo Durian Trading Sdn Bhd, FY2025';
+const ROLES = [
+  { id: 'admin', name: 'Admin', may: 'Everything a reviewer may do, plus users, settings and the audit log.' },
+  { id: 'reviewer', name: 'Reviewer', may: 'Prepares runs, and signs off runs prepared by someone else.' },
+  { id: 'preparer', name: 'Preparer', may: 'Uploads reports, runs the agents and corrects figures and notes.' },
+];
+const roleName = (id) => ROLES.find((r) => r.id === id).name;
+const PERIODS = ['Forever', '30 days', '90 days', '180 days', '1 year', '2 years', '7 years'];
+const MODELS = ['gpt-6-luna', 'gpt-6-sol', 'opal-4-review'];
+const GROUPS = { users: 'Users', settings: 'Settings', runs: 'Runs', issues: 'Issues', cleanup: 'Clean-up' };
+const PAGE = 20;
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const stamp = (d) => `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+const ALL_USERS = [
+  { id: 1, name: 'Mira Quillfeather', email: 'mira@samplefirm.example', role: 'admin', active: true, last: 'Today, 09:12', first: true },
+  { id: 2, name: 'Tobin Marrowgate', email: 'tobin@samplefirm.example', role: 'admin', active: true, last: 'Yesterday, 17:40' },
+  { id: 3, name: 'Suki Lanternfield', email: 'suki@samplefirm.example', role: 'reviewer', active: true, last: 'Today, 08:55' },
+  { id: 4, name: 'Odell Brambleworth', email: 'odell@samplefirm.example', role: 'preparer', active: true, last: 'Today, 10:03' },
+  { id: 5, name: 'Pia Thistlewood', email: 'pia@samplefirm.example', role: 'preparer', active: true, last: '21 Nov 2026, 14:20' },
+  { id: 6, name: 'Wren Dapplemoor', email: 'wren@samplefirm.example', role: 'reviewer', active: true, last: 'Never' },
+  { id: 7, name: 'Jonty Applecross', email: 'jonty@samplefirm.example', role: 'preparer', active: false, last: '2 Oct 2026, 11:31' },
+];
+const AUDIT_KINDS = [
+  ['Tobin Marrowgate', 'settings', 'Changed setting', 'Review model: gpt-6-luna to opal-4-review'],
+  ['Mira Quillfeather', 'users', 'Added user', 'Wren Dapplemoor, reviewer'],
+  ['Mira Quillfeather', 'runs', 'Deleted run', 'Sample Kite Works Berhad, FY2025'],
+  ['Tobin Marrowgate', 'issues', 'Closed issue', 'Issue 11'],
+  ['System', 'cleanup', 'Clean-up', 'Removed 14 traces, 3 files and 0 runs'],
+  ['Mira Quillfeather', 'users', 'Reset password', 'Odell Brambleworth'],
+  ['Tobin Marrowgate', 'users', 'Changed role', 'Suki Lanternfield: preparer to reviewer'],
+  ['Suki Lanternfield', 'runs', 'Signed off run', 'Demo Durian Trading Sdn Bhd, FY2024'],
+  ['Mira Quillfeather', 'users', 'Disabled user', 'Jonty Applecross'],
+  ['Odell Brambleworth', 'users', 'Changed own password', ''],
+  ['Tobin Marrowgate', 'issues', 'Updated issue', 'Issue 12: note added'],
+  ['Mira Quillfeather', 'settings', 'Changed setting', 'Sign out after idle: 1 hour to 2 hours'],
+  ['Mira Quillfeather', 'settings', 'Changed setting', 'Keep traces: forever to 90 days'],
+];
+function seedAudit() {
+  const rows = [];
+  let t = new Date(2026, 10, 25, 9, 40).getTime();
+  for (let i = 0; i < 64; i++) {
+    const k = AUDIT_KINDS[i % AUDIT_KINDS.length];
+    rows.push({ when: stamp(new Date(t)), who: k[0], group: k[1], action: k[2], detail: k[3] });
+    t -= (97 + (i % 5) * 61) * 60000;
+  }
+  return rows;
+}
+const ALL_ISSUES = [
+  { id: 14, when: '24 Nov 2026, 16:05', who: 'Odell Brambleworth', text: 'The balance sheet total does not match the report. Trade receivables on page 14 was left empty, and the agent said it was finished.', run: RUN, file: 'balance-sheet-total.png', open: true, note: '' },
+  { id: 13, when: '22 Nov 2026, 11:48', who: 'Pia Thistlewood', text: 'The run stopped at reading and never moved on. I waited twenty minutes.', run: 'Example Lantern Holdings Berhad, FY2025', file: '', open: true, note: 'Looks like the gateway timed out. Checking the traces.' },
+  { id: 12, when: '19 Nov 2026, 09:30', who: 'Suki Lanternfield', text: 'Note 7 was placed under the wrong heading in the filled template.', run: 'Sample Kite Works Berhad, FY2025', file: 'note-7.png', open: false, note: 'Fixed with a firm guidance line on 20 November.' },
+  { id: 11, when: '14 Nov 2026, 15:12', who: 'Odell Brambleworth', text: 'I could not download the filled workbook.', run: '', file: '', open: false, note: 'Browser blocked the download. Resolved with the user.' },
+];
+
+const S = {};
+function seed(filled) {
+  S.data = filled ? 'filled' : 'empty';
+  S.users = JSON.parse(JSON.stringify(filled ? ALL_USERS : ALL_USERS.slice(0, 1)));
+  S.audit = filled ? seedAudit() : [];
+  S.issues = JSON.parse(JSON.stringify(filled ? ALL_ISSUES : []));
+  S.keep = filled ? ['90 days', '1 year', 'Forever'] : ['Forever', 'Forever', 'Forever'];
+  S.swept = filled;
+  S.conn = 'idle';
+}
+function base() {
+  seed(true);
+  Object.assign(S, { me: 'admin', screen: 'settings', tab: 'users', dlg: null, method: 'password', load: '', af: { who: '', group: '', page: 0 }, issueFilter: 'open', acct: '', login: { form: 'password', error: '' }, onRun: false });
+}
+const me = () => (S.me === 'admin' ? S.users[0] : (S.users.find((u) => u.id === 4) || { name: 'Odell Brambleworth', email: 'odell@samplefirm.example', role: 'preparer' }));
+const log = (group, action, detail, who) => S.audit.unshift({ when: 'Just now', who: who || me().name, group, action, detail });
+
+/* ---------- Screens ---------- */
+function shell() {
+  const u = me();
+  const ini = u.name.split(' ').map((p) => p[0]).join('').slice(0, 2);
+  return `<div class="app"><nav class="nav" aria-label="Main">
+    <div class="brand"><i></i>XBRL Agent</div>
+    <a data-act="nav" data-v="runs" class="${S.screen === 'run' ? 'on' : ''}">Runs</a>
+    <a data-act="nav" data-v="new">New run</a>
+    <a data-act="nav" data-v="settings" class="${S.screen === 'settings' ? 'on' : ''}">Settings</a>
+    <span class="sp"></span>
+    <a data-act="report">Report an issue</a>
+    <div class="who"><span class="avatar">${esc(ini)}</span><span class="who-name">${esc(u.name)}</span><button class="who-out" data-act="logout">Log out</button></div>
+    <div class="version">Version ${VERSION}</div>
+  </nav><main class="main">${S.screen === 'run' ? runStub() : settings()}</main></div>`;
+}
+function runStub() {
+  return `<div class="page-header"><h1>${esc(RUN)}</h1></div>
+  <div class="col"><div class="panel"><div class="skel" style="width:32%"></div><div class="skel" style="width:76%"></div><div class="skel" style="width:64%"></div><div class="skel" style="width:70%"></div></div></div>`;
+}
+function tabsFor() {
+  const t = [['account', 'Account'], ['general', 'General']];
+  if (S.me === 'admin') t.push(['system', 'System'], ['users', 'Users'], ['audit', 'Audit log'], ['issues', 'Issues']);
+  return t;
+}
+function settings() {
+  const tabs = tabsFor();
+  if (!tabs.some((t) => t[0] === S.tab)) S.tab = 'account';
+  const body = { account, general, system, users, audit, issues }[S.tab]();
+  const wide = ['users', 'audit', 'issues'].includes(S.tab);
+  return `<div class="page-header"><h1>Settings</h1></div>
+  <div class="tabs"><span class="seg onbg">${tabs.map((t) => `<button data-act="tab" data-v="${t[0]}" class="${S.tab === t[0] ? 'on' : ''}">${t[1]}</button>`).join('')}</span></div>
+  <div class="col ${wide ? '' : 'narrow'}">${body}</div>`;
+}
+const sel = (opts, cur, attrs) => `<select class="in" ${attrs || ''}>${opts.map((o) => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`; }).join('')}</select>`;
+const sw = (on, dis) => `<button class="switch ${on ? 'on' : ''}" data-act="switch" ${dis ? 'disabled' : ''} role="switch"></button>`;
+const dot = (cls, word) => `<span class="status ${cls}"><i></i>${esc(word)}</span>`;
+
+function account() {
+  const u = me();
+  const sso = S.method === 'microsoft' && !u.first;
+  const msg = { wrong: '<p class="error">The current password is not right.</p>', mismatch: '<p class="error">The two new passwords do not match.</p>', short: '<p class="error">Use at least 12 characters.</p>', ok: dot('done', 'Password changed') }[S.acct] || '';
+  return `<section class="panel"><h2>${esc(u.name)}</h2><div class="kv"><span>Email</span><span>${esc(u.email)}</span><span>Role</span><span>${roleName(u.role)}</span></div></section>
+  <section class="panel"><h2>Password</h2>${sso ? '<p class="meta">You sign in with Microsoft, so there is no password here.</p>' : `<div class="form">
+    <label class="field"><span>Current password</span><input class="in" type="password" id="pwCur"></label>
+    <label class="field"><span>New password</span><input class="in" type="password" id="pwNew"></label>
+    <label class="field"><span>New password again</span><input class="in" type="password" id="pwRep"></label>
+    ${msg}<button class="btn primary" data-act="pw-change">Change password</button></div>`}</section>`;
+}
+function general() {
+  const lock = S.me !== 'admin';
+  const d = lock ? 'disabled' : '';
+  return `${lock ? '<p class="meta">Only an admin can change these settings.</p>' : ''}
+  <section class="panel"><h2>Notes house style</h2>
+    <div class="line"><span>Body text</span><div class="ctl">${sel(['Justified', 'Left aligned'], 'Justified', d)}</div></div>
+    <div class="line"><span>Table font size</span><div class="ctl">${sel(['9 pt', '10 pt', '11 pt'], '10 pt', d)}</div></div>
+    <div class="line"><span>Double underline</span><div class="ctl">${sel(['Thick bottom border', 'Single bottom border'], 'Thick bottom border', d)}</div></div>
+    <div class="line"><span>Bold totals</span>${sw(true, lock)}</div></section>
+  <section class="panel"><h2>Records</h2>
+    <div class="line"><span>Server logs, last 30 days</span><button class="btn outline sm" data-act="download" ${d}>Download</button></div>
+    <div class="line"><span>Usage and cost by run and day</span><button class="btn outline sm" data-act="download" ${d}>Download</button></div></section>
+  <section class="panel"><h2>Workbench</h2>
+    <div class="line"><span>Code workbench</span>${sw(true, lock)}</div>
+    <div class="line"><span>Claude sandbox for real documents</span>${sw(false, lock)}</div></section>`;
+}
+function system() {
+  const ms = S.method === 'microsoft';
+  const anySet = S.keep.some((k) => k !== 'Forever');
+  const sweep = !anySet ? 'Nothing is deleted until a period is set' : S.swept ? 'Today, 02:00. Removed 14 traces, 3 files and 0 runs.' : 'First clean-up runs tonight at 02:00';
+  const conn = (m, i) => {
+    if (S.conn === 'idle') return '';
+    if (S.conn === 'testing') return `<div class="line"><span>${m}</span><span class="spin"></span></div>`;
+    if (S.conn === 'fail' && i === 2) return `<div class="line"><span>${m}</span><span class="error">The gateway says this key may not use this model.</span><span class="fail">Failed</span></div>`;
+    return `<div class="line"><span>${m}</span>${dot('done', `Answered in ${['1.2', '0.9', '1.6'][i]} seconds`)}</div>`;
+  };
+  return `<section class="panel"><h2>Sign-in</h2>
+    <div class="line"><span>Sign-in method</span><span class="seg"><button data-act="method" data-v="password" class="${ms ? '' : 'on'}">Password</button><button data-act="method" data-v="microsoft" class="${ms ? 'on' : ''}">Microsoft</button></span></div>
+    ${ms ? `<div class="line"><span>Microsoft tenant</span><span class="meta">samplefirm.example</span>${dot('done', 'Connected')}</div>
+    <div class="line"><span>Password still works for</span><span>${esc(S.users[0].name)}</span></div>` : ''}
+    <div class="line"><span>Sign out after idle</span><div class="ctl">${sel(['30 minutes', '1 hour', '2 hours', '4 hours'], '2 hours')}</div></div>
+    ${ms ? '' : `<div class="line"><span>Attempts before lockout</span><div class="ctl">${sel(['3', '5', '10', '20'], '5')}</div></div>
+    <div class="line"><span>Lockout time</span><div class="ctl">${sel(['5 minutes', '15 minutes', '30 minutes', '1 hour'], '15 minutes')}</div></div>`}</section>
+  <section class="panel"><h2>Models</h2>
+    <div class="line"><span>Set-up</span><span class="ctl">Gateway</span></div>
+    ${['Reading', 'Extraction', 'Review'].map((r, i) => `<div class="line"><span>${r}</span><div class="ctl">${sel(MODELS, MODELS[i])}</div></div>`).join('')}</section>
+  <section class="panel"><div class="line"><h2>Connection</h2><button class="btn outline sm" data-act="test" ${S.conn === 'testing' ? 'disabled' : ''}>Test connection</button></div>
+    ${MODELS.map(conn).join('')}</section>
+  <section class="panel"><h2>Data retention</h2>
+    ${['Keep traces', 'Keep uploaded files', 'Keep finished runs'].map((l, i) => `<div class="line"><span>${l}</span><div class="ctl">${sel(PERIODS, S.keep[i], `data-chg="keep" data-i="${i}"`)}</div></div>`).join('')}
+    <div class="line"><span>Last clean-up</span><span class="meta">${sweep}</span></div></section>`;
+}
+function users() {
+  if (S.load === 'loading') return '<p class="empty">Loading users</p>';
+  if (S.load === 'error') return '<section class="panel"><div class="line"><span class="error">The users could not be loaded.</span><button class="btn outline sm" data-act="retry">Try again</button></div></section>';
+  return `<section class="panel"><div class="line"><h2>Users</h2><button class="btn primary" data-act="add-user">Add user</button></div>
+  <table class="tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody>
+  ${S.users.map((u) => `<tr class="click" data-act="user" data-id="${u.id}"><td class="nw">${esc(u.name)}</td><td class="meta">${esc(u.email)}</td><td>${roleName(u.role)}</td><td>${u.active ? dot('done', 'Active') : dot('off', 'Disabled')}</td><td class="nw meta">${esc(u.last)}</td></tr>`).join('')}
+  </tbody></table></section>`;
+}
+function audit() {
+  const people = [...new Set(S.audit.map((r) => r.who))];
+  const rows = S.audit.filter((r) => (!S.af.who || r.who === S.af.who) && (!S.af.group || r.group === S.af.group));
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+  S.af.page = Math.min(S.af.page, pages - 1);
+  const from = S.af.page * PAGE;
+  const shown = rows.slice(from, from + PAGE);
+  const filters = `<div class="ctl">${sel([['', 'Everyone'], ...people], S.af.who, 'data-chg="af-who" aria-label="Person"')}</div><div class="ctl">${sel([['', 'All actions'], ...Object.entries(GROUPS)], S.af.group, 'data-chg="af-group" aria-label="Action"')}</div>`;
+  let body;
+  if (!S.audit.length) body = '<p class="empty">Nothing recorded yet</p>';
+  else if (!rows.length) body = '<p class="empty">No entries match</p>';
+  else body = `<table class="tbl"><thead><tr><th>When</th><th>Person</th><th>Action</th><th>Detail</th></tr></thead><tbody>
+    ${shown.map((r) => `<tr><td class="nw meta">${esc(r.when)}</td><td class="nw">${esc(r.who)}</td><td class="nw">${esc(r.action)}</td><td class="cut meta">${esc(r.detail)}</td></tr>`).join('')}</tbody></table>
+    <div class="pager"><span>${from + 1} to ${from + shown.length} of ${rows.length}</span><button class="btn outline sm" data-act="af-prev" ${S.af.page === 0 ? 'disabled' : ''}>Previous</button><button class="btn outline sm" data-act="af-next" ${S.af.page >= pages - 1 ? 'disabled' : ''}>Next</button></div>`;
+  return `<section class="panel"><div class="line"><h2>Audit log</h2>${S.audit.length ? filters : ''}</div>${body}</section>`;
+}
+function issues() {
+  const f = S.issueFilter;
+  const rows = S.issues.filter((i) => f === 'all' || (f === 'open') === i.open);
+  const seg = `<span class="seg">${[['open', 'Open'], ['closed', 'Closed'], ['all', 'All']].map((o) => `<button data-act="issue-filter" data-v="${o[0]}" class="${f === o[0] ? 'on' : ''}">${o[1]}</button>`).join('')}</span>`;
+  const body = !S.issues.length ? '<p class="empty">No issues reported</p>' : !rows.length ? `<p class="empty">No ${f} issues</p>` : `<table class="tbl"><thead><tr><th>No.</th><th>Reported</th><th>Person</th><th>What went wrong</th><th>Run</th><th>Status</th></tr></thead><tbody>
+    ${rows.map((i) => `<tr class="click" data-act="issue" data-id="${i.id}"><td>${i.id}</td><td class="nw meta">${esc(i.when)}</td><td class="nw">${esc(i.who)}</td><td class="cut">${esc(i.text)}</td><td class="nw meta">${esc(i.run.split(',')[0])}</td><td>${i.open ? dot('attn', 'Open') : dot('done', 'Closed')}</td></tr>`).join('')}</tbody></table>`;
+  return `<section class="panel"><div class="line"><h2>Issues</h2>${S.issues.length ? seg : ''}</div>${body}</section>`;
+}
+function login() {
+  const L = S.login;
+  const ms = S.method === 'microsoft' && L.form !== 'password';
+  const err = L.error ? `<p class="error">${esc(L.error)}</p>` : '';
+  const form = ms ? `${err}<button class="btn primary" data-act="login-go">Sign in with Microsoft</button><button class="btn quiet" data-act="login-form" data-v="password">Use a password instead</button>`
+    : `<label class="field"><span>Email</span><input class="in" type="email"></label><label class="field"><span>Password</span><input class="in" type="password"></label>${err}
+       <button class="btn primary" data-act="login-go">Log in</button>${S.method === 'microsoft' ? '<button class="btn quiet" data-act="login-form" data-v="microsoft">Back to Microsoft sign-in</button>' : ''}`;
+  return `<div class="auth"><div class="auth-brand"><i></i>XBRL Agent</div><section class="panel auth-card"><h1>Log in</h1>${form}</section></div>`;
+}
+
+/* ---------- Dialogs ---------- */
+const roleOpts = (cur) => `<div class="opts">${ROLES.map((r) => `<button class="opt ${cur === r.id ? 'on' : ''}" data-act="role" data-v="${r.id}"><i></i><span>${r.name}</span><span>${r.may}</span></button>`).join('')}</div>`;
+function dialog() {
+  const d = S.dlg;
+  if (!d) return '';
+  const err = d.error ? `<p class="error">${esc(d.error)}</p>` : '';
+  let h = '';
+  if (d.type === 'add') {
+    h = `<h2>Add user</h2><label class="field"><span>Name</span><input class="in" id="nuName" value="${esc(d.name || '')}"></label>
+      <label class="field"><span>Email</span><input class="in" id="nuEmail" type="email" value="${esc(d.email || '')}"></label>${roleOpts(d.role)}${err}
+      <div class="dlg-actions"><button class="btn outline" data-act="close">Cancel</button><button class="btn primary" data-act="add-save">Add user</button></div>`;
+  } else if (d.type === 'temp') {
+    h = `<h2>Temporary password for ${esc(d.name.split(' ')[0])}</h2><div class="secret"><span>maple-orbit-4821-kite</span><button class="btn outline sm" data-act="copy">Copy</button></div>
+      <p class="meta">This is shown once. ${esc(d.name.split(' ')[0])} chooses a new password at first log in.</p>
+      <div class="dlg-actions"><button class="btn primary" data-act="close">Done</button></div>`;
+  } else if (d.type === 'user') {
+    const u = S.users.find((x) => x.id === d.id);
+    if (d.confirm) h = `<h2>Reset ${esc(u.name.split(' ')[0])}'s password?</h2><p class="meta">The current password stops working straight away.</p>
+      <div class="dlg-actions"><button class="btn outline" data-act="unconfirm">Cancel</button><button class="btn primary" data-act="reset-do">Reset password</button></div>`;
+    else h = `<h2>${esc(u.name)}</h2><div class="kv"><span>Email</span><span>${esc(u.email)}</span><span>Status</span>${u.active ? dot('done', 'Active') : dot('off', 'Disabled')}<span>Last sign-in</span><span>${esc(u.last)}</span></div>
+      ${roleOpts(d.role)}${err}
+      <div class="dlg-actions">${S.method === 'password' || u.first ? '<button class="btn quiet" data-act="confirm">Reset password</button>' : ''}<button class="btn quiet" data-act="toggle-user">${u.active ? 'Disable' : 'Enable'}</button><span class="sp"></span>
+      <button class="btn outline" data-act="close">Cancel</button><button class="btn primary" data-act="user-save" ${d.role === u.role ? 'disabled' : ''}>Save role</button></div>`;
+  } else if (d.type === 'report') {
+    if (d.sent) h = `<h2>Issue ${d.sent} sent</h2><p class="meta">The admins can see it now${S.onRun ? ', with this run linked' : ''}.</p><div class="dlg-actions"><button class="btn primary" data-act="close">Done</button></div>`;
+    else h = `<h2>Report an issue</h2><label class="field"><span>What went wrong</span><textarea class="in" id="riText">${esc(d.text || '')}</textarea></label>
+      ${S.onRun ? `<div class="line"><span class="meta">Run</span><span>${esc(RUN)}</span></div>` : ''}
+      <div class="line"><span class="meta">Screenshot</span>${d.file ? `<span>${esc(d.file)}</span><button class="btn quiet sm" data-act="unattach">Remove</button>` : '<button class="btn outline sm" data-act="attach">Attach a screenshot</button>'}</div>${err}
+      <div class="dlg-actions"><button class="btn outline" data-act="close">Cancel</button><button class="btn primary" data-act="send" id="riSend" ${d.text ? '' : 'disabled'}>Send</button></div>`;
+  } else if (d.type === 'issue') {
+    const i = S.issues.find((x) => x.id === d.id);
+    if (d.confirm) h = `<h2>Delete issue ${i.id}?</h2><p class="meta">The report and its screenshot are removed. The run is kept.</p>
+      <div class="dlg-actions"><button class="btn outline" data-act="unconfirm">Cancel</button><button class="btn primary" data-act="issue-delete">Delete issue</button></div>`;
+    else h = `<div class="line"><h2>Issue ${i.id}</h2>${i.open ? dot('attn', 'Open') : dot('done', 'Closed')}</div>
+      <p>${esc(i.text)}</p>
+      <div class="kv"><span>Reported</span><span>${esc(i.who)}, ${esc(i.when)}</span>
+      <span>Run</span><span>${i.run ? esc(i.run) : 'None'}</span>
+      <span>Screenshot</span><span>${i.file ? `${esc(i.file)} <button class="btn quiet sm" data-act="download">Download</button>` : 'None'}</span></div>
+      ${i.run ? '<div><button class="btn outline" data-act="download">Download this run\'s traces</button></div>' : ''}
+      <label class="field"><span>Note</span><textarea class="in" id="isNote">${esc(i.note)}</textarea></label>
+      <div class="dlg-actions"><button class="btn quiet" data-act="confirm">Delete</button><span class="sp"></span><button class="btn outline" data-act="issue-note">Save note</button>
+      <button class="btn primary" data-act="issue-toggle">${i.open ? 'Close issue' : 'Reopen'}</button></div>`;
+  }
+  return `<div class="scrim" data-act="scrim"><div class="dlg ${d.type === 'issue' ? 'wide' : ''}" role="dialog">${h}</div></div>`;
+}
+
+/* ---------- Behaviour ---------- */
+const onlyAdmin = (u) => u.role === 'admin' && u.active && S.users.filter((x) => x.role === 'admin' && x.active).length === 1;
+const refusal = (u) => `${u.name} is the only admin. Make someone else an admin first.`;
+const val = (id) => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
+const ACT = {
+  tab: (v) => { S.tab = v; S.acct = ''; },
+  nav: (v) => { if (v === 'new') return false; S.screen = v === 'runs' ? 'run' : 'settings'; S.onRun = v === 'runs'; },
+  logout: () => { S.screen = 'login'; S.login = { form: S.method, error: '' }; },
+  'login-go': () => { S.screen = 'settings'; },
+  'login-form': (v) => { S.login = { form: v, error: '' }; },
+  close: () => { S.dlg = null; },
+  scrim: (v, el, ev) => { if (ev.target !== el) return false; S.dlg = null; },
+  switch: (v, el) => { el.classList.toggle('on'); return false; },
+  download: (v, el) => { const t = el.textContent; el.textContent = 'Downloaded'; setTimeout(() => { el.textContent = t; }, 1400); return false; },
+  copy: (v, el) => { el.textContent = 'Copied'; return false; },
+  retry: () => { S.load = ''; },
+  method: (v) => { S.method = v; log('settings', 'Changed setting', `Sign-in method: ${v === 'microsoft' ? 'password to Microsoft' : 'Microsoft to password'}`); },
+  test: () => { S.conn = 'testing'; setTimeout(() => { if (S.conn === 'testing') { S.conn = 'ok'; render(); } }, 1100); },
+  'pw-change': () => { const n = val('pwNew'); S.acct = n !== val('pwRep') ? 'mismatch' : n.length < 12 ? 'short' : val('pwCur') === 'wrong' ? 'wrong' : 'ok'; if (S.acct === 'ok') log('users', 'Changed own password', ''); },
+  'add-user': () => { S.dlg = { type: 'add', role: 'preparer' }; },
+  role: (v) => { Object.assign(S.dlg, { role: v, error: '', name: val('nuName'), email: val('nuEmail') }); },
+  'add-save': () => {
+    const d = S.dlg; d.name = val('nuName'); d.email = val('nuEmail');
+    if (!d.name || !d.email) { d.error = 'Enter a name and an email.'; return; }
+    if (S.users.some((u) => u.email.toLowerCase() === d.email.toLowerCase())) { d.error = 'A user with this email already exists.'; return; }
+    S.users.push({ id: Date.now(), name: d.name, email: d.email, role: d.role, active: true, last: 'Never' });
+    log('users', 'Added user', `${d.name}, ${roleName(d.role).toLowerCase()}`);
+    S.dlg = S.method === 'password' ? { type: 'temp', name: d.name } : null;
+  },
+  user: (v, el) => { const u = S.users.find((x) => x.id === Number(el.dataset.id)); S.dlg = { type: 'user', id: u.id, role: u.role }; },
+  'user-save': () => {
+    const d = S.dlg; const u = S.users.find((x) => x.id === d.id);
+    if (d.role !== 'admin' && onlyAdmin(u)) { d.error = refusal(u); return; }
+    log('users', 'Changed role', `${u.name}: ${roleName(u.role).toLowerCase()} to ${roleName(d.role).toLowerCase()}`);
+    u.role = d.role; S.dlg = null;
+  },
+  'toggle-user': () => {
+    const d = S.dlg; const u = S.users.find((x) => x.id === d.id);
+    if (u.active && onlyAdmin(u)) { d.error = refusal(u); return; }
+    u.active = !u.active; log('users', u.active ? 'Enabled user' : 'Disabled user', u.name); S.dlg = null;
+  },
+  confirm: () => { S.dlg.confirm = true; },
+  unconfirm: () => { S.dlg.confirm = false; },
+  'reset-do': () => { const u = S.users.find((x) => x.id === S.dlg.id); log('users', 'Reset password', u.name); S.dlg = { type: 'temp', name: u.name }; },
+  'af-prev': () => { S.af.page--; },
+  'af-next': () => { S.af.page++; },
+  'issue-filter': (v) => { S.issueFilter = v; },
+  issue: (v, el) => { S.dlg = { type: 'issue', id: Number(el.dataset.id) }; },
+  'issue-note': () => { const i = S.issues.find((x) => x.id === S.dlg.id); i.note = val('isNote'); log('issues', 'Updated issue', `Issue ${i.id}: note saved`); S.dlg = null; },
+  'issue-toggle': () => { const i = S.issues.find((x) => x.id === S.dlg.id); i.note = val('isNote'); i.open = !i.open; log('issues', i.open ? 'Reopened issue' : 'Closed issue', `Issue ${i.id}`); S.dlg = null; },
+  'issue-delete': () => { const id = S.dlg.id; S.issues = S.issues.filter((x) => x.id !== id); log('issues', 'Deleted issue', `Issue ${id}`); S.dlg = null; },
+  report: () => { S.dlg = { type: 'report', text: '', file: '' }; },
+  attach: () => { S.dlg.text = val('riText'); S.dlg.file = 'screenshot-25-nov.png'; },
+  unattach: () => { S.dlg.text = val('riText'); S.dlg.file = ''; },
+  send: () => {
+    const d = S.dlg; const id = Math.max(14, ...S.issues.map((i) => i.id)) + 1;
+    S.issues.unshift({ id, when: 'Just now', who: me().name, text: val('riText'), run: S.onRun ? RUN : '', file: d.file, open: true, note: '' });
+    d.sent = id;
+  },
+  /* switcher */
+  'proto-min': () => { const p = document.getElementById('proto'); p.classList.toggle('min'); document.getElementById('protoMin').textContent = p.classList.contains('min') ? 'Prototype' : 'Hide'; return false; },
+  'p-me': (v) => { S.me = v; S.dlg = null; if (S.screen === 'login') S.screen = 'settings'; },
+  'p-data': (v) => { seed(v === 'filled'); S.dlg = null; },
+  'p-prev': () => go((cur + STATES.length - 1) % STATES.length),
+  'p-next': () => go((cur + 1) % STATES.length),
+};
+const CHG = {
+  'af-who': (v) => { S.af.who = v; S.af.page = 0; },
+  'af-group': (v) => { S.af.group = v; S.af.page = 0; },
+  keep: (v, el) => { const i = Number(el.dataset.i); const label = ['Keep traces', 'Keep uploaded files', 'Keep finished runs'][i]; log('settings', 'Changed setting', `${label}: ${S.keep[i].toLowerCase()} to ${v.toLowerCase()}`); S.keep[i] = v; S.swept = false; },
+  'p-jump': (v) => go(Number(v)),
+};
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  if (ACT[el.dataset.act](el.dataset.v, el, ev) !== false) render();
+});
+document.addEventListener('change', (ev) => {
+  const el = ev.target.closest('[data-chg]');
+  if (!el) return;
+  CHG[el.dataset.chg](el.value, el);
+  render();
+});
+document.addEventListener('input', (ev) => {
+  if (ev.target.id === 'riText') document.getElementById('riSend').disabled = !ev.target.value.trim();
+});
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && S.dlg) { S.dlg = null; render(); } });
+
+/* ---------- Prototype states ---------- */
+const tab = (t) => () => { S.tab = t; };
+const empty = (t) => () => { seed(false); S.tab = t; };
+const prep = (f) => () => { S.me = 'preparer'; S.tab = 'account'; if (f) f(); };
+const loginAt = (method, form, error) => () => { S.method = method; S.screen = 'login'; S.login = { form, error: error || '' }; };
+const fromRun = (d) => () => { S.screen = 'run'; S.onRun = true; S.dlg = Object.assign({ type: 'report', text: '', file: '' }, d); };
+const STATES = [
+  ['Users', 'List', tab('users')],
+  ['Users', 'Only the first admin', empty('users')],
+  ['Users', 'Loading', () => { S.load = 'loading'; }],
+  ['Users', 'Could not load', () => { S.load = 'error'; }],
+  ['Users', 'Add user', () => { S.dlg = { type: 'add', role: 'preparer' }; }],
+  ['Users', 'Add user: email already used', () => { S.dlg = { type: 'add', role: 'reviewer', name: 'Suki Lanternfield', email: 'suki@samplefirm.example', error: 'A user with this email already exists.' }; }],
+  ['Users', 'Temporary password, shown once', () => { S.dlg = { type: 'temp', name: 'Wren Dapplemoor' }; }],
+  ['Users', 'One user: change role, reset, disable', () => { S.dlg = { type: 'user', id: 4, role: 'preparer' }; }],
+  ['Users', 'Reset password: confirm', () => { S.dlg = { type: 'user', id: 4, role: 'preparer', confirm: true }; }],
+  ['Users', 'A disabled user: enable', () => { S.dlg = { type: 'user', id: 7, role: 'preparer' }; }],
+  ['Users', 'Refusal: the last admin', () => { S.users[1].role = 'reviewer'; S.dlg = { type: 'user', id: 1, role: 'preparer', error: refusal(S.users[0]) }; }],
+  ['Audit log', 'Newest first', tab('audit')],
+  ['Audit log', 'Filtered by person and action', () => { S.tab = 'audit'; S.af = { who: 'Mira Quillfeather', group: 'users', page: 0 }; }],
+  ['Audit log', 'Second page', () => { S.tab = 'audit'; S.af.page = 1; }],
+  ['Audit log', 'No entries match', () => { S.tab = 'audit'; S.af = { who: 'System', group: 'issues', page: 0 }; }],
+  ['Audit log', 'Nothing recorded yet', empty('audit')],
+  ['Account', 'Change own password', tab('account')],
+  ['Account', 'Error: wrong current password', () => { S.tab = 'account'; S.acct = 'wrong'; }],
+  ['Account', 'Error: new passwords differ', () => { S.tab = 'account'; S.acct = 'mismatch'; }],
+  ['Account', 'Password changed', () => { S.tab = 'account'; S.acct = 'ok'; }],
+  ['System', 'Sign-in by password, retention set', tab('system')],
+  ['System', 'Sign-in with Microsoft', () => { S.tab = 'system'; S.method = 'microsoft'; }],
+  ['System', 'Retention: no period set', empty('system')],
+  ['System', 'Connection: testing', () => { S.tab = 'system'; S.conn = 'testing'; setTimeout(() => { if (S.conn === 'testing') { S.conn = 'ok'; render(); } }, 2500); }],
+  ['System', 'Connection: all models answered', () => { S.tab = 'system'; S.conn = 'ok'; }],
+  ['System', 'Connection: one model failed', () => { S.tab = 'system'; S.conn = 'fail'; }],
+  ['Login screen', 'Password', loginAt('password', 'password')],
+  ['Login screen', 'Password: error', loginAt('password', 'password', 'The email or password is not right.')],
+  ['Login screen', 'Microsoft', loginAt('microsoft', 'microsoft')],
+  ['Login screen', 'Microsoft: no account here', loginAt('microsoft', 'microsoft', 'There is no account here for pia.new@samplefirm.example. Ask an admin to add you.')],
+  ['Login screen', 'Microsoft: first admin uses a password', loginAt('microsoft', 'password')],
+  ['Report an issue', 'Dialog, opened from a run', fromRun({})],
+  ['Report an issue', 'Written, screenshot attached', fromRun({ text: 'The cash flow statement shows last year in both columns.', file: 'screenshot-25-nov.png' })],
+  ['Report an issue', 'Sent', fromRun({ sent: 15 })],
+  ['Report an issue', 'Dialog with no run on screen', () => { S.tab = 'account'; S.dlg = { type: 'report', text: '', file: '' }; }],
+  ['Issues', 'List: open', tab('issues')],
+  ['Issues', 'List: all', () => { S.tab = 'issues'; S.issueFilter = 'all'; }],
+  ['Issues', 'An open issue: traces and close', () => { S.tab = 'issues'; S.dlg = { type: 'issue', id: 14 }; }],
+  ['Issues', 'A closed issue: reopen', () => { S.tab = 'issues'; S.issueFilter = 'all'; S.dlg = { type: 'issue', id: 12 }; }],
+  ['Issues', 'Delete: confirm', () => { S.tab = 'issues'; S.dlg = { type: 'issue', id: 13, confirm: true }; }],
+  ['Issues', 'No issues reported', empty('issues')],
+  ['Not an admin', 'Account', prep()],
+  ['Not an admin', 'General settings, read only', prep(() => { S.tab = 'general'; })],
+  ['Not an admin', 'Account when sign-in is Microsoft', prep(() => { S.method = 'microsoft'; })],
+  ['Not an admin', 'Report an issue from a run', prep(fromRun({}))],
+];
+let cur = 0;
+function go(i) { cur = i; base(); STATES[i][2](); render(); return false; }
+function render() {
+  document.getElementById('root').innerHTML = S.screen === 'login' ? login() : shell();
+  document.getElementById('dlg').innerHTML = dialog();
+  document.querySelectorAll('#pMe button').forEach((b) => b.classList.toggle('on', b.dataset.v === S.me));
+  document.querySelectorAll('#pData button').forEach((b) => b.classList.toggle('on', b.dataset.v === S.data));
+  document.getElementById('pJump').value = String(cur);
+}
+(function start() {
+  const groups = [...new Set(STATES.map((s) => s[0]))];
+  document.getElementById('pJump').innerHTML = groups.map((g) => `<optgroup label="${g}">${STATES.map((s, i) => (s[0] === g ? `<option value="${i}">${g}: ${s[1]}</option>` : '')).join('')}</optgroup>`).join('');
+  go(0);
+})();
+</script>
+</body>
+</html>

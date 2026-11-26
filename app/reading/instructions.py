@@ -50,8 +50,14 @@ mirrors IFRS, so a note that names MFRS together with IFRS is MFRS. The standard
 when the note names both MFRS and MPERS as its basis, or names neither.
 - The level comes from the statements' column headings: Group and Company columns mean Group; \
 Company columns alone mean Company.
-- The unit comes from the column headings of at least two statements. RM'000 means thousands; a plain \
-RM is a real unit, not a missing one. Never rescale anything.
+- The unit comes from the column headings of at least two statements. RM'000 means thousands; RM \
+million, RM'm or RM'000,000 means millions, which you record as RM'000,000; a plain RM is a real unit, \
+not a missing one. Never rescale anything.
+- Say whether the statements print last year's figures beside this year's. A company's first financial \
+statements have none: every statement carries one column of amounts, and the period often starts at the \
+date of incorporation. When that is what the pages show, record first statements as yes with the pages \
+and what shows it; otherwise no. A person confirms it at setup, so describe what you saw rather than \
+deciding for them.
 - The notes list must be complete, because later agents account for every note against it. Read \
 every note heading on every notes page, not just the first on each page, and give each note its PDF \
 pages from its heading to its last line. A heading repeated with "continued" belongs to the note it \

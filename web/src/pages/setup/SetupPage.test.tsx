@@ -223,6 +223,7 @@ describe("Setup page", () => {
       ],
       notes_included: true,
       notes: map.notes,
+      first_statements: false,
     });
   });
 
@@ -285,7 +286,7 @@ describe("Setup page", () => {
     render(<SetupPage runId={5} />);
     await screen.findByRole("heading", { name: "Statements" });
     const file = new File(["%PDF-1.7"], "Other.pdf", { type: "application/pdf" });
-    fireEvent.change(screen.getByLabelText("Replacement PDF"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Replacement file"), { target: { files: [file] } });
     await waitFor(() => expect(window.location.hash).toBe("#/runs/9/setup"));
     expect(calls).toEqual(["upload", "delete"]);
   });
@@ -296,7 +297,7 @@ describe("Setup page", () => {
     }));
     render(<SetupPage runId={5} />);
     await screen.findByRole("heading", { name: "Statements" });
-    fireEvent.change(screen.getByLabelText("Replacement PDF"), { target: { files: [new File(["x"], "x.pdf")] } });
+    fireEvent.change(screen.getByLabelText("Replacement file"), { target: { files: [new File(["x"], "x.pdf")] } });
     expect(await screen.findByText("This file is not a PDF, so choose the PDF of the financial statements.")).toBeInTheDocument();
     expect(screen.getByText("Not replaced").closest("[data-kind]")).toHaveAttribute("data-kind", "failure");
   });
@@ -393,6 +394,95 @@ describe("Setup page", () => {
       fireEvent.click(screen.getByRole("button", { name: "Send" }));
       expect(screen.getByLabelText("Amounts in")).toBeEnabled();
       expect(screen.getByLabelText("Amounts in")).toHaveValue("RM");
+    });
+  });
+
+  describe("reporting period and amounts in millions", () => {
+    const firstCard: NonNullable<SuggestedSetup["questions"]>[number] = {
+      field: "period", statement: null, question: "No figures for last year were found. Are these the company's first financial statements?",
+      reason: "Every statement has one column of amounts, and note 1 says the company was incorporated on 3 March 2026.", pages: [9],
+      choices: [
+        { value: "only", label: "Yes, this year only", effect: "Files this year's figures only", suggested: true },
+        { value: "both", label: "No, this year and last year", effect: "Files this year's and last year's figures", suggested: false },
+      ],
+    };
+    const first = { value: "yes", pages: [9], reason: firstCard.reason!, unsure: false };
+    const open = async (over: Partial<SuggestedSetup> = {}) => {
+      const sent: { body: Record<string, unknown> | null } = { body: null };
+      mockFetch(routes(progress({ status: "done", map_saved: true }), {
+        "GET /api/runs/5/setup": { body: { setup: { ...setup, ...over } } },
+        "POST /api/runs/5/setup": (init) => {
+          sent.body = JSON.parse(String(init?.body));
+          return { body: { run: run({ id: 5, status: "ready" }) } };
+        },
+      }));
+      render(<SetupPage runId={5} />);
+      await screen.findByRole("heading", { name: "Statements" });
+      return sent;
+    };
+    const start = async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Start run" }));
+      await waitFor(() => expect(window.location.hash).toBe("#/runs/5"));
+    };
+    const period = (name: string) => within(screen.getByRole("radiogroup", { name: "Reporting period" })).getByRole("radio", { name });
+
+    it("starts at this year and last year and sends this year only when chosen", async () => {
+      const sent = await open();
+      expect(period("This year and last year")).toHaveAttribute("aria-checked", "true");
+      expect(period("This year only")).toHaveAttribute("aria-checked", "false");
+      expect(screen.queryByRole("heading", { name: /first financial statements/ })).toBeNull();
+      fireEvent.click(period("This year only"));
+      expect(period("This year only")).toHaveAttribute("aria-checked", "true");
+      await start();
+      expect(sent.body).toMatchObject({ first_statements: true });
+    });
+
+    it("asks before taking the Reader's suggestion of this year only, and keeps the choice locked until then", async () => {
+      const sent = await open({ first_statements: first, questions: [firstCard] });
+      expect(screen.getByRole("heading", { name: firstCard.question })).toBeInTheDocument();
+      expect(screen.getByText(firstCard.reason!)).toBeInTheDocument();
+      // Neither choice is on, both are locked, and the run cannot start.
+      expect(period("This year and last year")).toBeDisabled();
+      expect(period("This year and last year")).toHaveAttribute("aria-checked", "false");
+      expect(period("This year only")).toHaveAttribute("aria-checked", "false");
+      expect(screen.getByRole("button", { name: "Start run" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Page 9" })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /Yes, this year only/ }));
+      expect(screen.queryByRole("heading", { name: firstCard.question })).toBeNull();
+      expect(period("This year only")).toHaveAttribute("aria-checked", "true");
+      expect(period("This year only")).toBeEnabled();
+      await start();
+      expect(sent.body).toMatchObject({ first_statements: true });
+    });
+
+    it("keeps both years when the person says these are not first statements", async () => {
+      const sent = await open({ first_statements: first, questions: [firstCard] });
+      fireEvent.keyDown(window.document.body, { key: "2" });
+      expect(period("This year and last year")).toHaveAttribute("aria-checked", "true");
+      await start();
+      expect(sent.body).toMatchObject({ first_statements: false });
+    });
+
+    it("does not ask when the Reader saw last year's figures", async () => {
+      await open({ first_statements: { value: "no", pages: [14], reason: "Page 14 has two columns of amounts.", unsure: false } });
+      expect(screen.queryByRole("heading", { name: /first financial statements/ })).toBeNull();
+      expect(period("This year and last year")).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByRole("button", { name: "Start run" })).toBeEnabled();
+    });
+
+    it("offers RM millions and sends it as printed", async () => {
+      const sent = await open();
+      const amounts = screen.getByLabelText("Amounts in") as HTMLSelectElement;
+      expect([...amounts.options].map((o) => o.textContent)).toEqual(["RM", "RM thousands", "RM millions"]);
+      fireEvent.change(amounts, { target: { value: "RM'000,000" } });
+      await start();
+      expect(sent.body).toMatchObject({ unit: "RM'000,000" });
+    });
+
+    it("starts on RM millions when the Reader read millions", async () => {
+      await open({ unit: finding("RM'000,000") });
+      expect(screen.getByLabelText("Amounts in")).toHaveValue("RM'000,000");
     });
   });
 

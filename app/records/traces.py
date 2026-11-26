@@ -31,9 +31,10 @@ from app.records import server_log
 from app.scope import answer as scope_answer
 from app.utils.masking import mask
 from app.utils.paths import output_dir, safe_path
+from app.utils.version import VERSION, deployed_commit, version_text
 
 NOT_RECORDED_YET: list[str] = []
-_UPLOAD_NAME = re.compile(r"^(document-[0-9a-f]+\.pdf|filled-workbook-[0-9a-f]+\.xlsx"
+_UPLOAD_NAME = re.compile(r"^(document-[0-9a-f]+\.pdf|source-[0-9a-f]+\.(docx|xlsx)|filled-workbook-[0-9a-f]+\.xlsx"
                           r"|starting-workbook-[0-9a-f]+\.xls[xm]"
                           r"|fills/(template|filled)-[0-9]+\.xls[xm])$")
 MODEL_CALL_COLUMNS = ("id", "run_id", "source", "page", "model", "input_tokens", "cached_tokens", "output_tokens",
@@ -133,7 +134,8 @@ def _scoring(conn: sqlite3.Connection, run_id: int) -> Optional[dict]:
     if workbook is None:
         return None
     return {"workbook": _parsed(dict(workbook), "loose_json"),
-            "cells": _rows(conn, "SELECT * FROM filled_workbook_cells WHERE run_id = ?", (run_id,))}
+            "cells": _rows(conn, "SELECT * FROM filled_workbook_cells WHERE run_id = ?", (run_id,)),
+            "notes": _rows(conn, "SELECT * FROM filled_workbook_notes WHERE run_id = ?", (run_id,))}
 
 
 def _starting(conn: sqlite3.Connection, run_id: int) -> Optional[dict]:
@@ -167,7 +169,10 @@ def _uploaded(conn: sqlite3.Connection, run_id: int, run_folder: Path) -> list[t
     mTool fills' templates and filled files are named by fill number."""
     out = []
     rows = [conn.execute(sql, (run_id,)).fetchone() for sql in (
-        "SELECT stored_path, filename FROM documents WHERE run_id = ?",
+        # A Word or Excel run keeps two files: the file as uploaded, and the reading copy made from it.
+        "SELECT stored_path, CASE WHEN kind = 'pdf' THEN filename ELSE 'reading copy of ' || filename || '.pdf' END "
+        "AS filename FROM documents WHERE run_id = ?",
+        "SELECT source_path AS stored_path, filename FROM documents WHERE run_id = ?",
         "SELECT stored_path, filename FROM filled_workbooks WHERE run_id = ?",
         "SELECT stored_path, 'starting ' || filename AS filename FROM starting_workbooks WHERE run_id = ?")]
     for fill in conn.execute("SELECT id, template_path, template_filename, output_path FROM fills "
@@ -187,6 +192,7 @@ def _uploaded(conn: sqlite3.Connection, run_id: int, run_folder: Path) -> list[t
             name = re.sub(r"[^\w.\- ]", "_", Path(str(row["filename"])).name).strip(". ") or "upload"
             out.append((path, name))
     return out
+
 
 
 def _files_in(folder: Path) -> Iterable[tuple[Path, str]]:
@@ -233,6 +239,7 @@ def build(conn: sqlite3.Connection, run_id: int, *, include_pdf: bool) -> Path:
                     zf.writestr(arcname, data)   # not text, so no key can be written in it as text
                 written.append(arcname)
 
+            put("version.txt", version_text())   # which build made these records
             put("run.json", _run_record(conn, run_id))
             put("events.json", [_parsed(e, "data_json") for e in _rows(
                 conn, "SELECT * FROM events WHERE run_id = ? ORDER BY id", (run_id,))])
@@ -242,6 +249,10 @@ def build(conn: sqlite3.Connection, run_id: int, *, include_pdf: bool) -> Path:
             document = conn.execute("SELECT * FROM documents WHERE run_id = ?", (run_id,)).fetchone()
             put("document.json", dict(document) if document else None)
             put("pages.json", _pages(conn, run_id))
+            if document is not None and document["kind"] != "pdf":   # the file's own words and numbers
+                put("file_lines.json", [_parsed(r, "cells_json") for r in _rows(
+                    conn, "SELECT position, page, kind, block, sheet, row, cells_json FROM file_lines "
+                          "WHERE document_id = ? ORDER BY position", (document["id"],))])
             put("document_map.json", reading.saved_map(conn, run_id))
             put("figures.json", _figures(conn, run_id))
             put("checks.json", [_parsed(c, "comparands_json") for c in _rows(
@@ -278,6 +289,7 @@ def build(conn: sqlite3.Connection, run_id: int, *, include_pdf: bool) -> Path:
                     zf.write(source, f"uploaded/{arcname}")
                     written.append(f"uploaded/{arcname}")
             put("manifest.json", {"run_id": run_id, "made_at": now(), "include_pdf": include_pdf,
+                                  "app_version": VERSION, "commit": deployed_commit(),
                                   "files": sorted(written), "not_recorded_yet": NOT_RECORDED_YET})
     except BaseException:
         path.unlink(missing_ok=True)

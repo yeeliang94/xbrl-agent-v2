@@ -15,7 +15,9 @@ once both have finished, failed or stopped. From step 10 the reports agent's
 the run.
 -> correcting (a correction round works) -> in_review (the round ended, in
 any way). Reading or extraction can fail (failed); a retry of reading sends
-it back to reading, a retry of extraction back to ready. Every other module
+it back to reading, a retry of extraction back to ready. A person may stop
+reading too (stopped, with the read stage stopped); a retry reads on from
+the pages already read. Every other module
 calls a named function here instead of writing `runs.status` itself, so the
 transitions can be read in one file.
 """
@@ -28,8 +30,6 @@ from app.db import now
 READING, SETUP, READY, FAILED = "reading", "setup", "ready", "failed"
 EXTRACTING, IN_REVIEW, CORRECTING = "extracting", "in_review", "correcting"
 NEEDS_ANSWER, STOPPED = "needs_answer", "stopped"
-# A run in one of these may be deleted: nothing is running for it.
-DELETABLE = (SETUP, FAILED)
 
 
 def _set(conn: sqlite3.Connection, run_id: int, status: str) -> None:
@@ -48,6 +48,11 @@ def reading_done(conn: sqlite3.Connection, run_id: int) -> None:
 
 def reading_failed(conn: sqlite3.Connection, run_id: int) -> None:
     _set(conn, run_id, FAILED)
+
+
+def reading_stopped(conn: sqlite3.Connection, run_id: int) -> None:
+    """A person stopped the reading: the pages read are kept and reading can be tried again."""
+    _set(conn, run_id, STOPPED)
 
 
 def setup_confirmed(conn: sqlite3.Connection, run_id: int) -> None:

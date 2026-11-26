@@ -175,7 +175,7 @@ async def test_a_reader_is_sent_back_until_it_saves_and_refused_saves_cost_no_re
     assert len(saves) == 7 and saves[-1].startswith("Saved")
     for refused in saves[:-1]:   # every problem in one answer
         assert refused.startswith(reader.NOT_SAVED)
-        assert "Page 52 for SOFP" in refused and "The unit must be RM or RM'000" in refused
+        assert "Page 52 for SOFP" in refused and "The unit must be RM, RM'000 or RM'000,000" in refused
 
 
 def test_reading_routes_need_a_document(signed_in):

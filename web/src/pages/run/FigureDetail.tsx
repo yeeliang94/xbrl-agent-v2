@@ -7,6 +7,7 @@ import { Status } from "../../components/Status";
 import { TextInput } from "../../components/TextInput";
 import { CommentBox } from "./CommentBox";
 import { cellPlace, formatAmount, parseAmount, rowStatus, type Selection } from "./runModel";
+import { SourceLine, sourcePlace } from "./SourceView";
 
 export interface DetailProps {
   runId: number;
@@ -219,6 +220,7 @@ export function FigureDetail({ row, column, ...props }: DetailProps & { row: Sta
           </div>
         </>
       )}
+      <SourceLine kind={statement.source_kind} place={sourcePlace(statement.source_kind, row, row.page, cell?.source_cell)} />
       {error && (
         <p className="error" role="alert">
           {error}

@@ -81,38 +81,19 @@ def test_the_upload_is_in_the_activity_feed_and_the_read_stage_waits(signed_in):
     assert [tuple(s) for s in stages] == [("upload", "done"), ("read", "waiting")]
 
 
-def _docx_bytes() -> bytes:
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr("[Content_Types].xml", "<Types/>")
-        archive.writestr("word/document.xml", "<w:document/>")
-    return buffer.getvalue()
-
-
-@pytest.mark.parametrize("name, data", [
-    ("Report.docx", b"anything"),
-    ("Report.doc", b"anything"),
-    ("Report.pdf", _docx_bytes()),
-    ("Report.pdf", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + "WordDocument".encode("utf-16-le") + b"\0" * 64),
-])
-def test_a_word_file_is_refused_with_how_to_make_a_pdf(signed_in, name, data):
-    response = _upload(signed_in, data, name)
-    assert response.status_code == 422
-    assert response.json() == {"detail": "Save the Word file as a PDF in Word, then upload the PDF."}
-
-
 @pytest.mark.parametrize("data, detail", [
     (b"", "This file is empty."),
-    (b"Revenue,100\nCost of sales,-60\n", "This file is not a PDF, so choose the PDF of the financial statements."),
+    (b"Revenue,100\nCost of sales,-60\n",
+     "report.pdf is not a PDF, a Word document (.docx) or an Excel workbook (.xlsx)."),
     (b"%PDF-1.7\n" + b"\x00garbage" * 50, "This file could not be read as a PDF."),
     (pdf_samples.build("text", password="secret"),
-     "This PDF is protected by a password, so upload a copy saved without one."),
+     "report.pdf is protected by a password. Remove the password and upload it again."),
 ])
 def test_anything_but_a_readable_pdf_is_refused_and_no_run_is_made(signed_in, data, detail):
     response = _upload(signed_in, data)
     assert response.status_code == 422
     assert response.json() == {"detail": detail}
-    assert signed_in.get("/api/runs").json() == {"runs": []}
+    assert signed_in.get("/api/runs").json()["runs"] == []
 
 
 def _pdf(sizes: list[tuple[float, float]]) -> bytes:
@@ -136,14 +117,7 @@ def test_a_pdf_over_the_page_limit_is_refused(signed_in):
     assert response.status_code == 422
     assert response.json() == {"detail": "This PDF has more than 500 pages, so upload the financial statements on "
                                          "their own."}
-    assert signed_in.get("/api/runs").json() == {"runs": []}
-
-
-def test_a_file_over_the_limit_is_refused(signed_in, monkeypatch):
-    monkeypatch.setattr(document_routes, "MAX_UPLOAD_BYTES", 1000)
-    response = _upload(signed_in, pdf_samples.build("text"))
-    assert response.status_code == 413
-    assert response.json() == {"detail": "This file is over 100 MB."}
+    assert signed_in.get("/api/runs").json()["runs"] == []
 
 
 def test_uploading_and_reading_a_document_need_a_session(client):

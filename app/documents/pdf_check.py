@@ -1,7 +1,7 @@
 """Check that an uploaded file is a readable PDF, and look at each page once.
 
-Uploads are PDF only on every machine (`backend-plan.md` section 9). Each
-refusal is one plain sentence the person can act on.
+A Word or Excel upload reaches this check as its reading copy
+(`intake.py`). Each refusal is one plain sentence the person can act on.
 """
 from __future__ import annotations
 
@@ -10,9 +10,6 @@ from dataclasses import dataclass
 import pymupdf
 
 from app.documents.pdf_viewer import dominant_raster_dpi
-
-WORD_SUFFIXES = (".doc", ".docx", ".docm", ".dot", ".dotx", ".dotm")
-WORD_REFUSAL = "Save the Word file as a PDF in Word, then upload the PDF."
 
 # Financial statements run to tens of pages; a long group report to a few
 # hundred. More than this is not one set of statements, and reading it would
@@ -25,12 +22,12 @@ A0_POINTS = (2384.0, 3370.0)
 # covers most of it, is a scan (see `_has_text_layer`).
 SCAN_TEXT_COVER = 0.10
 
-_OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"            # old .doc (and .xls)
-_OLE_WORD_STREAM = "WordDocument".encode("utf-16-le")
-
-
 class NotAPdf(ValueError):
     """An upload that is not a PDF the app can read. `str()` is one plain sentence."""
+
+
+class PdfLocked(NotAPdf):
+    """A PDF that needs a password to open."""
 
 
 @dataclass(frozen=True)
@@ -40,16 +37,6 @@ class PageFacts:
     height: float
     rotation: int          # as stored in the PDF
     has_text_layer: bool
-
-
-def is_word(filename: str, data: bytes = b"") -> bool:
-    """A Word file, by its name or by its content (a .docx is a zip holding a
-    `word/` folder; an old .doc is an OLE file with a WordDocument stream)."""
-    if filename.lower().endswith(WORD_SUFFIXES):
-        return True
-    if data.startswith(b"PK\x03\x04"):
-        return b"word/" in data[:65536]
-    return data.startswith(_OLE_MAGIC) and _OLE_WORD_STREAM in data[:65536]
 
 
 def inspect_pdf(data: bytes) -> list[PageFacts]:
@@ -62,7 +49,7 @@ def inspect_pdf(data: bytes) -> list[PageFacts]:
         raise NotAPdf("This file could not be read as a PDF.") from exc
     try:
         if doc.needs_pass:
-            raise NotAPdf("This PDF is protected by a password, so upload a copy saved without one.")
+            raise PdfLocked("This PDF is protected by a password, so upload a copy saved without one.")
         if len(doc) == 0:
             raise NotAPdf("This file could not be read as a PDF.")
         if len(doc) > MAX_PAGES:

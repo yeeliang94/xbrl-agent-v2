@@ -88,7 +88,12 @@ class DocumentMap(BaseModel):
     year_end: Finding = Field(description="value as YYYY-MM-DD.")
     standard: Finding = Field(description="value MFRS, MPERS or unknown.")
     level: Finding = Field(description="value Company or Group.")
-    unit: Finding = Field(description="value RM or RM'000, as the statements' column headings print it.")
+    unit: Finding = Field(description="value RM, RM'000 or RM'000,000 (millions), as the statements' column "
+                                      "headings print it.")
+    first_statements: Optional[Finding] = Field(
+        default=None, description="value yes when no statement prints figures for a prior year, so these look "
+                                  "like the company's first financial statements; otherwise no. The reason says "
+                                  "what on the pages shows it.")
     statements: list[StatementFinding] = Field(description="All five statements, each once.")
     notes: list[Note] = Field(default_factory=list)
     other_sections: list[Section] = Field(default_factory=list)

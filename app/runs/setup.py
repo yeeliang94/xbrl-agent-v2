@@ -20,14 +20,14 @@ from app.catalog.statements import NOT_PREPARED, VARIANTS, StatementType, layout
 from app.db import now
 from app.reading import store as reading
 from app.reading.map_schema import STATEMENT_NAMES, STATEMENTS
-from app.runs import extraction, status as run_status
+from app.runs import extraction, status as run_status, units
 
 logger = logging.getLogger(__name__)
 
 MAX_NAME = 200
 MAX_NOTES = 500
 MAX_STATEMENT_PAGES = 10
-UNITS = ("RM", "RM'000")
+UNITS = units.UNITS
 
 
 class SetupRefused(ValueError):
@@ -48,6 +48,7 @@ class Confirmed:
     statements: list[tuple[str, str, bool, list[int]]]   # (statement, layout, included, PDF pages)
     notes_included: bool
     notes: list[tuple[str, str, int, int]]    # (number, title, first page, last page)
+    first_statements: bool = False            # "This year only": the company's first financial statements
 
 
 def _text(value: Any) -> str:
@@ -141,12 +142,15 @@ def check(body: Any, page_count: int) -> Confirmed:
     if level not in ("Company", "Group"):
         raise SetupRefused("Choose Company or Group.")
     if unit not in UNITS:
-        raise SetupRefused("Choose whether amounts are in RM or RM thousands.")
+        raise SetupRefused(units.CHOOSE)
     notes_included = body.get("notes_included", True)
     if not isinstance(notes_included, bool):
         raise SetupRefused("Say whether the notes are included.")
+    first_statements = body.get("first_statements", False)
+    if not isinstance(first_statements, bool):
+        raise SetupRefused("Say whether the report covers this year and last year, or this year only.")
     return Confirmed(company, parsed.isoformat(), standard, level, unit, _statements(body.get("statements"), standard, page_count),
-                     notes_included, _notes(body.get("notes", []), page_count))
+                     notes_included, _notes(body.get("notes", []), page_count), first_statements)
 
 
 # Companies -----------------------------------------------------------------
@@ -201,10 +205,11 @@ def confirm(conn: sqlite3.Connection, run: sqlite3.Row, body: Any, page_count: i
     conn.execute("UPDATE runs SET company_id = ?, year = ?, standard = ?, level = ? WHERE id = ?",
                  (company_id, int(setup.year_end[:4]), setup.standard, setup.level, run_id))
     run_status.setup_confirmed(conn, run_id)
-    conn.execute("INSERT INTO run_setup(run_id, unit, year_end, notes_included) VALUES (?, ?, ?, ?) "
+    conn.execute("INSERT INTO run_setup(run_id, unit, year_end, notes_included, first_statements) "
+                 "VALUES (?, ?, ?, ?, ?) "
                  "ON CONFLICT(run_id) DO UPDATE SET unit = excluded.unit, year_end = excluded.year_end, "
-                 "notes_included = excluded.notes_included",
-                 (run_id, setup.unit, setup.year_end, int(setup.notes_included)))
+                 "notes_included = excluded.notes_included, first_statements = excluded.first_statements",
+                 (run_id, setup.unit, setup.year_end, int(setup.notes_included), int(setup.first_statements)))
     conn.execute("DELETE FROM run_statements WHERE run_id = ?", (run_id,))
     conn.executemany("INSERT INTO run_statements(run_id, statement, variant, included, pages_json) "
                      "VALUES (?, ?, ?, ?, ?)",
@@ -248,6 +253,7 @@ def _event_data(setup: Confirmed, actor_email: str, existing: bool) -> str:
     return json.dumps({
         "by": actor_email, "company": setup.company, "company_existing": existing, "year_end": setup.year_end,
         "standard": setup.standard, "level": setup.level, "unit": setup.unit, "notes_included": setup.notes_included,
+        "first_statements": setup.first_statements,
         "statements": [{"statement": s, "layout": layout, "included": on, "pages": pages}
                        for s, layout, on, pages in setup.statements],
         "notes": len(setup.notes),

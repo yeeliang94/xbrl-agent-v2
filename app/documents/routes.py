@@ -1,4 +1,4 @@
-"""Create a run from an uploaded PDF, read its document and draw its pages
+"""Create a run from an uploaded PDF, Word or Excel file, read its document and draw its pages
 (`docs/api-contract.md`, Step 3)."""
 from __future__ import annotations
 
@@ -6,11 +6,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel
 
 from app import db
 from app.auth.deps import current_user
 from app.auth.store import User
-from app.documents import pdf_check, pdf_viewer, store
+from app.documents import intake, pdf_viewer, sheets, source_file, store
 from app.documents.page_cache import CACHE
 from app.runs import store as runs
 from app.runs.routes import run_dicts
@@ -39,24 +40,31 @@ def _read_capped(upload: UploadFile) -> bytes | None:
     return b"".join(chunks)
 
 
+def _megabytes(size: int) -> int:
+    return max(1, round(size / (1024 * 1024)))
+
+
 @router.post("")
-def upload_pdf(file: UploadFile = File(...), user: User = Depends(current_user)):
+def upload_file(file: UploadFile = File(...), user: User = Depends(current_user)):
+    """Start a run from one PDF, Word (.docx) or Excel (.xlsx) file."""
     filename = Path(file.filename or "").name or "document.pdf"
-    if pdf_check.is_word(filename):
-        return _error(422, pdf_check.WORD_REFUSAL)
+    by_name = source_file.refused_by_name(filename)
+    if by_name is not None:
+        return _error(422, str(by_name))
+    limit = f"The largest file a run can take is {_megabytes(MAX_UPLOAD_BYTES)} MB."
+    if file.size is not None and file.size > MAX_UPLOAD_BYTES:
+        return _error(413, f"{filename} is {_megabytes(file.size)} MB. {limit}")
     data = _read_capped(file)
     if data is None:
-        return _error(413, "This file is over 100 MB.")
+        return _error(413, f"{filename} is too large. {limit}")
     if not data:
         return _error(422, "This file is empty.")
-    if pdf_check.is_word(filename, data):
-        return _error(422, pdf_check.WORD_REFUSAL)
     try:
-        pages = pdf_check.inspect_pdf(data)
-    except pdf_check.NotAPdf as exc:
+        upload = intake.prepare(filename, data)
+    except source_file.Refused as exc:
         return _error(422, str(exc))
     with db.connect(immediate=True) as conn:
-        run_id = store.create_run_from_pdf(conn, data, pages, filename=filename, owner_email=user.email)
+        run_id = store.create_run(conn, upload, owner_email=user.email)
         return {"run": run_dicts(conn, [runs.run_row(conn, run_id)])[0], "document": store.document(conn, run_id)}
 
 
@@ -68,6 +76,39 @@ def get_document(run_id: int, user: User = Depends(current_user)):
             return {"document": store.document(conn, run_id)}
         except (runs.RunNotFound, store.NoDocument) as exc:
             return _error(404, str(exc))
+
+
+class BringIn(BaseModel):
+    sheet: str
+
+
+@router.get("/{run_id}/sheets/{name}")
+def get_sheet(run_id: int, name: str, user: User = Depends(current_user)):
+    """One sheet of an Excel run's workbook, as its filled cells."""
+    with db.connect() as conn:
+        try:
+            runs.open_run(conn, run_id, user)
+            found = sheets.grid(conn, run_id, name)
+        except (runs.RunNotFound, store.NoDocument) as exc:
+            return _error(404, str(exc))
+    if found is None:
+        return _error(404, f"This run has no sheet called {name}.")
+    return {"sheet": found}
+
+
+@router.post("/{run_id}/sheets/bring-in")
+def bring_in_sheet(run_id: int, body: BringIn, user: User = Depends(current_user)):
+    """Bring a hidden sheet into a run waiting at setup. The run reads the new pages, then waits at setup again."""
+    try:
+        sheets.bring_in(run_id, user, body.sheet)
+        with db.connect() as conn:
+            return {"run": run_dicts(conn, [runs.run_row(conn, run_id)])[0], "document": store.document(conn, run_id)}
+    except (runs.RunNotFound, store.NoDocument) as exc:
+        return _error(404, str(exc))
+    except sheets.SheetRefused as exc:
+        return _error(409, str(exc))
+    except source_file.Refused as exc:
+        return _error(422, str(exc))
 
 
 def _parse_clip(text: str | None) -> pdf_viewer.Clip | None:

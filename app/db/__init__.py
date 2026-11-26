@@ -92,6 +92,10 @@ _ADDED_COLUMNS = (
     ("comments", "report_id", "INTEGER"),
     ("fills", "investigation", "TEXT CHECK (investigation IN ('queued', 'working', 'done', 'failed'))"),
     ("fills", "investigation_error", "TEXT"),
+    ("model_calls", "agent", "TEXT"),
+    ("documents", "kind", "TEXT NOT NULL DEFAULT 'pdf' CHECK (kind IN ('pdf', 'word', 'excel'))"),
+    ("documents", "source_path", "TEXT"),
+    ("documents", "source_json", "TEXT"),
 )
 
 

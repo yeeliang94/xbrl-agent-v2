@@ -40,8 +40,8 @@ class Evidence(BaseModel):
 
 class Choice(BaseModel):
     label: str = Field(description="The choice as the person reads it, such as MPERS.")
-    value: str = Field(description="The setup value it stands for: MFRS or MPERS; Company or Group; RM or "
-                                   "RM'000; a date YYYY-MM-DD; or a layout name, or NotPrepared for a "
+    value: str = Field(description="The setup value it stands for: MFRS or MPERS; Company or Group; RM, "
+                                   "RM'000 or RM'000,000; a date YYYY-MM-DD; or a layout name, or NotPrepared for a "
                                    "statement not printed.")
     effect: str = Field(description="One line on what follows if the person picks it.")
     suggested: bool = Field(default=False, description="True on the one choice the evidence supports best.")

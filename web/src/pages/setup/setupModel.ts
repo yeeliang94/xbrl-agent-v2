@@ -54,12 +54,19 @@ export function choicesFor(row: StatementRow, standard: Standard): LayoutChoice[
 const firstPrinted = (row: StatementRow, standard: Standard) =>
   choicesFor(row, standard).find((c) => c.value !== NOT_PRINTED)?.value ?? row.layout;
 
+/** The reporting period: this year and last year, or this year only (first financial statements). */
+export type Period = "both" | "only";
+
+const UNIT_VALUES: Unit[] = ["RM", "RM'000", "RM'000,000"];
+
 export interface SetupForm {
   company: string;
   yearEnd: string;
   standard: Standard;
   level: Level;
   unit: Unit;
+  /** Starts at both years. The Reader may suggest this year only; the person's answer sets it. */
+  period: Period;
   statements: StatementRow[];
   notesIncluded: boolean;
   notes: MapNote[];
@@ -88,7 +95,8 @@ export function initialForm(setup: SuggestedSetup, map: DocumentMap): SetupForm 
     yearEnd: setup.year_end.value ?? "",
     standard,
     level: setup.level.value === "Group" ? "Group" : "Company",
-    unit: setup.unit.value === "RM'000" ? "RM'000" : "RM",
+    unit: UNIT_VALUES.find((unit) => unit === setup.unit.value) ?? "RM",
+    period: "both",
     statements: DISPLAY_ORDER.filter((code) => byCode.has(code)).map((code) => statementRow(byCode.get(code)!, standard)),
     notesIncluded: true,
     notes: map.notes.map(({ number, title, first_page, last_page }) => ({ number, title, first_page, last_page })),
@@ -127,6 +135,7 @@ export function toPayload(form: SetupForm): ConfirmedSetup {
     statements: form.statements.map(({ statement, layout, included, pages }) => ({ statement, layout, included, pages })),
     notes_included: form.notesIncluded,
     notes: form.notes,
+    first_statements: form.period === "only",
   };
 }
 
@@ -168,3 +177,6 @@ export function addNote(notes: MapNote[], note: MapNote): MapNote[] {
   const order = (n: MapNote) => (n.number === "" ? Number.POSITIVE_INFINITY : parseFloat(n.number));
   return [...rest, note].sort((a, b) => order(a) - order(b) || a.number.localeCompare(b.number));
 }
+
+/** "1 note", "6 notes". */
+export const notesCount = (n: number) => `${n} ${n === 1 ? "note" : "notes"}`;

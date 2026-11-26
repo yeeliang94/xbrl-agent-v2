@@ -38,6 +38,8 @@ const ICONS = {
   undo: [{ d: "M5.5 3 2.5 6l3 3" }, { d: "M2.5 6h7a3.5 3.5 0 0 1 0 7H6" }],
   copy: [{ d: "M7 5.5h5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 12V7A1.5 1.5 0 0 1 7 5.5z" }, { d: "M3 10.5v-7a1 1 0 0 1 1-1h7" }],
   done: [{ d: "M3 8.5 6.5 12 13 4.5" }],
+  redo: [{ d: "M13 3v3.5H9.5" }, { d: "M12.6 6.5A5 5 0 1 0 13 9" }],
+  trash: [{ d: "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5M6.75 7v3.5M9.25 7v3.5" }],
 } satisfies Record<string, { d: string; width?: number; dash?: boolean }[]>;
 
 export type IconName = keyof typeof ICONS;

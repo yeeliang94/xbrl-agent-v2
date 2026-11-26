@@ -5,6 +5,8 @@
   PydanticAI's request limit (v1 invariant 18: the library's hidden default of
   50 requests otherwise ends a long run with a crash, not a clear message).
 - Stops at a wall-clock time limit the same clean way.
+- Publishes the run's clock (`budget.timed`), so tool results can tell the
+  agent when its steps or its time run low (`app/agents/budget.py`).
 - Honours a stop request, checked before every step.
 - An unexpected error inside a tool goes back to the agent as one plain
   sentence it can act on. Only a model or connection failure ends a run.
@@ -37,7 +39,7 @@ os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
 from pydantic_ai import Agent, CodeExecutionTool
 from pydantic_ai.capabilities import AbstractCapability, Hooks, NativeTool
 from pydantic_ai.exceptions import (
-    ModelAPIError, ModelConnectionError, ModelRateLimitError, ModelRequestTimeout, ModelRetry,
+    ModelAPIError, ModelConnectionError, ModelQuotaExceededError, ModelRateLimitError, ModelRequestTimeout, ModelRetry,
     UnexpectedModelBehavior,
 )
 from pydantic_ai.messages import ModelMessagesTypeAdapter, NativeToolCallPart, ToolCallPart
@@ -45,6 +47,7 @@ from pydantic_ai.usage import UsageLimits
 
 from app import db
 from app.models import factory, usage as model_usage
+from app.agents import budget, file_tools
 from app.agents.pages import LOOKING, looked_row
 from app.runs.events import add_event
 from app.utils.atomic_io import write_json_atomic
@@ -87,6 +90,8 @@ class AgentSpec:
     output_validator: Optional[Callable[..., Any]] = None
     # Names this agent on its activity rows (`data["agent"]`) when several run side by side.
     agent: Optional[str] = None
+    # Names this agent run in the run's cost (`model_calls.agent`, `app/runs/cost.py`); defaults to `agent`.
+    label: Optional[str] = None
 
 
 @dataclass
@@ -164,6 +169,7 @@ class CallLog:
     source: str
     model_id: str
     page: Optional[int] = None
+    agent: Optional[str] = None                 # the agent run as a person names it, for the run's cost
     calls: list = field(default_factory=list)   # (duration_ms, ModelResponse or None, error or None)
     cost_usd: Optional[float] = None
 
@@ -171,7 +177,7 @@ class CallLog:
         self.calls.append((duration_ms, response, error))
         cost = model_usage.record_call(self.run_id, self.source, self.model_id,
                                        response.usage if response is not None else None,
-                                       page=self.page, duration_ms=duration_ms, error=error)
+                                       page=self.page, duration_ms=duration_ms, error=error, agent=self.agent)
         if cost is not None:
             self.cost_usd = (self.cost_usd or 0.0) + cost
 
@@ -249,7 +255,7 @@ async def _record_tools(node: Any, outcome: AgentOutcome, rec: _Recorder) -> Non
         elif isinstance(part, ToolCallPart):
             outcome.tool_calls.append(part.tool_name)
             await rec.event("tool", f"Used {part.tool_name}.", {"tool": part.tool_name})
-            if part.tool_name in LOOKING:
+            if part.tool_name in LOOKING or part.tool_name in file_tools.NAMES:
                 message, pages = looked_row(part)
                 await rec.event("looked", message, {"tool": part.tool_name}, pages)
 
@@ -307,6 +313,8 @@ def failure_sentence(exc: Exception, *, during_setup: bool) -> str:
         return str(exc)  # the factory's own sentence, e.g. a missing key
     if isinstance(exc, (ModelConnectionError, ModelRequestTimeout)):
         return "The model service could not be reached."
+    if isinstance(exc, ModelQuotaExceededError):
+        return "The model account has no credit left, so an admin needs to add credit before trying again."
     if isinstance(exc, ModelRateLimitError):
         return "The model service is busy or over its limit."
     if isinstance(exc, ModelAPIError):
@@ -349,6 +357,8 @@ async def run_agent(
         raise ValueError(f"The step limit must be between 1 and {MAX_STEPS_CEILING}.")
     if spec.max_seconds <= 0:
         raise ValueError("The time limit must be above zero.")
+    # A run that started from a Word or Excel file: the agent also gets the file's own words and numbers.
+    spec = file_tools.for_run(spec, run_id)
     rec = _Recorder(spec, run_id, job_id, readable)
     outcome = AgentOutcome(status=FAILED, transcript_path=_transcript_path(spec, run_id))
     messages: list = []
@@ -357,14 +367,14 @@ async def run_agent(
     time_limit_message = f"Stopped at the time limit of {_duration(spec.max_seconds)} before finishing."
     agent_run = None
     during_setup = True
-    calls = CallLog(run_id, spec.name, spec.model_id)
+    calls = CallLog(run_id, spec.name, spec.model_id, agent=spec.label or spec.agent)
     await rec.event("started", f"Started {spec.name} with {spec.model_id}.")
     try:
         agent, use_code_tool = build_agent(spec, model, outcome.tool_errors)
         during_setup = False
         if spec.code_tool and not use_code_tool:
             await rec.event("notice", "The code workbench is not available for this model here.")
-        with recording(calls), suppress(_OutOfTime):
+        with recording(calls), budget.timed(spec.max_seconds), suppress(_OutOfTime):
             async with agent.iter(
                 prompt, deps=deps, usage_limits=library_usage_limits(spec.max_steps)
             ) as agent_run:

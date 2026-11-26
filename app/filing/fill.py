@@ -29,7 +29,7 @@ The report (a plain dict, JSON-ready):
       "status": "ok" | "needs review",   # needs review: anything unresolved, mismatched,
                                          # a note left out, or a template that is not known
       "template": {"sha256", "fingerprint", "compatibility" ("known" | "probably_compatible" |
-                   "unknown"), "name", "reasons": [sentence]},
+                   "unknown"), "name", "reasons": [sentence]},   # also: its unit differs from the run's
       "output": {"path", "sha256"},
       "figures_digest": str, "notes_digest": str,   # which revision of the figures and notes
       "written" | "kept" | "skipped" | "unresolved" | "mismatched": [FigureLine],
@@ -84,7 +84,8 @@ from app.filing.notes import NOTE_REASONS, plan_notes, text_block_cell
 from app.filing.plan import REASONS, plan_figures
 from app.filing.report_fields import REPORT_REASONS, plan_reports, report_sheets
 from app.reports import store as report_store
-from app.starting.workbook import Refused as StartingRefused
+from app.runs import units
+from app.starting.workbook import Refused as StartingRefused, facts as workbook_facts
 from app.utils.paths import PathLike, safe_entry_path, safe_path
 from app.workbook import mtool_layout, mtool_map, offline_fill, report_cells
 from app.workbook.mtool_map import CellRef, Key
@@ -221,6 +222,19 @@ def _source(conn, run_id: int, template_path: Optional[PathLike]):
     return start.path, start
 
 
+def _unit_differs(unit: Optional[str], cells) -> list[str]:
+    """One sentence when the template's own level of rounding is not the unit confirmed at setup, else
+    nothing. Figures go in as printed, never rescaled, so mTool would read every amount in the wrong unit.
+    A template that does not say its rounding cannot be checked and is left alone."""
+    said = workbook_facts(cells)["unit"]
+    unit = unit or units.RM
+    if said is None or said == unit:
+        return []
+    return [f"The template is in {units.unit_words(said)} but the report is in {units.unit_words(unit)}, so mTool "
+            "would read every amount in the wrong unit; make the template in mTool with the same level of "
+            "rounding and fill it again."]
+
+
 def fill_workbook(run_id: int, template_path: Optional[PathLike], output_path: PathLike, *,
                   confirmed_mapping: Optional[dict] = None) -> dict:
     """Fill a copy of the template (or the run's starting workbook) from the run's current figures, notes and
@@ -237,6 +251,7 @@ def fill_workbook(run_id: int, template_path: Optional[PathLike], output_path: P
             raise FillError("There is no such run, or its setup is not confirmed.")
         template, start = _source(conn, run_id, template_path)
         year = int(conn.execute("SELECT year FROM runs WHERE id = ?", (run_id,)).fetchone()[0] or 0)
+        setup = conn.execute("SELECT unit FROM run_setup WHERE run_id = ?", (run_id,)).fetchone()
         fields = run_fields(conn, family)
         figures = run_figures(conn, run_id)
         totals = frozenset(row_totals(conn, set(family.template_ids.values())))
@@ -267,6 +282,9 @@ def fill_workbook(run_id: int, template_path: Optional[PathLike], output_path: P
     identity = identify(cells, confirmed_mapping=confirmed_mapping)
     logger.info("mTool fill: run %s %s is %s", run_id, "starting workbook" if start else "template",
                 identity.compatibility)
+    unit_differs = [] if start else _unit_differs(setup["unit"] if setup else None, cells)   # a starting workbook is checked when it is loaded
+    if unit_differs:
+        logger.warning("mTool fill: run %s: the template's level of rounding differs from the run's unit", run_id)
     placed = mtool_map.map_fields(cells, fields, family)
     protection = offline_fill.protected_input_cells(data, sheet_paths(data))
     locked = lambda sheet, addr: offline_fill.is_locked_input(protection, sheet, addr)  # noqa: E731
@@ -371,7 +389,8 @@ def fill_workbook(run_id: int, template_path: Optional[PathLike], output_path: P
     report = {
         "run_id": run_id,
         "template": {"sha256": _sha256(template), "fingerprint": identity.fingerprint,
-                     "compatibility": identity.compatibility, "name": identity.name, "reasons": identity.reasons},
+                     "compatibility": identity.compatibility, "name": identity.name,
+                     "reasons": identity.reasons + unit_differs},
         "output": {"path": str(output), "sha256": _sha256(output)},
         "figures_digest": _digest((f["concept_uuid"], f["period"], f["entity_scope"], f["dimension_key"],
                                    f["value"], f["origin"]) for f in figures),
@@ -390,7 +409,7 @@ def fill_workbook(run_id: int, template_path: Optional[PathLike], output_path: P
                             reports_not_written=sum(len(reports[k]) for k in ("skipped", "unresolved",
                                                                               "mismatched")),
                             **{name: len(lines) for name, lines in kept.items()})
-    needs_review = (identity.compatibility != KNOWN or unresolved or mismatched
+    needs_review = (identity.compatibility != KNOWN or unit_differs or unresolved or mismatched
                     or any(note_report[k] for k in ("skipped", "unresolved", "mismatched"))
                     or reports["unresolved"] or reports["mismatched"]
                     or kept["workbook_kept"] or kept["prior_year_added"])

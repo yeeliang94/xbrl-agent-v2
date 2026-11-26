@@ -15,6 +15,7 @@ from app import db
 from app.auth.deps import current_user
 from app.auth.store import User
 from app.checks.runner import read_checks
+from app.documents import sheets
 from app.figures import store, views
 from app.runs import store as runs
 
@@ -69,7 +70,8 @@ def get_statement(run_id: int, statement: str, order: str = Query("report"),
     with db.connect() as conn:
         try:
             runs.open_run(conn, run_id, user)
-            return views.statement_view(conn, run_id, statement, order)
+            # An Excel run's rows also say which sheet and cell each figure comes from.
+            return sheets.annotate(conn, run_id, views.statement_view(conn, run_id, statement, order))
         except runs.RunNotFound as exc:
             return _error(404, str(exc))
         except views.StatementNotInRun as exc:
