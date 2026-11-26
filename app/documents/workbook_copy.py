@@ -76,7 +76,9 @@ def _literal(section: str) -> str:
 def _decimals(section: str) -> int | None:
     """The decimal places a format section shows, or None for General."""
     section = _section(section)
-    if "0" not in section and "#" not in section:
+    # General, and the fraction (`# ?/?`) and scientific (`0.00E+00`) formats this does not draw: the
+    # number is given in full rather than rounded to a look it does not have.
+    if "0" not in section and "#" not in section or "/" in section or "E" in section.upper():
         return None
     if "." not in section:
         return 0

@@ -99,6 +99,8 @@ def test_a_cell_is_shown_as_its_number_format_shows_it():
     assert shown(500, "[>=1000]#,##0,;0") == "500" and shown(1500, "[>=1000]#,##0,;0") == "2"
     assert shown(-1234, "[<0](#,##0);#,##0") == "(1,234)" and shown(-1234, "[Red]#,##0;[Red](#,##0)") == "(1,234)"
     assert shown(1234, "[$RM-409]#,##0") == "1,234"
+    # A fraction or scientific format is not drawn: the number is given in full, not rounded.
+    assert shown(1.25, "# ?/?") == "1.25" and shown(1234567, "0.00E+00") == "1234567"
     # An amount too long for ordinary decimal arithmetic is still shown in full.
     assert shown(1e30, "#,##0") == "1,000,000,000,000,000,000,000,000,000,000"
     assert shown(1234, '"RM"#,##0') == "1,234"

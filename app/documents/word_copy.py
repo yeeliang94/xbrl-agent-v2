@@ -82,6 +82,7 @@ class _Builder:
                     mark = f"{number}." if name == "ol" else "-"
                     key = self._id(rc.Line(rc.TEXT, [f"{mark} {text}"]))
                     self.out.append(f'<p id="{key}">{mark} {escape(text)}</p>')
+                self.out.append(self._pictures(item))
         elif name == "table":
             self.table(tag)
         else:                        # a wrapper mammoth made: its blocks one by one

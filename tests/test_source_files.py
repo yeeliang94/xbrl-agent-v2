@@ -104,6 +104,18 @@ def test_a_picture_in_a_word_table_cell_is_drawn_in_the_reading_copy():
     assert pymupdf.open(stream=copy.pdf, filetype="pdf")[0].get_images()
 
 
+def test_a_picture_in_a_word_list_item_is_drawn_in_the_reading_copy():
+    document = samples.docx.Document()
+    document.add_paragraph("Notes to the financial statements")
+    document.add_paragraph("", style="List Bullet").add_run().add_picture(io.BytesIO(samples._picture()))
+    out = io.BytesIO()
+    document.save(out)
+
+    copy = word_copy("list.docx", out.getvalue())
+
+    assert pymupdf.open(stream=copy.pdf, filetype="pdf")[0].get_images()
+
+
 def test_a_table_row_taller_than_a_page_is_drawn_in_full():
     document = samples.docx.Document()
     table = document.add_table(rows=1, cols=2)
