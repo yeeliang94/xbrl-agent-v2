@@ -30,6 +30,8 @@ A4_WIDE = pymupdf.paper_rect("a4-l")
 MARGIN = 40
 # A table with more columns than this is laid out on a wide (landscape) page.
 WIDE_FROM_COLUMNS = 8
+# A table row cannot break across pages, so a row with a cell longer than this is drawn as paragraphs.
+LONG_CELL = 1200
 
 CSS = """
 body { font-family: sans-serif; font-size: 9pt; line-height: 1.3; }

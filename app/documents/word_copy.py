@@ -21,8 +21,6 @@ from app.documents.source_file import WORD, Refused, unreadable
 from app.documents.workbook_copy import unzipped_too_large
 
 _HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6")
-# A cell longer than this is about as tall as a page in a narrow column.
-LONG_CELL = 1200
 _PICTURE_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/bmp": "bmp"}
 
 
@@ -107,7 +105,7 @@ class _Builder:
                 continue
             self.widest = max(self.widest, sum(int(c.get("colspan") or 1) for c in cells))
             key = self._id(rc.Line(rc.ROW, texts, block=self.tables, row=number))
-            if max(len(text) for text in texts) > LONG_CELL:
+            if max(len(text) for text in texts) > rc.LONG_CELL:
                 # A table row cannot break across pages, so a row taller than a page would be cut off.
                 # It is drawn as paragraphs instead, which can; the row's line keeps its cells.
                 self._close(rows)

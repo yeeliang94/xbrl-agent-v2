@@ -249,6 +249,26 @@ def test_a_cell_is_not_named_when_both_years_show_the_amount_and_one_is_saved(si
     assert [c["source_cell"] for c in rows[1]["cells"].values()] == ["B1", "C1"]
 
 
+def test_a_cell_taller_than_a_page_is_drawn_in_full():
+    import openpyxl
+    import pymupdf
+    from app.documents.workbook_copy import workbook_copy
+
+    book = openpyxl.Workbook()
+    book.active.title = "Notes"
+    book.active["A1"] = "Basis of preparation"
+    book.active["B1"] = " ".join(f"word{i}" for i in range(3000)) + " closing-word"   # under Excel's 32,767
+    book.active["A2"], book.active["B2"] = "Revenue", 1200
+    out = io.BytesIO()
+    book.save(out)
+
+    copy, _ = workbook_copy("long.xlsx", out.getvalue())
+
+    drawn = "".join(page.get_text() for page in pymupdf.open(stream=copy.pdf, filetype="pdf"))
+    assert "closing-word" in drawn and "Revenue" in drawn
+    assert [line.row for line in copy.lines] == [1, 2]
+
+
 def test_a_sparse_workbook_that_would_draw_too_large_a_grid_is_refused(monkeypatch):
     import openpyxl
     from app.documents import workbook_copy as wc

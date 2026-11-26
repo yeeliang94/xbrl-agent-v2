@@ -172,15 +172,29 @@ def _sheet_rows(values, formulas) -> tuple[list[tuple[int, list]], list[str], in
 def _part(name: str, rows: list[tuple[int, list]], columns: list[str]) -> rc.Part:
     lines: dict[str, rc.Line] = {}
     size = 9 if len(columns) <= 8 else 7 if len(columns) <= 14 else 6
-    out = [f"<h2>{escape(name)}</h2>", f'<table style="font-size:{size}pt"><tr><th class="ref"></th>',
-           "".join(f'<th class="col">{c}</th>' for c in columns), "</tr>"]
+    head = (f'<table style="font-size:{size}pt"><tr><th class="ref"></th>'
+            + "".join(f'<th class="col">{c}</th>' for c in columns) + "</tr>")
+    out, open_table = [f"<h2>{escape(name)}</h2>", head], True
     for number, cells in rows:
         key = f"r{number}"
         lines[key] = rc.Line(rc.ROW, cells, sheet=name, row=number)
+        if max(len(text) for _, text, _ in cells) > rc.LONG_CELL:
+            # A table row cannot break across pages, so a row taller than a page would be cut off. It is
+            # drawn as paragraphs, each cell named, which can; the grid picks up again after it.
+            if open_table:
+                out.append("</table>")
+            out.append(f'<div id="{key}">' + "".join(f"<p><b>{letter}{number}</b> {escape(text)}</p>"
+                                                    for letter, text, _ in cells) + "</div>")
+            open_table = False
+            continue
+        if not open_table:
+            out.append(head)
+            open_table = True
         by_column = {letter: text for letter, text, _ in cells}
         out.append(f'<tr id="{key}"><td class="ref">{number}</td>'
                    + "".join(rc.cell_html(by_column.get(c, "")) for c in columns) + "</tr>")
-    out.append("</table>")
+    if open_table:
+        out.append("</table>")
     return rc.Part(html="".join(out), lines=lines, wide=len(columns) > rc.WIDE_FROM_COLUMNS)
 
 
