@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Check, CheckStatus, StatementCode } from "../../api";
 import { Status, type StatusKind } from "../../components/Status";
 import { Table, type Column } from "../../components/Table";
@@ -17,16 +18,30 @@ export function checkStatement(check: Check, fallback: StatementCode): Statement
 }
 
 export function ChecksView({ checks, group, busy, onOpen }: { checks: Check[]; group: boolean; busy: boolean; onOpen: (check: Check) => void }) {
+  const [shown, setShown] = useState<string | null>(null);
+  const key = (c: Check) => `${c.name}|${c.entity_scope}`;
+  // A check with a line opens it, explanation and all. One without a line unfolds its explanation here.
+  const opens = (c: Check) => c.target_concept_uuid !== null;
+  const explains = (c: Check) => !opens(c) && c.status !== "passed" && Boolean(c.message);
+  const act = (c: Check) => (opens(c) ? onOpen(c) : setShown(shown === key(c) ? null : key(c)));
   const columns: Column<Check>[] = [
     {
       key: "check",
       header: "Check",
-      render: (c) => (
-        <div className="check-text">
-          <div>{group ? `${c.title}, ${c.entity_scope}` : c.title}</div>
-          {c.status !== "passed" && c.message && <div className="l2">{c.message}</div>}
-        </div>
-      ),
+      render: (c) => {
+        const title = group ? `${c.title}, ${c.entity_scope}` : c.title;
+        // The title is a button so the keyboard reaches it; its click reaches the row, which acts.
+        return opens(c) || explains(c) ? (
+          <div className="check-text">
+            <button type="button" className="check-btn" aria-expanded={explains(c) ? shown === key(c) : undefined}>
+              {title}
+            </button>
+            {shown === key(c) && <p className="check-why">{c.message}</p>}
+          </div>
+        ) : (
+          <div className="check-text">{title}</div>
+        );
+      },
     },
     {
       key: "status",
@@ -44,9 +59,9 @@ export function ChecksView({ checks, group, busy, onOpen }: { checks: Check[]; g
         <Table
           columns={columns}
           rows={checks}
-          rowKey={(c) => `${c.name}|${c.entity_scope}`}
-          onRowClick={onOpen}
-          rowClickable={(c) => c.target_concept_uuid !== null}
+          rowKey={key}
+          onRowClick={act}
+          rowClickable={(c) => opens(c) || explains(c)}
           empty={<div className="empty">No checks yet</div>}
         />
       </div>

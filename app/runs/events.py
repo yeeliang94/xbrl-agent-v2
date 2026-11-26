@@ -103,12 +103,13 @@ def page_events(conn: sqlite3.Connection, run_id: int, after_id: int, limit: int
     limit = max(1, min(int(limit), MAX_LIMIT))
     rows = conn.execute(
         "SELECT id, job_id, source, kind, message, created_at, pages_json, "
-        "json_extract(data_json, '$.question_id') AS question_id, data_json IS NOT NULL AS has_data "
+        "json_extract(data_json, '$.question_id') AS question_id, json_extract(data_json, '$.agent') AS agent, "
+        "data_json IS NOT NULL AS has_data "
         f"FROM events WHERE run_id = ? AND id > ? {'AND kind NOT IN (?, ?)' if hide_internal else ''} "
         "ORDER BY id LIMIT ?",
         (run_id, after_id, *(INTERNAL if hide_internal else ()), limit + 1)).fetchall()
     page = [{**{k: r[k] for k in ("id", "job_id", "source", "kind", "message", "created_at")},
-             "pages": _pages(r), "question_id": r["question_id"], "has_data": bool(r["has_data"])}
+             "pages": _pages(r), "question_id": r["question_id"], "agent": r["agent"], "has_data": bool(r["has_data"])}
             for r in rows[:limit]]
     return {"events": page, "last_id": page[-1]["id"] if page else after_id,
             "has_more": len(rows) > limit}

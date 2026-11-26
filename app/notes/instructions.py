@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from app.extraction.instructions import answers_block
+from app.extraction.instructions import WORKBENCH_ON, answers_block
 
 INSTRUCTIONS = """\
 You are the notes agent. You place the notes of a company's audited financial statements in the SSM note \
@@ -121,8 +121,19 @@ TOOLS = {
 }
 
 
-def instructions(session: str, guidance: str = "") -> str:
-    return INSTRUCTIONS.format(tools=TOOLS[session]) + (f"\n{guidance}\n" if guidance else "")
+# The sessions given the code workbench, and what each is told about it. Said only when it is on, so a run
+# without it reads exactly as before. The look session only sets formatting, so it has none.
+WORKBENCH = {
+    "placing": ("You also have a code workbench: the provider's code sandbox, for any calculation or check you "
+                "want to run. Nothing from the document is in it, so type in what you work on. It is a workbench "
+                "only: notes are placed through place_note and nowhere else."),
+    "numeric": WORKBENCH_ON,
+}
+
+
+def instructions(session: str, guidance: str = "", *, workbench_on: bool = False) -> str:
+    tools = TOOLS[session] + (" " + WORKBENCH[session] if workbench_on and session in WORKBENCH else "")
+    return INSTRUCTIONS.format(tools=tools) + (f"\n{guidance}\n" if guidance else "")
 
 
 SESSIONS = {

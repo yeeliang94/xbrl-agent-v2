@@ -1,13 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Comment, Statement, StatementRow } from "../../api";
 import { Segmented } from "../../components/Segmented";
+import { Switch } from "../../components/Switch";
 import {
   cellPlace,
   commentMarks,
+  gridRows,
   hasValue,
   lineEntity,
-  rowLabels,
   rowStatus,
+  ruled,
   sameCell,
   type Selection,
 } from "./runModel";
@@ -23,7 +25,7 @@ const ORDERS = [
 ];
 const FILTERS = [
   { value: "all" as const, label: "All" },
-  { value: "attention" as const, label: "Needs attention" },
+  { value: "attention" as const, label: "Needs you" },
 ];
 
 export interface StatementGridProps {
@@ -35,23 +37,43 @@ export interface StatementGridProps {
   comments: Comment[];
   changed: Set<string>;
   selection: Selection;
+  /** The selection was opened from a list: the grid marks it briefly, and with `focus` gives it the
+   * keyboard once for that opening. */
+  arrival?: { id: number; focus: boolean } | null;
   onSelect: (selection: Selection) => void;
+  /** Escape in the grid. */
+  onClear: () => void;
   busy: boolean;
 }
 
-/** The statement as a grid: headings banded, totals with a rule, figures in the mono font. */
-export function StatementGrid({ statement, order, filter, onOrder, onFilter, comments, changed, selection, onSelect, busy }: StatementGridProps) {
+/** The statement as a grid. Template order hides the empty fields unless asked. */
+export function StatementGrid({ statement, order, filter, onOrder, onFilter, comments, changed, selection, arrival = null, onSelect, onClear, busy }: StatementGridProps) {
   const name = statement ? statementName(statement.statement, statement.variant) : "";
   const body = useRef<HTMLDivElement>(null);
+  const [empties, setEmpties] = useState(false);
 
-  // A figure opened from a list is brought into view.
+  // A figure opened from a list is brought into view, and takes the keyboard once per opening, in the
+  // order it was opened in: a later refresh must not pull the keyboard back from, say, the comment box.
+  const focused = useRef(0);
   useEffect(() => {
-    body.current?.querySelector(".v.sel, tr.rsel")?.scrollIntoView?.({ block: "nearest" });
-  }, [selection, statement]);
+    const target = body.current?.querySelector(".v.sel, tr.rsel");
+    target?.scrollIntoView?.({ block: "nearest" });
+    const button = target?.querySelector<HTMLButtonElement>("button");
+    if (arrival?.focus && button && statement?.order === order && focused.current !== arrival.id) {
+      focused.current = arrival.id;
+      button.focus({ preventScroll: true });
+    }
+  }, [selection, statement, order, arrival]);
   const head = (
     <div className="wh">
       <h2>{name}</h2>
       <span className="spacer" />
+      {order === "template" && filter === "all" && (
+        <span className="switch-with-label">
+          Empty fields
+          <Switch label="Empty fields" checked={empties} onChange={setEmpties} />
+        </span>
+      )}
       <Segmented label="Order" options={ORDERS} value={order} onChange={onOrder} />
       <Segmented label="Show" options={FILTERS} value={filter} onChange={onFilter} />
     </div>
@@ -63,8 +85,13 @@ export function StatementGrid({ statement, order, filter, onOrder, onFilter, com
     rowStatus(statement, row, changed) !== null ||
     marks.line(row.concept_uuid, lineEntity(statement, row)) ||
     statement.columns.some((c) => marks.cell(cellPlace(statement, row, c)));
-  const rows = filter === "all" ? statement.rows : statement.rows.filter((r) => r.kind !== "heading" && attention(r));
-  const empty = filter === "attention" ? "Nothing needs attention" : busy ? "Figures appear here as the agent saves them" : "No figures";
+  // An empty field still shows when it needs you or is the one selected.
+  const selected = (row: StatementRow) =>
+    (selection?.kind === "line" && selection.concept_uuid === row.concept_uuid) ||
+    statement.columns.some((c) => sameCell(selection, cellPlace(statement, row, c)));
+  const drawn = gridRows(statement.rows, order, empties, (row) => attention(row) || selected(row));
+  const rows = filter === "all" ? drawn : drawn.filter((r) => r.kind !== "heading" && attention(r));
+  const empty = filter === "attention" ? "Nothing needs you" : busy ? "Figures appear here as the agent saves them" : "No figures";
 
   return (
     <>
@@ -74,10 +101,13 @@ export function StatementGrid({ statement, order, filter, onOrder, onFilter, com
           <div className="empty">{empty}</div>
         ) : (
           <FigureTable
+            arrived={arrival !== null}
+            onClear={onClear}
             columns={statement.columns}
             rows={rows}
             first={order === "report" ? "Line in report" : "Template field"}
-            labels={(row) => rowLabels(row, order)}
+            labels={(row) => row.label}
+            ruled={(row) => ruled(row, order)}
             isOn={(row, column) => sameCell(selection, cellPlace(statement, row, column))}
             cellMarked={(row, column) => marks.cell(cellPlace(statement, row, column))}
             lineMarked={(row) => marks.line(row.concept_uuid, lineEntity(statement, row))}

@@ -282,7 +282,6 @@ export function FillDialog({ runId, open, onClose }: { runId: number; open: bool
           <span>{starting.filename}</span>
           {filling ? <Status kind="working">Filling</Status> : <span className="meta">Starting workbook</span>}
         </div>
-        <p>The run's figures, notes and reports go into the workbook attached at setup. The figures that came from it stay exactly as they are.</p>
         {fill?.job_status === "failed" && (
           <div className="fill-failure" role="alert">
             <Status kind="failure">Fill failed</Status>

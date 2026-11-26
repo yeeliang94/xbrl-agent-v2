@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activity panel</title>
+<style>
+/* Builds on polish-prototype.html (approved). Proposal: a calmer Activity tab that shows each agent on its own. Data is invented. */
+:root{
+  --bg:#EEEFF1;--panel:#FFFFFF;--tint:#F5F7F8;--line:#DFE3E6;--edge:#CBD1D6;--ink:#111111;--muted:#6B7280;--faint:#B5BCC4;
+  --accent:#FD5108;--accent-text:#D64000;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;
+  --radius:12px;--radius-sm:8px;--pill:999px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --fast:120ms;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--sans);font-size:14px;line-height:20px;color:var(--ink);background:var(--bg);display:flex;justify-content:center;gap:var(--s5);padding:var(--s5);height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+.panel{background:var(--panel);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;height:100%}
+.tabs{height:64px;flex:none;display:flex;gap:var(--s5);align-items:center;padding:0 var(--s5);color:var(--muted)}
+.tabs span.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink);padding:var(--s2) 0}
+.pb{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 var(--s5) var(--s5)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+
+/* One step: marker, sentence (full width, wraps), time; page links on their own line under the sentence. */
+.step{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:var(--s2);color:var(--muted)}
+.step .mk{height:20px;display:flex;align-items:center;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--edge)}
+.step .tx{overflow-wrap:anywhere}
+.step.now{color:var(--ink)}
+.pages{grid-column:2/4;display:flex;flex-wrap:wrap;gap:var(--s1);margin-top:var(--s1)}
+.pg{height:24px;padding:0 var(--s2);border-radius:var(--pill);border:1px solid var(--edge);font-size:12px;color:var(--muted);white-space:nowrap;transition:background var(--fast)}
+.pg:hover{background:var(--tint);color:var(--ink)}
+.spin{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--edge);border-top-color:var(--accent);animation:r .8s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+.list{display:flex;flex-direction:column;gap:var(--s3)}
+
+/* Several agents: one block each. */
+.agents{display:flex;flex-direction:column;gap:var(--s5)}
+.agent{display:flex;flex-direction:column;gap:var(--s3)}
+.ah{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:var(--s2);align-items:center;text-align:left;width:100%}
+.ah .nm{font-weight:500}
+.ah .st{color:var(--muted);font-weight:400}
+.ah .mk{display:flex;justify-content:center}
+.chev{width:16px;height:16px;stroke:var(--muted);fill:none;stroke-width:1.6;transition:transform var(--fast)}
+.agent.open .chev{transform:rotate(90deg)}
+.agent .list{padding-left:0}
+.more{color:var(--muted);text-align:left;padding-left:24px}
+.more:hover{color:var(--ink)}
+
+.proto{position:fixed;left:16px;bottom:16px;background:#fff;border-radius:var(--radius);box-shadow:0 4px 24px rgba(0,0,0,.12);padding:var(--s3) var(--s4);display:flex;flex-direction:column;gap:var(--s2);font-size:13px;z-index:9;width:360px}
+.proto b{font-weight:500}
+.proto p{margin:0;color:var(--muted)}
+.seg{display:inline-flex;background:var(--tint);border-radius:var(--pill);padding:2px;flex-wrap:wrap}
+.seg button{height:26px;padding:0 var(--s3);border-radius:var(--pill);color:var(--muted)}
+.seg button.on{background:var(--panel);color:var(--ink)}
+.cap{color:var(--muted);font-size:12px;text-align:center;margin-top:var(--s2)}
+.col{display:flex;flex-direction:column}
+</style>
+</head>
+<body>
+<div class="col" style="width:420px"><section class="panel" id="before"></section><div class="cap">Today</div></div>
+<div class="col" style="width:420px"><section class="panel" id="after"></section><div class="cap">Proposed</div></div>
+<div class="proto">
+  <b>Prototype</b>
+  <span class="seg" id="state"><button data-v="one" class="on">One agent working</button><button data-v="many">Agents side by side</button><button data-v="done">All finished</button></span>
+  <p>The right panel is the proposal. Click an agent's name to see its earlier steps.</p>
+</div>
+<script>
+const P=[14,15,16,17,18,19];
+const ONE=[
+ {t:'The code workbench is on.'},
+ {t:'Started the figures with gpt-6-luna.'},
+ {t:"I'm reading the printed company statements and their line items to identify the figures and signs to enter.",p:P},
+ {t:"I'm filling in property, plant and equipment, and right-of-use assets.",p:[14]},
+ {t:"I'm checking the statement pages visually because the printed page images are authoritative for amounts, signs and layout.",p:P,now:1},
+];
+const AG=[
+ {nm:'Placing the notes',time:'4:12',steps:[
+   {t:'Working on placing the notes.'},
+   {t:"I'm reading notes 1 to 6 to decide which template each belongs to.",p:[22,23,24]},
+   {t:'Placed corporate information and the basis of preparation.',p:[22]},
+   {t:"I'm placing the accounting policies, sub-section by sub-section.",p:[24,25,26,27,28],now:1}]},
+ {nm:'Note figures',time:'3:58',steps:[
+   {t:'Working on the note figures.'},
+   {t:"I'm entering the property, plant and equipment movement table.",p:[31,32]},
+   {t:'The closing balance ties to the statement of financial position.',p:[31]},
+   {t:"I'm entering trade receivables and their ageing.",p:[35],now:1}]},
+];
+const AGDONE=[
+ {nm:'Placing the notes',time:'9:40',st:'Done',steps:[...AG[0].steps.map(s=>({...s,now:0})),{t:'Placing the notes: done.'}]},
+ {nm:'Note figures',time:'8:05',st:'Done, 2 points left open',steps:[...AG[1].steps.map(s=>({...s,now:0})),{t:'Note figures: done, with 2 point(s) left open.'}]},
+ {nm:'Formatting the notes, 1 of 2',time:'2:31',st:'Done',steps:[{t:'Working on formatting the notes (5 note(s)).'},{t:'Set the column widths and headings of note 11.',p:[31]},{t:'Formatting the notes: done.'}]},
+ {nm:'Formatting the notes, 2 of 2',time:'2:02',st:'Done',steps:[{t:'Working on formatting the notes (4 note(s)).'},{t:'Formatting the notes: done.'}]},
+];
+const $=s=>document.querySelector(s);
+const tabs='<div class="tabs"><span>Needs you</span><span>Source</span><span>Comments</span><span class="on">Activity</span></div>';
+let state='one', open={};
+
+/* Today, recreated: sentence and chips share one row, so the sentence is squeezed. */
+function before(){
+  const steps=state==='one'?ONE:(state==='many'?AG:AGDONE).flatMap(a=>a.steps).sort(()=>0);
+  const rows=(state==='one'?ONE:interleave(state==='many'?AG:AGDONE)).map(s=>`<div style="display:grid;grid-template-columns:16px 1fr auto auto;gap:8px;align-items:center;color:${s.now&&state!=='done'?'#111':'#6B7280'}">
+   <span class="mk" style="display:flex;justify-content:center">${s.now&&state!=='done'?'<i class="spin"></i>':'<i class="dot"></i>'}</span><span>${s.t}</span>
+   <span style="display:flex;gap:4px">${(s.p||[]).map(p=>`<button class="pg">Page ${p}</button>`).join('')}</span><span></span></div>`).join('');
+  $('#before').innerHTML=tabs+`<div class="pb" style="overflow-x:auto"><div class="list">${rows}</div></div>`;
+}
+function interleave(ags){const out=[];const m=Math.max(...ags.map(a=>a.steps.length));for(let i=0;i<m;i++)ags.forEach(a=>a.steps[i]&&out.push(a.steps[i]));return out}
+
+/* Long page runs: first three, then "+N" which opens the rest. */
+function pages(p,key){
+  if(!p||!p.length)return'';
+  const all=open['pg'+key]||p.length<=4;const shown=all?p:p.slice(0,3);
+  return `<div class="pages">${shown.map(n=>`<button class="pg">Page ${n}</button>`).join('')}${all?'':`<button class="pg" data-pg="${key}">+${p.length-3}</button>`}</div>`;
+}
+function step(s,key,clock){
+  const now=s.now&&state!=='done';
+  return `<div class="step ${now?'now':''}"><span class="mk">${now?'<i class="spin"></i>':'<i class="dot"></i>'}</span><span class="tx">${s.t}</span><span class="mono">${now&&clock?clock:''}</span>${pages(s.p,key)}</div>`;
+}
+function after(){
+  let h='';
+  if(state==='one'){
+    h=`<div class="list">${ONE.map((s,i)=>step(s,'o'+i,'2:47')).join('')}</div>`;
+  }else{
+    const ags=state==='many'?AG:AGDONE;
+    h=`<div class="agents">${ags.map((a,i)=>{
+      const isOpen=!!open['a'+i];const busy=state==='many';
+      const last=a.steps.filter(s=>!/: done/.test(s.t)).slice(-1);
+      const shown=isOpen?a.steps:(busy?last:[]);
+      return `<div class="agent ${isOpen?'open':''}">
+        <button class="ah" data-a="${i}"><span class="mk"><svg class="chev" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg></span>
+          <span><span class="nm">${a.nm}</span>${a.st?` <span class="st">· ${a.st}</span>`:''}</span><span class="mono">${a.time}</span></button>
+        ${shown.length?`<div class="list">${shown.map((s,j)=>step(s,i+'-'+j,'')).join('')}</div>`:''}
+        ${!isOpen&&busy&&a.steps.length>1?`<button class="more" data-a="${i}">${a.steps.length-1} earlier steps</button>`:''}
+      </div>`}).join('')}</div>`;
+  }
+  $('#after').innerHTML=tabs+`<div class="pb">${h}</div>`;
+}
+function draw(){before();after()}
+document.body.addEventListener('click',e=>{
+  const pg=e.target.closest('[data-pg]');if(pg){open['pg'+pg.dataset.pg]=1;draw();return}
+  const a=e.target.closest('[data-a]');if(a){open['a'+a.dataset.a]=!open['a'+a.dataset.a];draw();return}
+  const v=e.target.dataset.v;if(v){state=v;open={};$('#state').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));draw()}
+});
+draw();
+</script>
+</body>
+</html>

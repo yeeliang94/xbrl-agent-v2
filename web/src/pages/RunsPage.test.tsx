@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { admin, mockFetch, run } from "../test-utils";
-import { RunsPage } from "./RunsPage";
+import { REFRESH_MS, RunsPage } from "./RunsPage";
 import { formatUpdated } from "./runStatus";
+import type { RunStatus } from "../api/types";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -10,6 +11,21 @@ afterEach(() => {
 });
 
 describe("Runs page", () => {
+  it("refreshes itself, so a run's status moves without a reload", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let status: RunStatus = "extracting";
+      mockFetch({ "GET /api/runs": () => ({ body: { runs: [run({ status })] } }) });
+      render(<RunsPage user={admin} />);
+      expect(await screen.findByText("Extracting")).toBeInTheDocument();
+      status = "in_review";
+      await vi.advanceTimersByTimeAsync(REFRESH_MS);
+      expect(await screen.findByText("In review")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("says so when there are no runs", async () => {
     mockFetch({ "GET /api/runs": { body: { runs: [] } } });
     render(<RunsPage user={admin} />);

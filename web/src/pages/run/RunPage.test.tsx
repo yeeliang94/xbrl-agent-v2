@@ -19,6 +19,7 @@ function routes({ accept_all, status = "in_review", comments = [], rounds = [], 
   return {
     "GET /api/runs/1": { body: { run: runDetail({ status: status as never, failed_stage, ...detail }) } },
     "GET /api/runs/1/statements/SOFP": { body: sofp },
+    "GET /api/runs/1/statements/SOFP?order=template": { body: { ...sofp, order: "template" } },
     "GET /api/runs/1/checks": { body: { checks } },
     "GET /api/runs/1/needs-you": { body: needs },
     "GET /api/runs/1/comments": { body: { comments } },
@@ -49,7 +50,8 @@ describe("Run screen", () => {
     mockFetch(routes());
     render(<RunPage runId={1} user={admin} />);
     expect(await screen.findByRole("heading", { level: 1, name: "Seri Maju Trading Sdn. Bhd." })).toBeInTheDocument();
-    expect(await screen.findByText("Filed as Cash and cash equivalents")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Cash and bank balances" })).toBeInTheDocument();
+    expect(screen.queryByText("Filed as Cash and cash equivalents")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Other payables and accruals, Last year" })).toHaveTextContent("389,200");
     expect(screen.getByText("Does not tally").closest("[data-kind]")).toHaveAttribute("data-kind", "failure");
     expect(screen.getByRole("button", { name: "Download traces" })).toBeInTheDocument();
@@ -58,13 +60,131 @@ describe("Run screen", () => {
   it("lists what needs a person, ends with the passed count, and opens an item's figure", async () => {
     mockFetch(routes());
     render(<RunPage runId={1} user={admin} />);
-    expect(await screen.findByText("214 other figures passed their checks")).toBeInTheDocument();
+    expect(await screen.findByText("Other receivables, this year")).toBeInTheDocument();
+    expect(screen.queryByText(/passed their checks/)).not.toBeInTheDocument();
     expect(tab("Needs you")).toHaveTextContent("3");
     expect(screen.getByText("Check failed")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Other receivables, this year"));
     expect(tab("Source")).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("button", { name: "Other receivables, deposits and prepayments, This year" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Note 11 includes 42,000 due from a director.")).toBeInTheDocument();
+  });
+
+  it("opens a failed check on its line in the template, with the check's explanation", async () => {
+    const fetch = mockFetch(routes());
+    render(<RunPage runId={1} user={admin} />);
+    fireEvent.click(await screen.findByText("Total assets equal total equity and liabilities"));
+    await waitFor(() => expect(fetch.mock.calls.some(([u]) => String(u) === "/api/runs/1/statements/SOFP?order=template")).toBe(true));
+    expect(await screen.findByRole("button", { name: "Total equity and liabilities, Last year" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(checks[0].message)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Total equity and liabilities, Last year" })).toHaveFocus();
+  });
+
+  it("on the Checks page, leaves the failed checks out of Needs you", async () => {
+    mockFetch(routes());
+    const slot = document.createElement("div");
+    document.body.appendChild(slot);
+    render(
+      <NavSlot.Provider value={slot}>
+        <RunPage runId={1} user={admin} />
+      </NavSlot.Provider>,
+    );
+    fireEvent.click(await within(slot).findByRole("button", { name: /Checks/ }));
+    fireEvent.click(tab("Needs you"));
+    expect(await screen.findByText("Other receivables, this year")).toBeInTheDocument();
+    expect(screen.queryByText("Check failed")).not.toBeInTheDocument();
+    expect(tab("Needs you")).toHaveTextContent("2");
+    slot.remove();
+  });
+
+  it("moves through the figures with the arrow keys and clears with Escape", async () => {
+    mockFetch(routes());
+    render(<RunPage runId={1} user={admin} />);
+    const start = await screen.findByRole("button", { name: "Other receivables, deposits and prepayments, Last year" });
+    fireEvent.click(start);
+    fireEvent.keyDown(start, { key: "ArrowDown" });
+    const below = screen.getByRole("button", { name: "Cash and bank balances, Last year" });
+    expect(below).toHaveAttribute("aria-pressed", "true");
+    expect(below).toHaveFocus();
+    fireEvent.keyDown(below, { key: "ArrowLeft" });
+    expect(screen.getByRole("button", { name: "Cash and bank balances, This year" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Cash and bank balances, This year" }), { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Cash and bank balances, This year" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Cash and bank balances, This year" })).toHaveFocus();
+    expect(tab("Needs you")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("moves through Needs you with the arrow keys, opening each figure and keeping the list in view", async () => {
+    mockFetch(routes());
+    render(<RunPage runId={1} user={admin} />);
+    const first = (await screen.findByText("Total assets equal total equity and liabilities")).closest("button")!;
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(tab("Needs you")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Other receivables, this year").closest("button")).toHaveFocus();
+    expect(await screen.findByRole("button", { name: "Other receivables, deposits and prepayments, This year" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps the order on screen while stepping through Needs you, and Escape clears the figure", async () => {
+    const fetch = mockFetch(routes());
+    render(<RunPage runId={1} user={admin} />);
+    const second = (await screen.findByText("Other receivables, this year")).closest("button")!;
+    second.focus();
+    fireEvent.keyDown(second, { key: "ArrowUp" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Total equity and liabilities, Last year" })).toHaveAttribute("aria-pressed", "true"));
+    expect(fetch.mock.calls.some(([u]) => String(u).includes("order=template"))).toBe(false);
+    expect(tab("Needs you")).toHaveAttribute("aria-selected", "true");
+    const first = screen.getByText("Total assets equal total equity and liabilities").closest("button")!;
+    fireEvent.keyDown(first, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Total equity and liabilities, Last year" })).toHaveAttribute("aria-pressed", "false");
+    expect(first).toHaveFocus();
+  });
+
+  it("leaves the arrow keys alone inside an alike group", async () => {
+    mockFetch(routes());
+    render(<RunPage runId={1} user={admin} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Show each" }));
+    fireEvent.keyDown(within(document.querySelector(".alike") as HTMLElement).getByRole("button", { name: /Cash and bank balances/ }), { key: "ArrowDown" });
+    expect(tab("Needs you")).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryAllByRole("button", { pressed: true })).toHaveLength(0);
+  });
+
+  it("gives the keyboard to a figure opened again after Escape", async () => {
+    mockFetch(routes());
+    render(<RunPage runId={1} user={admin} />);
+    fireEvent.click(await screen.findByText("Total assets equal total equity and liabilities"));
+    const cell = await screen.findByRole("button", { name: "Total equity and liabilities, Last year" });
+    await waitFor(() => expect(cell).toHaveFocus());
+    fireEvent.keyDown(cell, { key: "Escape" });
+    fireEvent.click(screen.getByText("Total assets equal total equity and liabilities"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Total equity and liabilities, Last year" })).toHaveFocus());
+  });
+
+  it("opens an agent's comment on the notes as a whole in Comments", async () => {
+    const onNotes = { kind: "agent_comment" as const, title: "The notes", message: "Note 4 repeats note 3.", statement: "NOTES" as const, comment_id: 9 };
+    mockFetch(routes({}, { "GET /api/runs/1/needs-you": { body: { items: [onNotes], passed: 0 } } }));
+    render(<RunPage runId={1} user={admin} />);
+    fireEvent.click(await screen.findByText("The notes"));
+    expect(tab("Comments")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("unfolds the explanation of a check that has no line to open", async () => {
+    const missing = { ...checks[0], name: "socf_cash", title: "Closing cash agrees", status: "not_assessed" as const, message: "The cash flow statement was not filed.", target_concept_uuid: null };
+    const slot = document.createElement("div");
+    document.body.appendChild(slot);
+    mockFetch(routes({}, { "GET /api/runs/1/checks": { body: { checks: [missing] } } }));
+    render(
+      <NavSlot.Provider value={slot}>
+        <RunPage runId={1} user={admin} />
+      </NavSlot.Provider>,
+    );
+    fireEvent.click(await within(slot).findByRole("button", { name: /Checks/ }));
+    const title = await screen.findByRole("button", { name: "Closing cash agrees" });
+    expect(screen.queryByText("The cash flow statement was not filed.")).not.toBeInTheDocument();
+    fireEvent.click(title);
+    expect(screen.getByText("The cash flow statement was not filed.")).toBeInTheDocument();
+    expect(title).toHaveAttribute("aria-expanded", "true");
+    slot.remove();
   });
 
   it("shows each alike line and accepts them all at once", async () => {
@@ -108,7 +228,7 @@ describe("Run screen", () => {
   it("comments on the statement as a whole, with no scope", async () => {
     const fetch = mockFetch(routes({}, { "POST /api/runs/1/comments": { status: 201, body: { comment: comment() } } }));
     render(<RunPage runId={1} user={admin} />);
-    await screen.findByText("214 other figures passed their checks");
+    await screen.findByText("Other receivables, this year");
     fireEvent.click(tab("Source"));
     expect(screen.queryByRole("radiogroup", { name: "Apply to" })).toBeNull();
     fireEvent.change(screen.getByLabelText("Comment for the agent"), { target: { value: "Recheck the whole page." } });
@@ -132,7 +252,7 @@ describe("Run screen", () => {
   it("comments on a whole line with a scope", async () => {
     const fetch = mockFetch(routes({}, { "POST /api/runs/1/comments": { status: 201, body: { comment: comment() } } }));
     render(<RunPage runId={1} user={admin} />);
-    fireEvent.click(await screen.findByRole("button", { name: /^Cash and bank balances\s*Filed as/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cash and bank balances" }));
     fireEvent.change(screen.getByLabelText("Comment for the agent"), { target: { value: "Split this line." } });
     fireEvent.click(screen.getByRole("radio", { name: "Run" }));
     fireEvent.click(screen.getByRole("button", { name: "Add comment" }));
@@ -280,7 +400,7 @@ describe("Run screen", () => {
     const header = () => within(document.querySelector(".page-header") as HTMLElement);
     mockFetch(routes({ comments: [answered], rounds: [round()], accept_all: { round_id: 2, comment_ids: [] } }));
     const { unmount } = render(<RunPage runId={1} user={admin} />);
-    await screen.findByText("214 other figures passed their checks");
+    await screen.findByText("Other receivables, this year");
     expect(header().queryByRole("button", { name: "Accept all" })).toBeNull();
     unmount();
     const fetch = mockFetch(routes({ comments: [answered], rounds: [round()], accept_all: { round_id: 2, comment_ids: [4] } }, { "POST /api/runs/1/comments/accept-all": { body: { comments: [answered] } } }));
@@ -319,7 +439,8 @@ describe("Run screen", () => {
     expect(screen.getByRole("heading", { name: "Loading run" })).toBeInTheDocument();
     expect(await screen.findByText("Loading what needs you")).toBeInTheDocument();
     answer(new Response(JSON.stringify(needs), { status: 200, headers: { "Content-Type": "application/json" } }));
-    expect(await screen.findByText("214 other figures passed their checks")).toBeInTheDocument();
+    expect(await screen.findByText("Other receivables, this year")).toBeInTheDocument();
+    expect(screen.queryByText(/passed their checks/)).not.toBeInTheDocument();
   });
 
   it("reads every page of events, 500 at a time, with no cap", async () => {

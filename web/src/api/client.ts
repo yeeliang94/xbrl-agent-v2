@@ -23,7 +23,9 @@ async function readDetail(response: Response): Promise<string> {
   } catch {
     // Not JSON: fall through to the general sentence.
   }
-  return `The server could not do that (error ${response.status}).`;
+  // The status code stays out of sight: the server log has the detail, by run id. Only a server fault
+  // is worth trying again; a refusal with no sentence of its own would be refused again.
+  return response.status >= 500 ? "That did not work. Try again." : "That could not be done.";
 }
 
 async function send(method: string, path: string, body?: BodyInit, headers?: HeadersInit): Promise<Response> {
@@ -31,7 +33,7 @@ async function send(method: string, path: string, body?: BodyInit, headers?: Hea
   try {
     response = await fetch(path, { method, credentials: "same-origin", headers, body });
   } catch {
-    throw new ApiError(0, "The server cannot be reached.");
+    throw new ApiError(0, "The server cannot be reached. Try again.");
   }
   if (!response.ok) {
     const detail = await readDetail(response);

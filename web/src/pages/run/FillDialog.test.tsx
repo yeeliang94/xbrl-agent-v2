@@ -224,7 +224,7 @@ describe("Prepare mTool file", () => {
     });
     render(<FillDialog runId={1} open onClose={vi.fn()} />);
     expect(await screen.findByText(BOOK)).toBeInTheDocument();
-    expect(screen.getByText(/The figures that came from it stay exactly as they are/)).toBeInTheDocument();
+    expect(screen.queryByText(/The figures that came from it stay exactly as they are/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("mTool template")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Fill workbook" }));
     const done = await screen.findByRole("dialog", { name: "mTool file needs a check" }, SLOW);

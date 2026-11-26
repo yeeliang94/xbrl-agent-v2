@@ -24,11 +24,11 @@ describe("Reports", () => {
     const onSelect = vi.fn();
     render(<ReportWork report={report} field={null} text={false} error="" stage={{ status: "done", error: null }} onSelect={onSelect} onBack={vi.fn()} />);
     expect(screen.getByRole("heading", { name: "Auditors' report" })).toBeInTheDocument();
-    expect(screen.getByText("13 fields")).toBeInTheDocument();
+    expect(screen.queryByText("13 fields")).not.toBeInTheDocument();
     const row = (name: string) => screen.getByRole("button", { name }).closest("tr") as HTMLElement;
     expect(within(row("Name of audit firm")).getByText("Ernst & Young PLT")).toBeInTheDocument();
     expect(within(row("Address line 3")).getByText("Not shown").closest("[data-kind]")).toHaveAttribute("data-kind", "neutral");
-    expect(within(row("State")).getByText("Not read yet")).toBeInTheDocument();
+    expect(within(row("State")).queryByText("Not read yet")).not.toBeInTheDocument();
     expect(within(row("Auditors' report text")).getByText("p34–36")).toBeInTheDocument();
     expect(within(row("Auditors' report text")).getByText("We have audited the financial statements")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Name of audit firm" }));
@@ -84,7 +84,7 @@ describe("Reports", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("No report field was saved.");
     expect(screen.getByText("Reports agent failed").closest("[data-kind]")).toHaveAttribute("data-kind", "failure");
     rerender(<ReportWork report={report} field={null} text={false} error="" stage={null} onSelect={vi.fn()} onBack={vi.fn()} />);
-    expect(screen.getByText(/so the reports agent did not run/)).toBeInTheDocument();
+    expect(screen.getByText("Not found in the document")).toBeInTheDocument();
   });
 
   it("gives the reason a field is empty, and the narrative opens instead of being typed", () => {

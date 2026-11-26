@@ -207,7 +207,7 @@ describe("Setup page", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Cash flows" }));
     fireEvent.change(screen.getByLabelText("Profit or loss layout"), { target: { value: "Function" } });
     fireEvent.click(screen.getByRole("button", { name: "Start run" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/runs"));
+    await waitFor(() => expect(window.location.hash).toBe("#/runs/5"));
     expect(sent).toEqual({
       company: "Bukit Indah",
       year_end: "2021-12-31",

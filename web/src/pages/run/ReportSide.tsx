@@ -26,7 +26,7 @@ export function ReportSide({ runId, field, busy, onOpenText, onChanged }: Report
   }, [field?.field_id, field?.revision, field?.value]);
   useEffect(() => setError(""), [field?.field_id]);
 
-  if (!field) return <p className="meta">Choose a field to see its page and change it.</p>;
+  if (!field) return null;
   const status = fieldStatus(field);
   const text = field.kind === "html";
 

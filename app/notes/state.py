@@ -79,6 +79,7 @@ class NotesDeps(PageSource):
     outline: NotesOutline
     session: str = "placing"                               # placing, numeric or look (agent.SESSIONS)
     name: str = "placing"                                  # this session's own name, such as look-2
+    label: str = ""                                        # its activity name, e.g. "Formatting the notes, 2 of 3"
     max_steps: int = 40
     job_id: Optional[int] = None
     notes_list: list[dict] = field(default_factory=list)   # the confirmed notes list, in order
@@ -130,6 +131,8 @@ class NotesDeps(PageSource):
     def event(self, kind: str, message: str, data: Optional[dict] = None, pages: Any = None) -> None:
         """A progress row a person reads: ids become names, the agent's own words kept in `data["raw"]`."""
         try:
+            if self.label:
+                data = {**(data or {}), "agent": self.label}
             shown = self.outline.readable(message)
             if shown != message:
                 data = {**(data or {}), "raw": message}

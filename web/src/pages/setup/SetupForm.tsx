@@ -6,6 +6,7 @@ import { Select } from "../../components/Select";
 import { Failure } from "../../components/Failure";
 import { PageDialog } from "../../components/PagePicture";
 import { QuestionCard } from "../../components/QuestionCard";
+import { useSidePanel } from "../../components/Splitter";
 import { Switch } from "../../components/Switch";
 import { TextInput } from "../../components/TextInput";
 import { navigate } from "../../router";
@@ -76,6 +77,7 @@ function answered(form: Form, card: SetupQuestion, choice: ScopeChoice): Form {
 }
 
 export function SetupForm({ runId, document, setup, map }: { runId: number; document: RunDocument; setup: SuggestedSetup; map: DocumentMap }) {
+  const split = useSidePanel("setup-side", "--setup-side-w", "--setup-side-min-w");
   const [form, setForm] = useState<Form>(() => initialForm(setup, map));
   const [selected, setSelected] = useState<Selected>(null);
   const [starting, setStarting] = useState(false);
@@ -106,7 +108,8 @@ export function SetupForm({ runId, document, setup, map }: { runId: number; docu
     setError("");
     try {
       await api.confirmSetup(runId, toPayload(form));
-      navigate({ name: "runs" });
+      // Straight to the run, so the person watches the agents work there.
+      navigate({ name: "run", runId });
     } catch (failure) {
       setError(errorMessage(failure));
       setStarting(false);
@@ -133,7 +136,8 @@ export function SetupForm({ runId, document, setup, map }: { runId: number; docu
   return (
     <>
       <SetupHeader ready={form.company.trim() !== "" && form.yearEnd !== "" && waiting.length === 0 && !workbookBusy} starting={starting} onStart={start} />
-      <div className="setup">
+      <div className="setup" ref={split.ref} style={split.style}>
+        {split.splitter}
         <div className="setup-form" ref={formTop}>
           {error && <Failure label="Not started">{error}</Failure>}
           {open && (
@@ -151,7 +155,7 @@ export function SetupForm({ runId, document, setup, map }: { runId: number; docu
           <DocumentPanel runId={runId} document={document} />
           <Panel title="Filing">
             <div className="g2">
-              <label className="field">
+              <label className="field span2">
                 <Label text="Company" finding={setup.company} />
                 <TextInput value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
               </label>

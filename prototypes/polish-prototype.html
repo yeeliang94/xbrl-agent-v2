@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review polish</title>
+<style>
+/* Builds on clean-review-prototype.html (approved). Proposal: Fable's top five plus three small fixes. Data is invented. */
+:root{
+  --bg:#EEEFF1;--panel:#FFFFFF;--tint:#F5F7F8;--line:#DFE3E6;--edge:#CBD1D6;--ink:#111111;--muted:#6B7280;--faint:#B5BCC4;
+  --nav:#000000;--nav-ink:#FFFFFF;--nav-muted:#9AA1A9;--nav-on:#1F1F1F;--nav-group:#6B7280;--nav-accent:#FE7C39;--nav-scroll:#3A3A3A;
+  --accent:#FD5108;--accent-text:#D64000;--accent-soft:#FFF5ED;--fail:#B23B00;--ok:#2F7D4F;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;
+  --radius:12px;--radius-sm:8px;--pill:999px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  /* Proposed type scale: four sizes. */
+  --t-title:22px;--t-panel:16px;--t-body:14px;--t-small:12px;
+  --fig:14px;
+  --fast:120ms;
+}
+/* Today's sizes, for comparison */
+body.old{--t-title:20px;--fig:13px}
+*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--edge) transparent}
+html,body{margin:0;height:100%}
+body{font-family:var(--sans);font-size:var(--t-body);line-height:20px;color:var(--ink);background:var(--bg);display:grid;grid-template-columns:232px 1fr;height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:4px}
+h1,h2,h3{font-weight:500;margin:0}
+.nav{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding:var(--s4) var(--s3);overflow:auto;scrollbar-color:var(--nav-scroll) transparent}
+.brand{display:flex;gap:var(--s2);align-items:center;padding:var(--s2) var(--s3) var(--s4);font-weight:500}
+.brand i{width:14px;height:14px;border-radius:4px;background:var(--nav-accent)}
+.grp{color:var(--nav-group);font-size:var(--t-small);padding:var(--s5) var(--s3) var(--s1)}
+.nav button{display:flex;justify-content:space-between;width:100%;text-align:left;height:32px;align-items:center;padding:0 var(--s3);border-radius:var(--radius-sm);color:var(--nav-muted);transition:background var(--fast),color var(--fast)}
+.nav button:hover{color:var(--nav-ink)}
+.nav button.on{background:var(--nav-on);color:var(--nav-ink)}
+.nav .n{font-size:var(--t-small)}
+main{display:flex;flex-direction:column;min-width:0;padding:0 var(--s5) var(--s5);overflow:hidden;position:relative}
+.head{height:80px;display:flex;align-items:center;gap:var(--s3)}
+.head h1{font-size:var(--t-title);flex:1}
+.quiet{height:36px;padding:0 var(--s4);border-radius:var(--pill);color:var(--muted)}
+.quiet:hover{color:var(--ink)}
+.primary{height:36px;padding:0 var(--s4);border-radius:var(--pill);background:var(--ink);color:#fff}
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:var(--s4)}
+.cols.one{grid-template-columns:minmax(0,1fr)}
+.panel{background:var(--panel);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden}
+.ph{height:64px;flex:none;display:flex;align-items:center;gap:var(--s3);padding:0 var(--s5)}
+.ph h2{font-size:var(--t-panel);flex:1}
+.seg{display:inline-flex;background:var(--tint);border-radius:var(--pill);padding:2px}
+.seg button{height:28px;padding:0 var(--s3);border-radius:var(--pill);color:var(--muted);transition:background var(--fast),color var(--fast)}
+.seg button.on{background:var(--panel);color:var(--ink)}
+.pb{flex:1;min-height:0;overflow:auto;padding:0 var(--s5) var(--s5)}
+/* One table style everywhere: no row lines, hover tint, selection soft orange, numbers right. */
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:400;text-align:left;height:32px;padding:0 var(--s3);z-index:1}
+th.n{text-align:right;width:18%}
+td{height:36px;padding:0 var(--s3)}
+td.v{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fig)}
+td.r{text-align:right}
+tbody tr.line{cursor:pointer}
+tbody tr.line td{transition:background var(--fast)}
+tbody tr.line:hover td{background:var(--tint)}
+tbody tr.sel td,tbody tr.sel:hover td{background:var(--accent-soft)}
+tbody tr.flash td{animation:flash 1.2s ease-out}
+@keyframes flash{0%{background:#FFE2CF}100%{background:var(--accent-soft)}}
+tr.hd td{font-weight:500;padding-top:var(--s5);height:auto;padding-bottom:var(--s1)}
+tr.tot td{font-weight:500}
+tr.rule td.v span{display:block;border-top:1px solid var(--ink);padding-top:var(--s1);margin-top:calc(-1 * var(--s1))}
+.rowstat{color:var(--accent-text);margin-left:var(--s2)}
+table:focus{outline:none}
+table:focus-visible tr.sel td:first-child{box-shadow:inset 2px 0 0 var(--ink)}
+/* today's look: row lines on the runs and checks tables */
+body.old .lined td{border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:var(--s5);padding:0 var(--s5);height:64px;align-items:center;flex:none}
+.tabs button{color:var(--muted);height:64px;transition:color var(--fast),box-shadow var(--fast)}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+.count{display:inline-block;min-width:20px;height:20px;line-height:20px;border-radius:var(--pill);background:var(--tint);font-size:var(--t-small);text-align:center;margin-left:var(--s1)}
+.item{padding:var(--s3);margin:0 calc(-1 * var(--s3));border-radius:var(--radius-sm);cursor:pointer;transition:background var(--fast)}
+.item:hover{background:var(--tint)}
+.item.sel{background:var(--accent-soft)}
+.item .t{display:flex;align-items:center;gap:var(--s2)}
+.item .t span:first-child{flex:1}
+.list:focus{outline:none}
+.list:focus-visible .item.sel{box-shadow:inset 2px 0 0 var(--ink)}
+.fail{display:inline-block;height:22px;line-height:22px;padding:0 var(--s2);border-radius:var(--radius-sm);background:var(--fail);color:#fff;font-size:var(--t-small);flex:none}
+.st{display:inline-flex;align-items:center;gap:var(--s2);color:var(--muted)}
+.st i{width:6px;height:6px;border-radius:50%;background:var(--faint)}
+.st.ok i{background:var(--ok)}
+.st.run i{background:var(--accent)}
+.why{margin:0 0 var(--s4);color:var(--ink)}
+.kv{display:grid;grid-template-columns:96px 1fr;gap:var(--s2) var(--s4);margin:var(--s4) 0}
+.kv span:nth-child(odd){color:var(--muted)}
+.page{height:180px;border-radius:var(--radius);background:var(--tint);display:flex;align-items:center;justify-content:center;color:var(--muted);margin:var(--s4) 0}
+.acts{display:flex;flex-wrap:wrap;gap:var(--s1) var(--s4);margin:var(--s4) 0}
+.acts button{color:var(--muted)}
+.acts button:hover{color:var(--ink)}
+textarea{width:100%;height:72px;border:0;background:var(--tint);border-radius:var(--radius);padding:var(--s3);font:inherit;resize:none}
+.save{display:flex;justify-content:flex-end;gap:var(--s3);align-items:center;margin-top:var(--s3)}
+.err{color:var(--fail);flex:1}
+.toast{position:absolute;left:50%;bottom:var(--s6);transform:translate(-50%,8px);opacity:0;background:var(--ink);color:#fff;border-radius:var(--pill);padding:var(--s2) var(--s4);transition:opacity 160ms,transform 160ms;pointer-events:none}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.empty{color:var(--muted);padding:var(--s5) 0}
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--edge);border-radius:4px;padding:0 4px}
+.proto{position:fixed;right:16px;bottom:16px;background:#fff;border-radius:var(--radius);box-shadow:0 4px 24px rgba(0,0,0,.12);padding:var(--s3) var(--s4);display:flex;flex-direction:column;gap:var(--s2);font-size:13px;z-index:9;width:340px}
+.proto b{font-weight:500}
+.proto .row{display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap}
+.proto .seg button{height:26px}
+.proto ol{margin:0;padding-left:18px;color:var(--muted)}
+.proto ol li{margin:2px 0}
+.proto button.link{color:var(--accent-text)}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<main>
+  <div class="head"><h1 id="title"></h1><span id="headacts"></span></div>
+  <div class="cols" id="cols"><section class="panel" id="work"></section><section class="panel" id="side"></section></div>
+  <div class="toast" id="toast"></div>
+</main>
+<div class="proto">
+  <div class="row"><b>Prototype</b><span style="flex:1"></span><span class="seg" id="look"><button data-v="old">Today</button><button data-v="new" class="on">Proposed</button></span></div>
+  <ol>
+    <li><button class="link" data-go="checks">Checks</button>: click a failed check. It opens the statement with the line selected.</li>
+    <li>On Checks, each failure shows once. Needs you lists only what the page doesn't.</li>
+    <li>Four text sizes. Figures at 14px.</li>
+    <li><button class="link" data-go="runs">Runs</button>, Checks and statements share one table, with no row lines.</li>
+    <li>Keys: <kbd>↑</kbd> <kbd>↓</kbd> move through figures or Needs you, <kbd>Esc</kbd> clears.</li>
+    <li>Small: one name, "Needs you". Plain save error. No empty page box.</li>
+  </ol>
+  <div class="row"><button class="link" id="failsave">Show a failed save</button></div>
+</div>
+<script>
+const st={page:'sofp',look:'new',filter:'all',sel:null,why:null,tab:'needs',nsel:null};
+const SOFP=[
+ {k:'hd',l:'Non-current assets'},
+ {k:'ln',l:'Property, plant and equipment',a:'4,812,330',b:'4,355,901',filed:'Property, plant and equipment',p:13},
+ {k:'ln',l:'Right-of-use assets',a:'829,990',b:'1,183,317',p:13},
+ {k:'ln',l:'Deferred tax assets',a:'296,082',b:'280,531',p:13},
+ {k:'tot',l:'Total non-current assets',a:'5,938,402',b:'5,819,749',p:13},
+ {k:'hd',l:'Current assets'},
+ {k:'ln',l:'Trade receivables',a:'3,214,866',b:'2,904,120',p:13,stat:'Does not tally'},
+ {k:'ln',l:'Amounts due from related companies',a:'2,729,209',b:'3,762,972',filed:'Trade receivables due from other related parties',p:13,stat:'Unsure'},
+ {k:'ln',l:'Cash and bank balances',a:'10,255,059',b:'6,245,254',filed:'Total cash and cash equivalents',p:13},
+ {k:'tot',l:'Total current assets',a:'16,199,134',b:'12,912,346',p:13},
+ {k:'tot',l:'Total assets',a:'22,137,536',b:'18,732,095',p:13},
+ {k:'hd',l:'Equity'},
+ {k:'ln',l:'Share capital',a:'5,000,000',b:'5,000,000',filed:'Issued capital',p:13},
+ {k:'ln',l:'Retained earnings',a:'9,412,551',b:'7,106,218',p:13},
+ {k:'tot',l:'Total equity',a:'14,594,810',b:'12,281,660',p:13},
+ {k:'hd',l:'Current liabilities'},
+ {k:'ln',l:'Trade payables',a:'5,813,225',b:'6,450,435',p:14},
+ {k:'ln',l:'Amounts due to related company',a:'1,729,501',b:'0',p:14},
+ {k:'tot',l:'Total liabilities',a:'7,542,726',b:'6,450,435',p:14},
+ {k:'tot',l:'Total equity and liabilities',a:'22,137,536',b:'18,732,095',p:14},
+];
+const CHECKS=[
+ {t:'Assets equal equity and liabilities',ok:false,line:'Trade receivables',p:"The template's sub-sheet adds to 22,151,402, but total assets are 22,137,536. The 13,866 gap sits in trade receivables."},
+ {t:'Trade receivables agree with their note',ok:false,line:'Trade receivables',p:'The note on page 22 gives 3,200,000 and the statement gives 3,214,866.'},
+ {t:'Profit flows to retained earnings',ok:true},
+ {t:'Closing cash agrees with the balance sheet',ok:true},
+ {t:'Comprehensive income agrees with profit',ok:true},
+];
+const UNSURE=[{t:'Amounts due from related companies',line:'Amounts due from related companies',p:'The agent was not sure whether this belongs under trade or other receivables.'}];
+const RUNS=[
+ ['Kemuncak Logistik Sdn. Bhd.','MFRS, company','In review','run','24 Nov'],
+ ['Doc 1','MFRS, group','Finished','ok','21 Nov'],
+ ['Bukit Indah Services Berhad','MPERS, company','Finished','ok','18 Nov'],
+ ['Doc 3','MFRS, company','Stopped','','12 Nov'],
+];
+const $=s=>document.querySelector(s);
+const NEW=()=>st.look==='new';
+const needs=()=>{const fails=CHECKS.filter(c=>!c.ok).map(c=>({...c,fail:true}));
+  // Proposal 2: on the Checks page the failures are already listed, so Needs you keeps only the rest.
+  return NEW()&&st.page==='checks'?UNSURE:[...fails,...UNSURE]};
+const label=()=>NEW()?'Needs you':'Needs attention';
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),2600)}
+$('#look').onclick=e=>{const v=e.target.dataset.v;if(!v)return;st.look=v;document.body.classList.toggle('old',v==='old');$('#look').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));draw()};
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{go(b.dataset.go)});
+$('#failsave').onclick=()=>{go('sofp');select('Retained earnings');st.saveErr=true;draw()};
+
+function go(p){st.page=p;st.sel=null;st.why=null;st.nsel=null;st.saveErr=false;st.tab='needs';draw()}
+function select(l,why=null){st.sel=l;st.why=why;st.tab='source';st.saveErr=false}
+
+function nav(){
+  const item=(id,l,n)=>`<button data-p="${id}" class="${st.page===id?'on':''}"><span>${l}</span>${n?`<span class="n">${n}</span>`:''}</button>`;
+  $('#nav').innerHTML=`<div class="brand"><i></i>XBRL Agent</div>${item('runs','Runs')}${item('settings','Settings')}
+  <div class="grp">Statements</div>${item('sofp','Financial position',2)}${item('sopl','Profit or loss')}${item('socf','Cash flows')}${item('checks','Checks',2)}
+  <div class="grp">Notes</div>${item('map','Placement map')}${item('pol','Accounting policies')}`;
+  $('#nav').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(['sofp','checks','runs'].includes(b.dataset.p))go(b.dataset.p)};
+}
+
+function grid(){
+  const rows=st.filter==='all'?SOFP:SOFP.filter(r=>r.stat);
+  let h=`<table id="grid" tabindex="0" aria-label="Figures"><thead><tr><th>Line in report</th><th class="n">This year</th><th class="n">Last year</th></tr></thead><tbody>`;
+  for(const r of rows){
+    if(r.k==='hd'){h+=`<tr class="hd"><td colspan="3">${r.l}</td></tr>`;continue}
+    const cls=['line',r.k==='tot'?'tot rule':'',st.sel===r.l?'sel':'',st.sel===r.l&&st.flash?'flash':''].filter(Boolean).join(' ');
+    h+=`<tr class="${cls}" data-l="${r.l}"><td>${r.l}${r.stat?`<span class="rowstat">${r.stat}</span>`:''}</td><td class="v"><span>${r.a}</span></td><td class="v"><span>${r.b}</span></td></tr>`;
+  }
+  return h+'</tbody></table>';
+}
+
+function work(){
+  const w=$('#work');
+  $('#cols').classList.toggle('one',st.page==='runs');
+  $('#side').style.display=st.page==='runs'?'none':'';
+  $('#title').textContent=st.page==='runs'?'Runs':'Kemuncak Logistik Sdn. Bhd.';
+  $('#headacts').innerHTML=st.page==='runs'?'<button class="primary">New run</button>':'<button class="quiet">Download traces</button> <button class="primary">Prepare mTool file</button>';
+  if(st.page==='sofp'){
+    w.innerHTML=`<div class="ph"><h2>Financial position</h2>
+      <span class="seg"><button class="on">Report</button><button>Template</button></span>
+      <span class="seg" id="flt"><button data-v="all" class="${st.filter==='all'?'on':''}">All</button><button data-v="att" class="${st.filter==='att'?'on':''}">${label()}</button></span></div>
+      <div class="pb">${grid()}</div>`;
+    $('#flt').onclick=e=>{const v=e.target.dataset.v;if(!v)return;st.filter=v;draw()};
+    const g=$('#grid');
+    g.querySelector('tbody').onclick=e=>{const tr=e.target.closest('tr.line');if(!tr)return;select(tr.dataset.l);draw();$('#grid').focus()};
+    g.onkeydown=e=>{
+      const lines=[...g.querySelectorAll('tr.line')].map(t=>t.dataset.l);
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const i=lines.indexOf(st.sel);const n=e.key==='ArrowDown'?Math.min(lines.length-1,i+1):Math.max(0,i<0?0:i-1);select(lines[n]);draw();$('#grid').focus()}
+      if(e.key==='Escape'){st.sel=null;st.why=null;st.tab='needs';draw();$('#grid').focus()}
+    };
+    const s=g.querySelector('tr.sel');if(s)s.scrollIntoView({block:'nearest'});
+    st.flash=false;
+  } else if(st.page==='checks'){
+    w.innerHTML=`<div class="ph"><h2>Checks</h2></div><div class="pb"><table class="lined"><thead><tr><th>Check</th><th class="r" style="width:140px;text-align:right">Status</th></tr></thead><tbody>
+      ${CHECKS.map((c,i)=>`<tr class="line" data-i="${i}"><td>${c.t}</td><td class="r">${c.ok?'<span class="st ok"><i></i>Passed</span>':'<span class="fail">Failed</span>'}</td></tr>`).join('')}</tbody></table></div>`;
+    w.querySelector('tbody').onclick=e=>{const tr=e.target.closest('tr');if(!tr)return;const c=CHECKS[tr.dataset.i];if(c.ok)return;openCheck(c)};
+  } else if(st.page==='runs'){
+    w.innerHTML=`<div class="pb" style="padding-top:var(--s3)"><table class="lined"><thead><tr><th>Company</th><th style="width:22%">Standard</th><th style="width:16%">Status</th><th class="r" style="width:12%;text-align:right">Started</th></tr></thead><tbody>
+      ${RUNS.map(r=>`<tr class="line"><td>${r[0]}</td><td>${r[1]}</td><td><span class="st ${r[3]}"><i></i>${r[2]}</span></td><td class="r" style="color:var(--muted)">${r[4]}</td></tr>`).join('')}</tbody></table></div>`;
+    w.querySelector('tbody').onclick=()=>go('sofp');
+  }
+}
+
+function openCheck(c){
+  if(NEW()){st.page='sofp';st.filter='all';select(c.line,c.p);st.flash=true;st.nsel=null}
+  else {select(null,c.p);st.page='sofp'}
+  draw();if(NEW())$('#grid').focus();
+}
+
+function side(){
+  const s=$('#side');if(st.page==='runs')return;
+  const t=(id,l,n)=>`<button data-t="${id}" class="${st.tab===id?'on':''}">${l}${n?`<span class="count">${n}</span>`:''}</button>`;
+  const list=needs();
+  let body='';
+  if(st.tab==='needs'){
+    body=`<div class="list" id="needs" tabindex="0" aria-label="Needs you">${list.map((n,i)=>`<div class="item ${st.nsel===i?'sel':''}" data-i="${i}"><div class="t"><span>${n.t}</span>${n.fail?'<span class="fail">Failed</span>':''}</div></div>`).join('')}</div>`;
+  } else if(st.tab==='source'){
+    const r=SOFP.find(x=>x.l===st.sel);
+    if(!r&&st.why){body=`<p class="why">${st.why}</p>`}
+    else if(r){
+      const pic=NEW()?(r.p?`<div class="page">Page ${r.p}</div>`:''):`<div class="page">${r.p?'Page '+r.p:'No page picture'}</div>`;
+      body=`${st.why?`<p class="why">${st.why}</p>`:''}<h3 style="font-size:var(--t-body)">${r.l}</h3>
+      <div class="kv"><span>This year</span><span style="font-family:var(--mono);font-size:var(--fig)">${r.a}</span><span>Last year</span><span style="font-family:var(--mono);font-size:var(--fig)">${r.b}</span>${r.filed&&r.filed!==r.l?`<span>Filed as</span><span>${r.filed}</span>`:''}</div>
+      ${pic}
+      <div class="acts">${['Recheck','Wrong field','Wrong sign','Should be split'].map(a=>`<button>${a}</button>`).join('')}</div>
+      <textarea placeholder="Comment for the agent"></textarea>
+      <div class="save">${st.saveErr?`<span class="err">${NEW()?'That did not save. Try again.':'Request failed with status 500: Internal Server Error'}</span>`:''}<button class="primary" id="savebtn">Save</button></div>`;
+    }
+  }
+  s.innerHTML=`<div class="tabs">${t('needs','Needs you',list.length)}${t('source','Source')}${t('comments','Comments')}${t('activity','Activity')}</div><div class="pb">${body}</div>`;
+  s.querySelector('.tabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;st.tab=b.dataset.t;draw()};
+  if($('#savebtn'))$('#savebtn').onclick=()=>{if(st.saveErr){st.saveErr=false;draw();toast('Saved')}};
+  const nl=$('#needs');
+  if(nl){
+    const pick=i=>{st.nsel=i;const n=list[i];st.sel=n.line;st.why=n.fail?n.p:null;draw();$('#needs').focus()};
+    nl.onclick=e=>{const d=e.target.closest('.item');if(!d)return;const n=list[+d.dataset.i];if(NEW()){if(st.page==='checks'){st.page='sofp'};pick(+d.dataset.i)}else{st.sel=n.line;st.tab='source';draw()}};
+    nl.onkeydown=e=>{if(!NEW())return;
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const i=st.nsel??-1;pick(e.key==='ArrowDown'?Math.min(list.length-1,i+1):Math.max(0,i-1))}
+      if(e.key==='Enter'&&st.nsel!=null){st.tab='source';draw()}
+      if(e.key==='Escape'){st.nsel=null;st.sel=null;draw();$('#needs').focus()}};
+  }
+}
+function draw(){nav();work();side()}
+draw();
+</script>
+</body>
+</html>

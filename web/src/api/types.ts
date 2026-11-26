@@ -122,6 +122,8 @@ export interface RunEvent {
   pages?: number[];
   /** The scope question an asked, answered or setup_changed event is about. */
   question_id?: number | null;
+  /** The agent that wrote the row when several run side by side, such as "Placing the notes", else null. */
+  agent?: string | null;
 }
 
 export interface EventPage {

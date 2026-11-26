@@ -5,6 +5,7 @@ answer keys' `notes` sections. Costs money; left out of the default run. Tell th
     LIVE_DOCS="Doc_3" ...                # only the documents whose names contain these
     LIVE_REPEAT=1 ...                    # runs per document (default 2, as step 6 plans)
     LIVE_READING=/folder/of/the/reading/live/test ...   # reuse its saved readings, so nothing is read again
+    LIVE_WORKBENCH=off ...               # switch the code workbench off, to compare runs with and without it
 
 Each document is read first (or its saved reading from `tests/test_reading_live.py`, under
 LIVE_READING/<Doc_1|Doc_2|Doc_3>, is copied). The setup is confirmed as the Reader suggested, with the
@@ -39,6 +40,7 @@ from app.models import usage as model_usage
 from app.reading import job as reading_job, store as reading
 from app.runs import setup
 from app.scoring import notes as notes_score
+from app.settings import store as settings_store
 from app.utils.paths import PROJECT_ROOT
 from tests.conftest import OWNER, make_user
 
@@ -122,6 +124,8 @@ async def test_notes_are_placed_at_least_as_well_as_v1(name, attempt, monkeypatc
     with db.connect() as conn:
         found = conn.execute("SELECT MAX(id) FROM runs").fetchone()[0]
     run_id = found if found is not None else await _read(source)
+    if os.environ.get("LIVE_WORKBENCH", "").lower() == "off":
+        settings_store.update({"code_workbench": False}, OWNER)
     with db.connect(immediate=True) as conn:
         # The reading ran directly, not through the worker, so its job row still waits: close it.
         conn.execute("UPDATE jobs SET status = 'done', finished_at = ? WHERE run_id = ? AND kind = 'read' "
@@ -141,6 +145,10 @@ async def test_notes_are_placed_at_least_as_well_as_v1(name, attempt, monkeypatc
                                   (run_id, NOTES_JOB)).fetchone())
         result = notes_score.score(key["notes"], notes_score.v2_placements(conn, run_id))
         labels = dict(conn.execute("SELECT node_uuid, label FROM notes_nodes").fetchall())
+        bench = [json.loads(r[0] or "{}") for r in conn.execute(
+            "SELECT data_json FROM events WHERE run_id = ? AND kind = 'workbench' ORDER BY id", (run_id,))]
+        code_steps = [json.loads(r[0] or "{}") for r in conn.execute(
+            "SELECT data_json FROM events WHERE run_id = ? AND kind = 'code' ORDER BY id", (run_id,))]
 
     def named(ids):
         return [" ".join((labels.get(i) or i).lstrip("*").split()) for i in ids]
@@ -154,6 +162,9 @@ async def test_notes_are_placed_at_least_as_well_as_v1(name, attempt, monkeypatc
         "not_in_key": [f"{n['number']} {n['title']}: {named(n['run_fields'])}" for n in result["not_in_key"]],
         "unnumbered": [f"{n['title']}: {n['status']}" for n in result["unnumbered"]],
         "cost": model_usage.run_totals(run_id, NOTES_JOB),
+        "workbench": bench, "code_steps": len(code_steps),
+        "sessions": [{k: r.get(k) for k in ("session", "status", "steps", "code_used", "seconds")}
+                     for r in json.loads((folder / "runs" / f"run-{run_id}" / "notes.json").read_text())["sessions"]],
     }
     (out / f"notes-{name}-{attempt}.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False),
                                                       encoding="utf-8")

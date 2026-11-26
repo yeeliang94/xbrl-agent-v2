@@ -1,5 +1,6 @@
 /* The setup page, as prototypes/setup-prototype.html. */
 .setup {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
@@ -10,6 +11,7 @@
 .setup-form > *, .setup-side > * { flex: none; }
 
 .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4) var(--space-5); }
+.g2 > .span2 { grid-column: 1 / -1; }
 
 .line.pick {
   cursor: pointer;
@@ -20,7 +22,7 @@
 }
 .line.pick:hover { background: var(--tint); }
 .line.pick.sel { background: var(--accent-soft); }
-.pg { color: var(--muted); width: var(--page-col-w); flex: none; font-family: var(--font-mono); font-size: var(--text-md); }
+.pg { color: var(--muted); width: var(--page-col-w); flex: none; font-family: var(--font-mono); font-size: var(--text); }
 
 .unsure {
   width: var(--dot);

@@ -46,5 +46,5 @@
   background: var(--panel);
 }
 .own textarea { border: 0; outline: none; resize: none; height: var(--kbd); padding: var(--own-text-pad) 0; background: none; line-height: var(--leading); font: inherit; }
-.qfoot { color: var(--muted); font-size: var(--text-md); }
+.qfoot { color: var(--muted); font-size: var(--text-sm); }
 .opt:focus-visible, .qc .lk:focus-visible { outline: var(--focus-ring) solid var(--ink); outline-offset: var(--focus-ring); }

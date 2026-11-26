@@ -13,7 +13,7 @@ from pydantic_ai.messages import RetryPromptPart, ToolReturnPart
 
 from app import db
 from app.notes import briefing, job as notes_job, store
-from app.runs.events import list_events
+from app.runs.events import list_events, page_events
 from app.utils.paths import output_dir
 from tests.notes_agent_helpers import FINAL, NUMERIC_GAP, confirmed_notes_run, field_ids, returns, script
 from tests.test_notes_agent import placements, placing
@@ -75,6 +75,13 @@ async def test_placing_and_the_figures_run_at_once_then_one_formatting_session_p
                             (run_id,)).fetchone()[0] is None
     started = [e["data"]["session"] for e in list_events(run_id=run_id) if e["kind"] == "session"]
     assert sorted(started) == ["look-1", "look-2", "look-3", "numeric", "placing"]
+    # Every row a session writes names its agent, so the activity can tell sessions running at once apart.
+    with db.connect() as conn:
+        feed = page_events(conn, run_id, 0, 500)["events"]
+    agents = {e["agent"] for e in feed if e["kind"] in ("session", "started", "completed", "finished")}
+    assert agents == {"Placing the notes", "Share capital and related parties", "Formatting the notes, 1 of 3",
+                      "Formatting the notes, 2 of 3", "Formatting the notes, 3 of 3"}
+    assert next(e for e in feed if e["kind"] == "done")["agent"] is None
 
 
 async def test_a_formatting_session_leaves_another_sessions_note_alone(monkeypatch):
@@ -289,3 +296,20 @@ async def test_a_stop_ends_every_session_between_steps():
     assert sorted(sessions) == ["numeric", "placing"] and all(s["status"] == "stopped" for s in sessions.values())
     assert sessions["numeric"]["steps"] < 20
 
+
+
+def test_the_placing_and_numeric_sessions_get_the_workbench_and_the_look_session_does_not():
+    from app.agents import workbench
+    from app.notes import agent as notes_agent_mod, instructions as notes_instructions_mod
+
+    run_id = confirmed_notes_run()
+    for session in ("placing", "numeric", "look"):
+        deps, _ = notes_agent_mod.build_deps(run_id, session)
+        wanted = session in notes_instructions_mod.WORKBENCH
+        bench = workbench.decide("gpt-5.4", wanted=wanted, settings={"code_workbench": True})
+        assert bench.on is (session != "look")
+        spec = notes_agent_mod.spec("gpt-5.4", deps, bench)
+        assert spec.code_tool is bench.on
+        assert ("code workbench" in spec.instructions) is bench.on
+    # Switched off, nothing about the workbench is said.
+    assert "workbench" not in notes_instructions_mod.instructions("numeric").lower()

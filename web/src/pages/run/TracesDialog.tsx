@@ -39,10 +39,6 @@ export function TracesDialog({ runId, open, onClose }: { runId: number; open: bo
         </>
       }
     >
-      <p>
-        Everything the agents did: each agent's conversation and tool calls, every model call with tokens and cost, the activity list, page
-        transcriptions, the document map, figure history, checks and comments.
-      </p>
       <div className="line">
         <span>Include the uploaded PDF</span>
         <Switch label="Include the uploaded PDF" checked={pdf} onChange={setPdf} />
