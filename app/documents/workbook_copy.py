@@ -36,11 +36,24 @@ NO_RESULT = "[no saved result]"
 MAX_UNZIPPED = 300 * 1024 * 1024
 
 
+_CONDITION = re.compile(r"\[(<=|>=|<>|<|>|=)\s*(-?\d+(?:\.\d+)?)\]")
+_TESTS = {"<": float.__lt__, ">": float.__gt__, "=": float.__eq__, "<=": float.__le__, ">=": float.__ge__,
+          "<>": float.__ne__}
+
+
 def _pick(number_format: str, value: float | int) -> tuple[str, bool]:
     """The format section Excel uses for this value, and whether that section writes the sign itself.
     A format has up to four sections, `positive;negative;zero;text`: a negative takes the second when
-    there is one, and a zero the third."""
-    sections = number_format.split(";")
+    there is one, and a zero the third. A section with a condition, such as `[>=1000]`, is used when
+    its condition holds, and the next section without one otherwise."""
+    sections = number_format.split(";")[:3]
+    if any(_CONDITION.search(section) for section in sections):
+        for section in sections:
+            found = _CONDITION.search(section)
+            if found is None or _TESTS[found.group(1)](float(value), float(found.group(2))):
+                # A section kept for negatives writes their sign; any other leaves Excel's minus.
+                return section, found is not None and float(found.group(2)) <= 0 and "<" in found.group(1)
+        return sections[-1], False
     if value < 0 and len(sections) > 1:
         return sections[1], True
     if value == 0 and len(sections) > 2:
@@ -50,13 +63,13 @@ def _pick(number_format: str, value: float | int) -> tuple[str, bool]:
 
 def _section(section: str) -> str:
     """A format section without its quoted text and padding (`_)`), which hold no digits."""
-    return re.sub(r'"[^"]*"|\\.|_.', "", section)
+    return re.sub(r'"[^"]*"|\\.|_.|\[[^\]]*\]', "", section)
 
 
 def _literal(section: str) -> str:
     """The characters a format section writes as they are: quoted text and escaped characters such as
     `\\(`, without padding (`_)` only leaves room) or fill (`*`)."""
-    return re.sub(r'"([^"]*)"|\\(.)|[_*].', lambda m: m.group(1) or m.group(2) or "", section)
+    return re.sub(r'"([^"]*)"|\\(.)|[_*].|\[[^\]]*\]', lambda m: m.group(1) or m.group(2) or "", section)
 
 
 def _decimals(section: str) -> int | None:

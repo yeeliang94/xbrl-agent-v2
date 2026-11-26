@@ -95,6 +95,10 @@ def test_a_cell_is_shown_as_its_number_format_shows_it():
     # Brackets or a minus the section writes escaped or quoted still mark it negative; padding does not.
     assert shown(-1234, "#,##0;\\(#,##0\\)") == "(1,234)" and shown(-1234, '#,##0;"("#,##0")"') == "(1,234)"
     assert shown(-1234, "#,##0;\\-#,##0") == "-1,234" and shown(-1234, "#,##0_);#,##0_)") == "1,234"
+    # A section with a condition is used only when it holds; colours and currency codes hold no digits.
+    assert shown(500, "[>=1000]#,##0,;0") == "500" and shown(1500, "[>=1000]#,##0,;0") == "2"
+    assert shown(-1234, "[<0](#,##0);#,##0") == "(1,234)" and shown(-1234, "[Red]#,##0;[Red](#,##0)") == "(1,234)"
+    assert shown(1234, "[$RM-409]#,##0") == "1,234"
     # An amount too long for ordinary decimal arithmetic is still shown in full.
     assert shown(1e30, "#,##0") == "1,000,000,000,000,000,000,000,000,000,000"
     assert shown(1234, '"RM"#,##0') == "1,234"
