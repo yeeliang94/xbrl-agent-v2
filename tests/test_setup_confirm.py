@@ -131,7 +131,7 @@ def _statement(statement: str, **changes) -> list[dict]:
     ({"year_end": "2021-02-30"}, "Enter the year end as a date."),
     ({"standard": "IFRS"}, "Choose MFRS or MPERS."),
     ({"level": "Branch"}, "Choose Company or Group."),
-    ({"unit": "USD"}, "Choose whether amounts are in RM or RM thousands."),
+    ({"unit": "USD"}, "Choose whether amounts are in RM, RM thousands or RM millions."),
     ({"statements": GOOD["statements"][:4]}, "Give each of the five statements once."),
     ({"statements": _statement("SOCIE", layout="SoRE", included=True)},
      "The Retained earnings layout of changes in equity does not exist for MFRS filings, so choose another layout."),

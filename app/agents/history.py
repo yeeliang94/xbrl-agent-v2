@@ -37,6 +37,8 @@ from pydantic_ai.messages import BinaryContent, ModelRequest, ToolReturnPart
 
 PAGE_TEXT_TOOLS = frozenset({"read_pages", "search_pages"})
 PICTURE_TOOLS = frozenset({"view_pages", "zoom_page"})
+# The file tools of a run that started from a Word or Excel file (`file_tools.py`): text for every agent.
+FILE_TEXT_TOOLS = frozenset({"read_file", "search_file"})
 # Text results beyond this many characters in all are cut down to half of it.
 TEXT_BUDGET_CHARS = 60_000
 KEEP_NEWEST_TEXT = 3
@@ -76,7 +78,8 @@ class Trimmer:
         return [self._shaped(m) for m in messages]
 
     def _cut_text(self, returns: list[ToolReturnPart]) -> None:
-        text = [p for p in returns if p.tool_name in self.text_tools and isinstance(p.content, str)
+        text = [p for p in returns if (p.tool_name in self.text_tools or p.tool_name in FILE_TEXT_TOOLS)
+                and isinstance(p.content, str)
                 and p.tool_call_id not in self.trimmed]
         total = sum(len(p.content) for p in text)
         if total <= TEXT_BUDGET_CHARS:

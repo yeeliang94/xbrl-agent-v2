@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 from app import db
+from app.auth import store as accounts
 from app.models import factory
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,46 @@ def _check_login(value: Any) -> dict:
     return value
 
 
+# What the audit log calls each setting, and how it words a value.
+_SETTING_LABELS = {
+    "models": {role: f"{role.capitalize()} model" for role in ROLES},
+    "house_style": {"body_text": "Body text", "table_font_pt": "Table font size",
+                    "smallest_table_font_pt": "Smallest table font", "double_underline": "Double underline",
+                    "bold_totals": "Bold totals"},
+    "login": {name: bounds[2] for name, bounds in _LOGIN_BOUNDS.items()},
+    "code_workbench": "Code workbench",
+    "claude_sandbox_real_documents": "Claude sandbox for real documents",
+}
+
+
+def _count(number: int, unit: str) -> str:
+    return f"{number} {unit}" if number == 1 else f"{number} {unit}s"
+
+
+def _words(group: str, name: str, value: Any) -> str:
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    if group == "login" and name.endswith("_minutes"):
+        return _count(value // 60, "hour") if value % 60 == 0 else _count(value, "minute")
+    if name.endswith("_pt"):
+        return f"{value} pt"
+    return str(value).replace("_", " ")
+
+
+def _audit_changes(conn, actor_email: str, current: dict, to_save: dict) -> None:
+    """One audit row per setting whose value changed."""
+    for group, value in to_save.items():
+        pairs = ([(name, current[group].get(name), new) for name, new in value.items()]
+                 if isinstance(value, dict) else [("", current[group], value)])
+        for name, before, after in pairs:
+            if before == after:
+                continue
+            label = _SETTING_LABELS[group][name] if name else _SETTING_LABELS[group]
+            accounts.add_audit(conn, actor_email, "setting_changed", f"{group}.{name}" if name else group,
+                               {"setting": label, "from": _words(group, name, before),
+                                "to": _words(group, name, after)})
+
+
 def login_limits() -> dict[str, int]:
     """The sign-in limits, read on each use so a change applies at once. The
     defaults when the database cannot be read, so sign-in never breaks on it."""
@@ -122,7 +163,7 @@ def login_limits() -> dict[str, int]:
 
 
 def update(changes: dict[str, Any], actor_email: str) -> dict[str, Any]:
-    """Validate and save any subset of the changeable fields."""
+    """Validate and save any subset of the changeable fields. Each value that changes adds an audit row."""
     if "route" in changes:
         raise SettingsError("The route follows the gateway address in .env and cannot be changed here.")
     unknown = set(changes) - set(DEFAULTS)
@@ -144,6 +185,7 @@ def update(changes: dict[str, Any], actor_email: str) -> dict[str, Any]:
                 to_save[name] = value
             else:
                 raise SettingsError(f"{name.replace('_', ' ').capitalize()} is on or off.")
+        _audit_changes(conn, actor_email, current, to_save)
         stamp = db.now()
         for name, value in to_save.items():
             conn.execute(

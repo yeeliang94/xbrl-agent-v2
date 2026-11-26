@@ -39,7 +39,7 @@ def contents(**extra) -> dict[int, dict]:
     (dict(statements=fakes.statements(SOPL={"layout": "ByFunction"})), "The layout of SOPL must be Function or Nature"),
     (dict(statements=fakes.statements(SOCIE={"layout": "SoRE"})), "exists only under MPERS"),
     (dict(statements=fakes.statements()[:4]), "SOCIE is missing"),
-    (dict(unit=fakes.finding("RM million")), "The unit must be RM or RM'000"),
+    (dict(unit=fakes.finding("USD")), "The unit must be RM, RM'000 or RM'000,000"),
     (dict(standard=fakes.finding("MFRS", reason="")), "Give a one-sentence reason for the standard"),
     (dict(year_end=fakes.finding("31 December 2021")), "YYYY-MM-DD"),
     (dict(notes=[note("4", first=3, last=2)]), "ends on page 2, before it starts on page 3"),
@@ -50,7 +50,7 @@ def test_the_save_tool_refuses_a_map_that_would_mislead_in_one_sentence(override
 
 
 def test_every_problem_is_listed_at_once():
-    problems = map_checks.problems(doc(unit=fakes.finding("RM million"), year_end=fakes.finding("31 Dec 2021"),
+    problems = map_checks.problems(doc(unit=fakes.finding("USD"), year_end=fakes.finding("31 Dec 2021"),
                                        statements=fakes.statements(SOFP={"pages": [52]}, SOPL={"layout": "X"})),
                                    page_count=4)
     assert len(problems) == 4

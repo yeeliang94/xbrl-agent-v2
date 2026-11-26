@@ -1,6 +1,7 @@
 import { createContext, useRef, useState, type ReactNode } from "react";
 import type { User } from "../api";
 import { Splitter, tokenPx, usePanelWidth } from "./Splitter";
+import { ReportIssueDialog } from "./ReportIssueDialog";
 import "./AppShell.css";
 
 export interface NavItem {
@@ -13,6 +14,10 @@ export interface AppShellProps {
   user: User;
   nav: NavItem[];
   onLogout: () => void;
+  /** The run on screen, which a reported issue carries. */
+  runId?: number | null;
+  /** The app's version, shown under the person once known. */
+  version?: string | null;
   children: ReactNode;
 }
 
@@ -28,11 +33,12 @@ function initials(user: User): string {
 export const NavSlot = createContext<HTMLElement | null>(null);
 
 /** The black sidebar and the main column. */
-export function AppShell({ user, nav, onLogout, children }: AppShellProps) {
+export function AppShell({ user, nav, onLogout, runId = null, version = null, children }: AppShellProps) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const app = useRef<HTMLDivElement>(null);
   const [sizes] = useState(() => ({ min: tokenPx("--sidebar-min-w", 184), max: tokenPx("--sidebar-max-w", 360), initial: tokenPx("--sidebar-w", 232) }));
   const [width, setWidth] = usePanelWidth("sidebar", sizes.initial, sizes.min);
+  const [reporting, setReporting] = useState(false);
   return (
     <div className="app" ref={app} style={{ ["--sidebar-w" as string]: `${width}px` }}>
       <nav className="nav" aria-label="Main">
@@ -47,6 +53,9 @@ export function AppShell({ user, nav, onLogout, children }: AppShellProps) {
         ))}
         <div className="nav-slot" ref={setSlot} />
         <span className="nav-spacer" />
+        <button type="button" className="nav-link" onClick={() => setReporting(true)}>
+          <span>Report an issue</span>
+        </button>
         <div className="who">
           <span className="avatar" aria-hidden="true">
             {initials(user)}
@@ -56,6 +65,7 @@ export function AppShell({ user, nav, onLogout, children }: AppShellProps) {
             Log out
           </button>
         </div>
+        {version && <div className="version">Version {version}</div>}
       </nav>
       <Splitter
         label="Sidebar width"
@@ -70,6 +80,7 @@ export function AppShell({ user, nav, onLogout, children }: AppShellProps) {
       <main className="main">
         <NavSlot.Provider value={slot}>{children}</NavSlot.Provider>
       </main>
+      {reporting && <ReportIssueDialog runId={runId} onClose={() => setReporting(false)} />}
     </div>
   );
 }

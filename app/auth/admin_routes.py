@@ -29,12 +29,12 @@ def _error(status: int, detail: str) -> JSONResponse:
     return JSONResponse(status_code=status, content={"detail": detail})
 
 
-def _is_last_enabled_admin(conn, email: str) -> bool:
+def _last_admin_refusal(conn, email: str) -> Optional[JSONResponse]:
+    """The refusal when this account is the only enabled admin, else None."""
     user = store.fetch_user(conn, email)
-    return (
-        user is not None and user.is_admin and not user.disabled
-        and store.count_enabled_admins(conn) <= 1
-    )
+    if user is None or not user.is_admin or user.disabled or store.count_enabled_admins(conn) > 1:
+        return None
+    return _error(409, f"{user.name or user.email} is the only admin. Make someone else an admin first.")
 
 
 @router.get("/users")
@@ -65,12 +65,12 @@ def add_user(body: AddUserBody, admin: store.User = Depends(require_admin)):
 @router.post("/users/{email}/disable")
 def disable_user(email: str, admin: store.User = Depends(require_admin)):
     with db.connect(immediate=True) as conn:
-        if _is_last_enabled_admin(conn, email):
-            return _error(409, "This is the only admin. Make another account an admin first.")
+        if (refusal := _last_admin_refusal(conn, email)) is not None:
+            return refusal
         if not store.set_disabled(conn, email, True):
             return _error(404, "No account has this email.")
         store.add_audit(conn, admin.email, "user_disabled", store.normalize_email(email))
-    return {"ok": True}
+        return {"ok": True, "user": store.fetch_user(conn, email).admin_view()}
 
 
 @router.post("/users/{email}/enable")
@@ -79,7 +79,7 @@ def enable_user(email: str, admin: store.User = Depends(require_admin)):
         if not store.set_disabled(conn, email, False):
             return _error(404, "No account has this email.")
         store.add_audit(conn, admin.email, "user_enabled", store.normalize_email(email))
-    return {"ok": True}
+        return {"ok": True, "user": store.fetch_user(conn, email).admin_view()}
 
 
 @router.post("/users/{email}/reset-password")
@@ -97,14 +97,15 @@ def reset_password(email: str, admin: store.User = Depends(require_admin)):
         )
         store.delete_sessions_for(conn, user.email)
         store.add_audit(conn, admin.email, "password_reset", user.email)
-    return {"temporary_password": temporary}
+        user = store.fetch_user(conn, user.email)
+    return {"user": user.admin_view(), "temporary_password": temporary}
 
 
 @router.post("/users/{email}/admin")
 def set_admin(email: str, body: SetAdminBody, admin: store.User = Depends(require_admin)):
     with db.connect(immediate=True) as conn:
-        if not body.is_admin and _is_last_enabled_admin(conn, email):
-            return _error(409, "This is the only admin. Make another account an admin first.")
+        if not body.is_admin and (refusal := _last_admin_refusal(conn, email)) is not None:
+            return refusal
         if not store.set_admin(conn, email, body.is_admin):
             return _error(404, "No account has this email.")
         store.add_audit(
@@ -117,9 +118,15 @@ def set_admin(email: str, body: SetAdminBody, admin: store.User = Depends(requir
 
 @router.get("/audit")
 def audit_log(
-    before: Optional[int] = None, limit: int = 50, admin: store.User = Depends(require_admin)
+    before: Optional[int] = None, limit: int = 50, offset: int = 0, actor: Optional[str] = None,
+    group: Optional[str] = None, admin: store.User = Depends(require_admin),
 ):
+    """Newest first. `actor` is a person's email; `group` is one of `store.AUDIT_GROUPS`."""
     limit = max(1, min(limit, 200))
+    offset = max(0, offset)
     with db.connect() as conn:
-        events = store.list_audit(conn, limit=limit, before_id=before)
-    return {"events": events, "has_more": len(events) == limit}
+        events = store.list_audit(conn, limit=limit, before_id=before, offset=offset, actor=actor, group=group)
+        total = store.count_audit(conn, actor=actor, group=group)
+        people = store.audit_people(conn)
+    more = len(events) == limit if before is not None else offset + len(events) < total
+    return {"events": events, "has_more": more, "total": total, "people": people}

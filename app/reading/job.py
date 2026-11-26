@@ -1,6 +1,11 @@
 """The `read` job: transcribe the pages not yet read, then let the Reader
 map the document. Queued by `documents.store.start_reading`.
 
+A person may stop the reading (`POST .../read/stop`): no further page is
+started and the Reader takes no further step, so it stops within the model
+calls already under way. The stage ends `stopped`, every page read is kept,
+and a retry reads only what is missing.
+
 On success the run moves to `setup`. On failure the `read` stage is failed
 with one plain sentence and every finished page is kept, so a retry reads
 only what is missing. One page failing does not fail the stage; the Reader
@@ -15,6 +20,7 @@ import time
 from typing import Any, Optional
 
 from app import db
+from app.agents import loop
 from app.documents import store as documents
 from app.jobs.queue import Job
 from app.jobs.worker import handler
@@ -31,6 +37,24 @@ SOURCE = "reading"
 
 class ReadingFailed(RuntimeError):
     """The stage failed; `str()` is the plain sentence already recorded."""
+
+
+class StoppedOnRequest(Exception):
+    """A person stopped the reading: the stage ends `stopped`, keeping the pages read."""
+
+
+def stop_requested(run_id: int) -> bool:
+    """Read before each page starts and before each of the Reader's steps."""
+    with db.connect() as conn:
+        return store.stop_requested(conn, run_id)
+
+
+def _stopped(run_id: int, job_id: Optional[int]) -> None:
+    with db.connect(immediate=True) as conn:
+        store.stage_stopped(conn, run_id)
+    _event(run_id, job_id, "stopped", "Reading stopped on request. The pages read so far are kept.",
+           model_usage.run_totals(run_id))
+    logger.info("Run %s: the read stage was stopped on request.", run_id)
 
 
 def _event(run_id: int, job_id: Optional[int], kind: str, message: str, data: Optional[dict] = None,
@@ -55,8 +79,9 @@ async def _transcribe(run_id: int, job_id: Optional[int], model_id: str, model: 
         path, total = documents.pdf_path(conn, run_id)
     if not waiting:
         return
-    _event(run_id, job_id, "transcribing", f"Reading {total} pages." if len(waiting) == total
-           else f"Reading the {len(waiting)} pages not yet read.")
+    pages = lambda n: "1 page" if n == 1 else f"{n} pages"
+    _event(run_id, job_id, "transcribing", f"Reading {pages(total)}." if len(waiting) == total
+           else f"Reading the {pages(len(waiting))} not yet read.")
     started = time.monotonic()
     done = 0
 
@@ -82,11 +107,13 @@ async def _transcribe(run_id: int, job_id: Optional[int], model_id: str, model: 
     except ValueError as exc:   # the model could not be built, e.g. a missing key
         raise _fail(run_id, job_id, str(exc)) from exc
     summary = await transcribe.transcribe_pages(agent, model_id, str(path), waiting, total, run_id=run_id,
-                                                on_page=on_page)
+                                                on_page=on_page, should_stop=lambda: stop_requested(run_id))
     with db.connect() as conn:
         progress = store.progress(conn, run_id)["pages"]
     logger.info("Run %s: transcription finished in %.0f s: %s read, %s blank, %s failed.", run_id,
                 time.monotonic() - started, summary.read, summary.blank, len(summary.failed))
+    if summary.skipped or stop_requested(run_id):
+        raise StoppedOnRequest()
     if progress["read"] == 0 and summary.failed:   # nothing but blank pages and failures
         first = next(iter(summary.failed.values()), "No page could be read.")
         raise _fail(run_id, job_id, f"No page could be read. {first}")
@@ -121,9 +148,12 @@ async def _map(run_id: int, job_id: Optional[int], model_id: str, model: Any) ->
         deps = reader.ReaderDeps(run_id=run_id, pdf_path=str(path), page_count=total,
                                  contents=store.page_contents(conn, run_id), pages=store.map_pages(conn, run_id))
     started = time.monotonic()
-    outcome = await reader.run_reader(deps, model_id, job_id=job_id, model=model)
+    outcome = await reader.run_reader(deps, model_id, job_id=job_id, model=model,
+                                      should_stop=lambda: stop_requested(run_id))
     logger.info("Run %s: the Reader ended %s after %s steps in %.0f s.", run_id, outcome.status, outcome.steps,
                 time.monotonic() - started)
+    if outcome.status == loop.STOPPED and stop_requested(run_id):
+        raise StoppedOnRequest()
     if deps.saved is None:
         raise _fail(run_id, job_id, f"The Reader did not save the document map. {outcome.message}")
     _report_map(run_id, job_id, deps.saved, deps.open_points)
@@ -134,6 +164,9 @@ async def run_reading(run_id: int, job_id: Optional[int] = None, *, transcriptio
     """Read the run's document. Raises ReadingFailed when the stage fails.
     The two models replace the factory's, for tests."""
     logger.info("Run %s: the read stage starts.", run_id)
+    if stop_requested(run_id):   # stopped while it waited to start
+        _stopped(run_id, job_id)
+        return
     with db.connect(immediate=True) as conn:
         store.stage_working(conn, run_id)
     model_id = settings.read()["models"]["reading"]
@@ -142,6 +175,9 @@ async def run_reading(run_id: int, job_id: Optional[int] = None, *, transcriptio
         await _map(run_id, job_id, model_id, reader_model)
     except ReadingFailed:
         raise
+    except StoppedOnRequest:
+        _stopped(run_id, job_id)
+        return
     except Exception as exc:
         logger.exception("Run %s: the read stage hit an unexpected error.", run_id)
         raise _fail(run_id, job_id, "Reading stopped on an unexpected error.") from exc

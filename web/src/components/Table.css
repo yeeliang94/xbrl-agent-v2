@@ -12,6 +12,8 @@
 .tbl tbody tr.click { cursor: pointer; }
 .tbl tbody tr.click td { transition: background var(--fast); }
 .tbl tbody tr.click:hover td { background: var(--tint); }
+.tbl tbody tr.sel td, .tbl tbody tr.sel:hover td { background: var(--accent-soft); }
 .tbl th.r, .tbl td.r { text-align: right; }
 .tbl td.nw { white-space: nowrap; }
 .tbl tr.tbl-empty td { height: auto; padding: 0; }
+.tbl td.cut { max-width: 0; width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

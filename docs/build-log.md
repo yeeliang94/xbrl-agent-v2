@@ -33,6 +33,7 @@ first. Valid ones are fixed. Rejected ones are named with the reason.
 | 10. Reports and part-filled workbooks | Server built on the Mac, 24 November 2026, on branch `step-10-reports` (cut from uncommitted step 9), not merged. Screens built after the owner approved `prototypes/step-10-prototype.html` | `step-10-reports` |
 | 11. Switch-over | Not started | |
 | 12. Template investigation | Not started | Moved out of step 8 by the owner, 23 November 2026 |
+| Go-live packages | Built on the Mac, 26 November 2026, on branch `go-live` (cut from `notes-workbench`), not committed. Reviewed; kept findings fixed. Windows not run | `go-live` |
 
 The steps were renumbered on 19 November 2026 (see `backend-plan.md`
 section 7).
@@ -918,3 +919,78 @@ Done when: a user can log in and see an empty run list. A test job runs,
 fails and retries, and a restart cannot leave it stuck. A GPT call and a
 Claude call succeed from the Mac, each with a code step. The gateway check
 script exists for the enterprise machine.
+
+## Trial: starting a run from a Word or Excel file (25 November 2026)
+
+For `go-live-plan.md` package C6. Nothing in the app changed; the trial ran from a scratch folder.
+
+- **Word.** The one Word set of statements on hand (the Doc 4 company, 21 tables) was read with
+  `python-docx` and `mammoth` from v1's environment, and laid out as a 13-page reading copy with PyMuPDF's
+  Story. No Word, no LibreOffice. It took under a second. The tables and figures read correctly by eye.
+- **The figures agent on the reading copy.** `tests/test_extraction_live.py` was run once on the reading
+  copy and once on the scanned PDF of the same statements (`test-data/Doc 4.pdf`), same answer key.
+
+  | Source | Balance sheet, complete and accurate | Extraction time | Cost |
+  |---|---|---|---|
+  | Reading copy from Word | 24 of 24 agree (1.0) | 213 s | $0.021 |
+  | Scanned PDF | 21 of 24 agree (0.913) | 328 s | $0.035 |
+
+  One run each, and one run varies, so this shows the route works, not that it is always better. The other
+  four statements have no placements in this key and were not scored. Doc 4 stays set aside for judging
+  the agent.
+- **Excel.** No real Excel set of statements was on hand. A workbook built from the Word file's tables was
+  read with `openpyxl`: every number came back with its sheet and cell, a hidden sheet was left out, and a
+  reading copy was made. A formula with no saved result reads as blank, so the build must tell the person
+  when a sheet has such cells.
+- **Not tried:** giving the agents the file's own tables through a tool; a Word file with pictures, wide
+  landscape tables or tracked changes; a real accountant's Excel workbook.
+
+## Go-live packages (26 November 2026)
+
+Built from `go-live-plan.md` after the owner approved the five prototypes: A1 users, audit log and own
+password; A2 report an issue; A3 reporting period and millions; A4 run list search, filters, paging and
+delete; A5 stop reading and redo one statement; A6 notes in the compare view; A7 data retention, version
+and connection test; B1 cost and time on the run screen only; B2 several files at once; B5 agent limits;
+C6 starting a run from a Word or Excel file (`python-docx`, `mammoth`, `cobble`, `lxml` at v1's pins).
+Five lanes were built side by side in worktrees and merged by hand.
+
+- **Checks:** server tests, web tests and build pass (counts in the session report). In the browser on
+  the Mac: every Settings tab, adding and disabling a user, the last-admin refusal, report an issue, the
+  run list, delete and clear drafts, stop reading live, setup with millions, several files, and a Word and
+  an Excel run end to end on GPT-6 Luna (small made-up files), including the sheet choice at setup and
+  the sheet view in review.
+- **Automatic clean-up removed (owner, 26 November 2026).** A7's data retention periods and nightly
+  clean-up were built, then taken out at the owner's word: deleting work on a timer was the risk, and
+  manual removal (delete a run, clear abandoned drafts) covers the need. Traces now stay until their run
+  is deleted. A7 keeps the version and the connection test.
+- **Review:** big tier: eight specialists, Codex, and a finding checker. Fixed: a Word table row taller
+  than a page was cut off in the reading copy; the uploads clean-up removed files from runs still at
+  setup (made moot when the clean-up was removed); a workbook with huge merged ranges could fill the memory; the notes
+  score counted a misplaced note as right; a rounded or scaled Excel cell was not linked as the source;
+  the file tools lacked the steps-left note; the issue traces zip held the write lock; two missing
+  indexes made run deletes slow; the Runs audit filter hid draft clear-outs; sheet labels were cut;
+  small screen fixes (error style, "1 note", one Cancel style, one pager wording).
+- **Left as worth considering:** the live-job check written in five places, the connection test's copy
+  of the failure sentences, the redo reaching into the figure store's private helpers, the shared loop
+  adding the file tools by a tool name, the "whole run" time adding agents that overlap, Word and Excel
+  pages still transcribed by the model though their text is stored.
+- **Not verified:** a real accountant's Excel file; mTool on Windows with first-year and millions files;
+  whether the limit warnings change agent behaviour in a long live run; notes comparison on real notes.
+- **Pull request review (pull request 2):** Codex and Greptile findings fixed: Excel amounts round a half
+  away from zero and pick the format section Excel uses (sign, zero, conditions, escaped brackets);
+  pictures in Word table cells are kept; long Excel cells are drawn as paragraphs; file search matches
+  the shown and the saved amount; a sparse workbook's drawn grid is bounded; choosing a sheet no longer
+  drops pages after the tenth; a source cell is left unnamed when two cells could be it.
+- **Builders' choices approved (owner, 26 November 2026):** the two roles are named Admin and User
+  (Preparer renamed); version 0.1.0; the owner or an admin may delete any run that is not working;
+  drafts can be cleared after 7, 30 or 90 days; the upload limit stays at 100 MB; the password minimum
+  stays at 8; stopping one agent on its own and spotting working-paper sheets are not built.
+- **Full five-axis review by Codex (27 November 2026):** five findings, all fixed. A table row is measured
+  in the table it is drawn in, and one too tall for a page is drawn as paragraphs (several long cells, or
+  a long cell squeezed by the other rows, were cut off); a workbook's rows and cells are counted across
+  every sheet it links before it is loaded, and a sheet that cannot be read is refused; a Word file of
+  pictures alone is read from its pages; a picture in a format the reading copy cannot draw (EMF, WMF)
+  shows as a sentence on its page and an upload notice, not dropped unseen; a redo ends when its
+  statement is answered "not printed" and stays ended once finished, while keeping a person's figures
+  through other setup changes. The fixes had their own big-tier review (three specialists and Codex);
+  its findings are in the list above, and the fixes to them were not reviewed again.

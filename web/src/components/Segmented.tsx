@@ -1,9 +1,12 @@
 import { useRef, type KeyboardEvent } from "react";
+import { Count } from "./Count";
 import "./Segmented.css";
 
 export interface SegmentOption<T extends string> {
   value: T;
   label: string;
+  /** A small number after the label. Nothing is shown for zero. */
+  count?: number;
 }
 
 export interface SegmentedProps<T extends string> {
@@ -12,10 +15,12 @@ export interface SegmentedProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   disabled?: boolean;
+  /** Sits straight on the page, not in a panel, so its track is a shade darker. */
+  onPage?: boolean;
 }
 
 /** A row of choices where exactly one is on. Arrow keys move between them. */
-export function Segmented<T extends string>({ label, options, value, onChange, disabled }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ label, options, value, onChange, disabled, onPage }: SegmentedProps<T>) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   // With nothing chosen yet, the first choice is the one in the tab order.
   const chosen = options.some((option) => option.value === value);
@@ -33,7 +38,7 @@ export function Segmented<T extends string>({ label, options, value, onChange, d
   }
 
   return (
-    <div className="seg" role="radiogroup" aria-label={label}>
+    <div className={onPage ? "seg onbg" : "seg"} role="radiogroup" aria-label={label}>
       {options.map((option, index) => {
         const on = option.value === value;
         return (
@@ -52,6 +57,7 @@ export function Segmented<T extends string>({ label, options, value, onChange, d
             onKeyDown={(event) => onKeyDown(event, index)}
           >
             {option.label}
+            {option.count !== undefined && <Count value={option.count} />}
           </button>
         );
       })}

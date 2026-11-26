@@ -1,0 +1,16 @@
+/* Centred over the page, beside the sidebar. */
+.toast {
+  position: fixed;
+  left: calc(var(--sidebar-w) + (100% - var(--sidebar-w)) / 2);
+  bottom: var(--space-7);
+  transform: translate(-50%, var(--toast-rise));
+  opacity: 0;
+  background: var(--ink);
+  color: var(--on-ink);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  transition: opacity var(--fast), transform var(--fast);
+  pointer-events: none;
+  z-index: 5;
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0); }

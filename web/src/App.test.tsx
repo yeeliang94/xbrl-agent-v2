@@ -32,7 +32,7 @@ describe("session", () => {
     const fetch = mockFetch({
       "GET /api/auth/me": { status: 401, body: { detail: "Log in first." } },
       "POST /api/auth/login/password": { body: { user: admin } },
-      "GET /api/runs": { body: { runs: [] } },
+      "GET /api/runs": { body: { runs: [], total: 0, page: 0, per_page: 25 } },
     });
     render(<App />);
     fireEvent.change(await screen.findByLabelText("Email"), { target: { value: "aina@firm.my" } });
@@ -47,7 +47,7 @@ describe("session", () => {
   it("returns to Login when any call answers 401", async () => {
     mockFetch({
       "GET /api/auth/me": { body: { user: admin } },
-      "GET /api/runs": { body: { runs: [] } },
+      "GET /api/runs": { body: { runs: [], total: 0, page: 0, per_page: 25 } },
       "GET /api/settings": { status: 401, body: { detail: "Your session has ended." } },
       "GET /api/models": { body: { models: [] } },
     });
@@ -68,7 +68,7 @@ describe("session", () => {
         changed = true;
         return { status: 204 };
       },
-      "GET /api/runs": { body: { runs: [] } },
+      "GET /api/runs": { body: { runs: [], total: 0, page: 0, per_page: 25 } },
     });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Change password" })).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe("session", () => {
   it("logs out from the sidebar", async () => {
     const fetch = mockFetch({
       "GET /api/auth/me": { body: { user: admin } },
-      "GET /api/runs": { body: { runs: [] } },
+      "GET /api/runs": { body: { runs: [], total: 0, page: 0, per_page: 25 } },
       "POST /api/auth/logout": { status: 204 },
     });
     render(<App />);
@@ -95,7 +95,7 @@ describe("session", () => {
   it("opens Settings from the sidebar", async () => {
     mockFetch({
       "GET /api/auth/me": { body: { user: admin } },
-      "GET /api/runs": { body: { runs: [] } },
+      "GET /api/runs": { body: { runs: [], total: 0, page: 0, per_page: 25 } },
       "GET /api/settings": { body: settings() },
       "GET /api/models": { body: { models: [] } },
     });

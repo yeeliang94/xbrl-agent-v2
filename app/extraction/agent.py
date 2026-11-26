@@ -61,10 +61,12 @@ def limits(count: int) -> tuple[int, int]:
 
 
 def build_deps(run_id: int, statements: str | Sequence[str], *, entity: str = COMPANY, filled: Sequence[str] = (),
-               job_id: Optional[int] = None, max_steps: Optional[int] = None) -> tuple[FiguresDeps, str]:
+               job_id: Optional[int] = None, max_steps: Optional[int] = None,
+               kept: Sequence[int] = ()) -> tuple[FiguresDeps, str]:
     """The tools' shared state and the opening message, from the confirmed setup. `statements` is one
     statement or several for one agent; `filled` the statements finished before this run (`progress.finished`),
-    whose checks across statements this run then sees."""
+    whose checks across statements this run then sees; `kept` the ids of the figures a person chose to keep
+    through a redo (`app/runs/redo.py`), which the tools leave as they are."""
     wanted = (statements,) if isinstance(statements, str) else tuple(dict.fromkeys(statements))
     with db.connect() as conn:
         family = run_family(conn, run_id)
@@ -94,10 +96,14 @@ def build_deps(run_id: int, statements: str | Sequence[str], *, entity: str = CO
         existing = store.current_figures(conn, run_id, deps.entity)
         answers = [{"question": r["question"], "answer": r["answer_text"] or r["label"],
                     "setup_changed": bool(r["setup_changed"])} for r in _answers(conn, run_id)]
-    saved, starting = [], []
+    saved, starting, held = [], [], []
     for (uuid, period), r in existing.items():
         f = outline.for_uuid(uuid)
         amount = r["value"] if r["value"] is not None else r["stated_value"]
+        if r["id"] in kept and deps.owns(f):
+            deps.kept_by_person.add((uuid, period))
+            held.append(f"{f.id} {f.name}: {period} {fmt_amount(amount) if amount is not None else 'left blank'}")
+            continue
         if f is None or not deps.owns(f) or amount is None or r["origin"] == "calculated":
             continue
         if r["origin"] in ("prior_workbook", "typed_in_workbook"):   # imported, not this agent's work
@@ -108,7 +114,7 @@ def build_deps(run_id: int, statements: str | Sequence[str], *, entity: str = CO
     # A new attempt after a restart starts from the figures already saved, and every run from the figures
     # imported from a starting workbook (a statement typed in it in full leaves the agent nothing to save):
     # the finish and the job count them, and the checks and coverage are asked for again.
-    deps.writes = len(saved) + len(starting)
+    deps.writes = len(saved) + len(starting) + len(held)
     others = [f"{statement_name(s, printed[s][2])} on page(s) {', '.join(map(str, printed[s][0]))}" for s in STATEMENTS
               if s in printed and s not in wanted and printed[s][0] and printed[s][2] != "NotPrepared"]
     message = instructions.first_message(
@@ -117,7 +123,7 @@ def build_deps(run_id: int, statements: str | Sequence[str], *, entity: str = CO
         standard=run["standard"], level=deps.entity, unit=run["unit"], page_count=total,
         statement_pages=deps.statement_pages, other_statements=others, notes=notes,
         outline_text="\n\n".join(outline_text.render(outline, s) for s in wanted), saved=saved, answers=answers,
-        starting=starting,
+        starting=starting, held=held,
         several=[(fields.statement_words(s, family.variants.get(s)), pages_of[s]) for s in wanted]
         if several else None,
         both_entities=len(family.entity_scopes) > 1)
@@ -143,7 +149,7 @@ def _open_question(run_id: int) -> bool:
 
 
 def spec(model_id: str, bench: workbench.Workbench, deps: FiguresDeps, max_steps: Optional[int] = None,
-         guidance: str = "") -> loop.AgentSpec:
+         guidance: str = "", label: Optional[str] = None) -> loop.AgentSpec:
     """A fresh spec per run: its history trimmer remembers what it cut. Page
     pictures may be trimmed once a figure is saved."""
     trimmer = history.Trimmer(text_tools=TEXT_TOOLS, saved=lambda _messages: deps.writes > 0,
@@ -154,18 +160,22 @@ def spec(model_id: str, bench: workbench.Workbench, deps: FiguresDeps, max_steps
                           tools=[budgeted(t) for t in TOOLS],
                           output_type=checking.FinishReport, max_steps=max_steps or steps, max_seconds=seconds,
                           retries=4, thinking=THINKING,
-                          code_tool=bench.on, history_processor=trimmer, output_validator=checking.finish)
+                          code_tool=bench.on, history_processor=trimmer, output_validator=checking.finish,
+                          label=label)
 
 
 async def run_figures(run_id: int, statement: str | Sequence[str], model_id: str, *, job_id: Optional[int] = None,
                       model: Any = None, max_steps: Optional[int] = None, entity: str = COMPANY,
-                      filled: Sequence[str] = (), should_stop: Callable[[], bool] = lambda: False
+                      filled: Sequence[str] = (), should_stop: Callable[[], bool] = lambda: False,
+                      kept: Sequence[int] = (), label: Optional[str] = None
                       ) -> tuple[loop.AgentOutcome, FiguresDeps, workbench.Workbench]:
-    deps, message = build_deps(run_id, statement, entity=entity, filled=filled, job_id=job_id, max_steps=max_steps)
+    """`label` names this agent run in the run's cost, such as "Statement of financial position"."""
+    deps, message = build_deps(run_id, statement, entity=entity, filled=filled, job_id=job_id, max_steps=max_steps,
+                               kept=kept)
     bench = workbench.decide(model_id)
     deps.event("workbench", bench.why, {"on": bench.on})
     guidance = framing.prepare(run_id, "extract")
-    outcome = await loop.run_agent(spec(model_id, bench, deps, deps.max_steps, guidance), message, deps=deps,
+    outcome = await loop.run_agent(spec(model_id, bench, deps, deps.max_steps, guidance, label), message, deps=deps,
                                    run_id=run_id, job_id=job_id, model=model, readable=deps.outline.readable,
                                    should_stop=lambda: (
                                        ASKED_STOP if deps.asked is not None or _open_question(run_id)

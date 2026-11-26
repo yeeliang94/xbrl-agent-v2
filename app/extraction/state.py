@@ -1,19 +1,18 @@
-"""What the figures agent's tools share during one run, and the step budget.
+"""What the figures agent's tools share during one run.
 
-The step budget: tool results say how many steps are left once 70% and 90%
-of them are used, and the result before the last step says the next reply is
+Its tools carry the note on the room left (`app/agents/budget.py`): tool
+results say how many steps and how much time are left once 70% and 90% of
+them are used, and the result before the last step says the next reply is
 the last, so the agent reports what it finished instead of being cut off
 (v1 lesson, owner's note "project_harness_learnings").
 """
 from __future__ import annotations
 
-import functools
-import inspect
-import math
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from app.agents.budget import WARN_AT, budget_note, budgeted  # noqa: F401 - the agents import them from here
 from app.agents.pages import PageSource
 from app.catalog.lookup import RunFamily
 from app.extraction.outline import Outline
@@ -23,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 NAME = "figures"
 COMPANY = "Company"
-WARN_AT = (0.7, 0.9)
 
 
 @dataclass
@@ -47,12 +45,14 @@ class FiguresDeps(PageSource):
     refused_finish: bool = False
     finish: Optional[dict] = None
     asked: Optional[int] = None           # the scope question asked; the run stops after the tool
+    # (field, period) of the figures a person chose to keep through a redo: the tools leave them as they are
+    kept_by_person: set = field(default_factory=set)
     warned: set = field(default_factory=set)
     advised: dict = field(default_factory=dict)   # advice point -> the field's value when it was given
     actor_name: str = NAME                # who the figure store records for this agent's writes
     source: str = NAME                    # the events' source
 
-    # What the step-budget notes ask for; the Reviewer says its own.
+    # What the notes on steps and time left ask for; the Reviewer says its own.
     SOON_NOTE = "Save what is left, run the checks, report coverage and finish before they run out."
     LAST_NOTE = "Stop calling tools and finish now: say what you saved and list what is left in unresolved."
 
@@ -85,40 +85,3 @@ class FiguresDeps(PageSource):
             add_event(self.source, kind, shown, run_id=self.run_id, job_id=self.job_id, data=data, pages=pages)
         except Exception:  # noqa: BLE001
             logger.warning("Could not record an agent event", exc_info=True)
-
-
-def budget_note(deps: FiguresDeps, step: int) -> str:
-    """The note on steps left after the response of step `step`, or ''. When
-    a share falls on the step before the last, the last-reply note carries it."""
-    left = deps.max_steps - step
-    due = [share for share in WARN_AT if share not in deps.warned
-           and step >= math.ceil(share * deps.max_steps - 1e-9)]
-    deps.warned.update(due)
-    if left <= 1:
-        deps.warned.update(WARN_AT)
-        return f"\n\n[Steps: {step} of {deps.max_steps} used. Your next reply is your last one. {deps.LAST_NOTE}]"
-    if due:
-        return f"\n\n[Steps: {step} of {deps.max_steps} used, {left} left. {deps.SOON_NOTE}]"
-    return ""
-
-
-def _with_note(result: Any, note: str) -> Any:
-    if not note:
-        return result
-    if isinstance(result, list):
-        return result + [note.strip()]
-    return f"{result}{note}"
-
-
-def budgeted(tool):
-    """The tool, with the step budget note added to its result."""
-    if inspect.iscoroutinefunction(tool):
-        @functools.wraps(tool)
-        async def run_async(ctx, *args, **kwargs):
-            return _with_note(await tool(ctx, *args, **kwargs), budget_note(ctx.deps, ctx.run_step))
-        return run_async
-
-    @functools.wraps(tool)
-    def run(ctx, *args, **kwargs):
-        return _with_note(tool(ctx, *args, **kwargs), budget_note(ctx.deps, ctx.run_step))
-    return run

@@ -1,0 +1,11 @@
+/* A sheet of an Excel run's workbook, as source-file-prototype.html draws it. */
+/* Each column as wide as its text up to a limit, so labels read in full; a sheet wider than the panel scrolls sideways. */
+.sheet-scroll { overflow-x: auto; }
+.sheet { width: max-content; min-width: 100%; border-collapse: collapse; background: var(--paper); border-radius: var(--radius-xs); font-size: var(--text-sm); line-height: var(--leading-sm); }
+.sheet th { font: var(--weight-regular) var(--text-xs)/var(--leading-sm) var(--font-mono); color: var(--faint); height: var(--sheet-head-h); text-align: center; }
+.sheet th:first-child, .sheet td.rn { min-width: 0; width: var(--sheet-rn-w); }
+.sheet td { height: var(--sheet-row-h); min-width: var(--sheet-col-min); max-width: var(--sheet-col-max); padding: 0 var(--space-2); border-top: var(--hairline) solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet td.rn { font: var(--weight-regular) var(--text-xs)/var(--leading-sm) var(--font-mono); color: var(--faint); text-align: right; padding: 0 var(--own-pad) 0 0; }
+.sheet td.n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sheet tr.hl td { background: var(--tint); }
+.sheet td.mk { background: var(--accent-soft); box-shadow: inset 0 0 0 var(--drop-border) var(--accent); }

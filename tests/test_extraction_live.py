@@ -5,6 +5,7 @@ default run.
     LIVE_OUT=/some/temp/folder venv/bin/python -m pytest tests/test_extraction_live.py -m live -s
     LIVE_DOCS="Doc_3,Doc_4" ...          # only the documents whose names contain these
     LIVE_READING=/folder/of/the/reading/live/test ...   # reuse its saved readings, so nothing is read again
+    LIVE_SOURCE=/path/to/statements.docx ...   # with one LIVE_DOCS name: start from this file instead of the PDF
 
 Each document is read first (or its saved reading from `tests/test_reading_live.py`,
 under LIVE_READING/<Doc_1|Doc_2|Doc_3|Doc_4>, is copied), then the setup is
@@ -48,7 +49,7 @@ from app.catalog import loader
 from app.catalog.lookup import run_family
 from app.catalog.statements import StatementType
 from app.documents import store as documents
-from app.documents.pdf_check import inspect_pdf
+from app.documents import intake
 from app.jobs import worker
 from app.models import usage as model_usage
 from app.reading import job as reading_job, store as reading
@@ -128,9 +129,9 @@ def _setup_body(suggested: dict, doc_map: dict, key: dict) -> dict:
 
 async def _read(source: Path, folder: Path) -> int:
     make_user(OWNER)
-    data = source.read_bytes()
+    upload = intake.prepare(source.name, source.read_bytes())     # a PDF, or a Word or Excel file (LIVE_SOURCE)
     with db.connect(immediate=True) as conn:
-        run_id = documents.create_run_from_pdf(conn, data, inspect_pdf(data), filename=source.name, owner_email=OWNER)
+        run_id = documents.create_run(conn, upload, owner_email=OWNER)
     await reading_job.run_reading(run_id)
     return run_id
 
@@ -148,6 +149,8 @@ def _records(folder: Path, run_id: int) -> dict[str, dict]:
 @pytest.mark.parametrize("name", _chosen())
 async def test_each_statement_scores_at_least_as_well_as_v1(name, monkeypatch, tmp_path):
     source, baselines = DOCUMENTS[name], BASELINES[name]
+    if os.environ.get("LIVE_SOURCE"):      # the same statements as a Word or Excel file, scored on the same key
+        source = Path(os.environ["LIVE_SOURCE"])
     key_path = KEYS / f"{name}.json"
     if not key_path.is_file() or not source.is_file():
         pytest.skip(f"The answer key or the PDF for {name} is not on this machine.")

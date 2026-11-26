@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Optional
 
 from app.extraction.instructions import WORKBENCH_ON, answers_block
+from app.runs import units
 
 INSTRUCTIONS = """\
 You are the notes agent. You place the notes of a company's audited financial statements in the SSM note \
@@ -98,7 +99,7 @@ unsure, flag it or leave a comment. Your run stops once you ask, and every note 
 Finishing. Before you finish, make sure this session's work is checked: what you placed is accounted for, \
 what you formatted is previewed or flagged. Then finish with a short summary. If something cannot be resolved \
 because of what the report shows, list each open point in unresolved with its reason: an honest finish is \
-better than a forced placement. Tool results tell you when your steps run low; leave yourself room to check \
+better than a forced placement. Tool results tell you when your steps or your time run low; leave yourself room to check \
 and report.
 """
 
@@ -160,7 +161,7 @@ def first_message(*, session: str, company: str, year_end: str, standard: str, l
     """The session's task, the run, the notes list and what stands, then its own `sections` (heading, body),
     the longest last."""
     title, task = SESSIONS[session]
-    unit_words = "RM thousands" if unit == "RM'000" else "RM"
+    unit_words = units.unit_words(unit)
     out = [f"This session: {title}. {task}",
            f"The company is {company}, year ended {year_end}: {standard}, {level}. Amounts are in {unit_words} "
            f"as printed ({unit}). The document has {page_count} pages."]

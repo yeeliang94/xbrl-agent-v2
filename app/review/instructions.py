@@ -15,6 +15,7 @@ from typing import Optional
 
 from app.extraction import instructions as figures_instructions
 from app.notes import instructions as notes_instructions
+from app.runs import units
 
 _FIGURE_PRINCIPLES = figures_instructions.INSTRUCTIONS[
     figures_instructions.INSTRUCTIONS.index("Reading the source"):
@@ -176,7 +177,7 @@ def first_message(*, round_number: int, company: str, year_end: str, standard: s
                   statement_name: str, statement_pages: list[int], notes: list[dict], comments: list[dict],
                   failing: list[str], outline_text: str, other_rounds: Optional[int] = None,
                   placed_notes: Optional[list[str]] = None, entities: tuple[str, ...] = ("Company",)) -> str:
-    unit_words = "RM thousands" if unit == "RM'000" else "RM"
+    unit_words = units.unit_words(unit)
     whose = " and ".join(entities)
     out = [f"Correction round {round_number} for {company}, year ended {year_end}: {standard}, {whose} figures. "
            f"Amounts are in {unit_words} as printed ({unit}).",

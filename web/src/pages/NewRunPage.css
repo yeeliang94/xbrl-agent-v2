@@ -9,3 +9,8 @@
 }
 .drop.over { background: var(--tint); border-color: var(--ink); }
 .drop > div { display: flex; flex-direction: column; gap: var(--space-4); align-items: center; }
+/* Several files at once (runs-and-setup-prototype.html): one line per file. */
+.file { display: grid; grid-template-columns: minmax(0, 1fr) var(--note-page-w) var(--grid-status-w) var(--note-page-w); align-items: center; gap: var(--space-4); min-height: var(--row-h); }
+.files { display: flex; flex-direction: column; gap: var(--space-3); }
+.file .r { text-align: right; }
+.file .end { display: flex; justify-content: flex-end; }

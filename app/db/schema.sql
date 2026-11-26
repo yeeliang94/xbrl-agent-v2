@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     finished_at  TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_jobs_claim ON jobs(status, run_after);
+-- Deleting a run deletes its jobs, and each deleted job clears events.job_id: both need these.
+CREATE INDEX IF NOT EXISTS ix_jobs_run ON jobs(run_id);
 
 -- Progress rows. The browser asks for "events after id N".
 CREATE TABLE IF NOT EXISTS events (
@@ -120,6 +122,7 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_events_run ON events(run_id, id);
+CREATE INDEX IF NOT EXISTS ix_events_job ON events(job_id);
 
 -- The document --------------------------------------------------------
 -- One uploaded PDF per run, kept in the run's folder (app/documents/store.py).
@@ -133,8 +136,28 @@ CREATE TABLE IF NOT EXISTS documents (
     size_bytes  INTEGER NOT NULL,
     page_count  INTEGER NOT NULL,
     uploaded_by TEXT NOT NULL,
-    uploaded_at TEXT NOT NULL
+    uploaded_at TEXT NOT NULL,
+    -- A run may start from a Word or Excel file (go-live plan C6). stored_path and page_count are then
+    -- the reading copy the server laid out; filename, sha256 and size_bytes stay the uploaded file's.
+    kind        TEXT NOT NULL DEFAULT 'pdf' CHECK (kind IN ('pdf', 'word', 'excel')),
+    source_path TEXT,                                    -- the uploaded Word or Excel file; null for a PDF
+    source_json TEXT                                     -- Excel: its sheets (app/documents/workbook_copy.py)
 );
+
+-- The words and numbers of a Word or Excel file exactly as the file holds them, one row per heading,
+-- paragraph or table row, with the reading-copy page it is laid out on (app/documents/file_lines.py).
+CREATE TABLE IF NOT EXISTS file_lines (
+    document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,                        -- order in the file, from 0
+    page        INTEGER NOT NULL,                        -- reading-copy page, from 1
+    kind        TEXT NOT NULL CHECK (kind IN ('heading', 'text', 'row')),
+    block       INTEGER NOT NULL DEFAULT 0,              -- Word: the table's number, from 1; 0 outside a table
+    sheet       TEXT,                                    -- Excel: the sheet's name
+    row         INTEGER,                                 -- the row in its table (Word) or on its sheet (Excel)
+    cells_json  TEXT NOT NULL,                           -- Word: the texts. Excel: [column, shown, saved value]
+    PRIMARY KEY (document_id, position)
+);
+CREATE INDEX IF NOT EXISTS ix_file_lines_page ON file_lines(document_id, page);
 
 -- One row per PDF page, written at upload. The Reader (step 3b) fills
 -- content_json with the page's structured text.
@@ -174,7 +197,8 @@ CREATE TABLE IF NOT EXISTS model_calls (
     cost_usd      REAL,                                  -- null when the model's price is not known
     duration_ms   INTEGER,                               -- how long the call took, when measured
     error         TEXT,                                  -- the full error of a failed call (never shown to people)
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL,
+    agent         TEXT                                   -- the agent run as a person names it, e.g. "Placing the notes" (run cost)
 );
 CREATE INDEX IF NOT EXISTS ix_model_calls_run ON model_calls(run_id);
 
@@ -530,6 +554,16 @@ CREATE TABLE IF NOT EXISTS filled_workbook_cells (
     PRIMARY KEY (run_id, concept_uuid, period, entity_scope, dimension_key)
 );
 
+-- One row per note field the workbook holds text in. Only the text's short lines are kept, to find a
+-- note's printed number and title; wording is not compared (app/scoring/workbook_notes.py).
+CREATE TABLE IF NOT EXISTS filled_workbook_notes (
+    run_id           INTEGER NOT NULL REFERENCES filled_workbooks(run_id) ON DELETE CASCADE,
+    field_id         TEXT NOT NULL,                      -- the note field, as notes.node_uuid
+    workbook_cell    TEXT,                               -- Sheet!E12
+    lines_json       TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (run_id, field_id)
+);
+
 -- Starting workbook (step 10d) -----------------------------------------
 -- A part-filled mTool workbook a person attached at setup (app/starting/).
 -- The file sits in the run's folder. Its figures are imported when the setup
@@ -795,3 +829,21 @@ CREATE TABLE IF NOT EXISTS report_field_history (
     changed_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_report_field_history_field ON report_field_history(field_id, id);
+
+-- Issues people report (go-live A2) -----------------------------------------
+-- A report keeps the run that was on screen. The run's name is copied, so the
+-- list still reads well once the run itself is deleted.
+
+CREATE TABLE IF NOT EXISTS issues (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporter_email TEXT NOT NULL,                        -- text, not a key: outlives the account
+    text           TEXT NOT NULL,
+    run_id         INTEGER REFERENCES runs(id) ON DELETE SET NULL,
+    run_label      TEXT NOT NULL DEFAULT '',
+    status         TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+    note           TEXT NOT NULL DEFAULT '',             -- the admin's note
+    file_name      TEXT,                                 -- the screenshot as uploaded, for display
+    file_path      TEXT,                                 -- relative to the output folder
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL
+);

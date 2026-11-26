@@ -204,6 +204,15 @@ button.nyi:hover { background: var(--tint); }
 .fold svg { width: var(--icon); height: var(--icon); stroke: currentColor; fill: none; stroke-width: 1.6; transition: transform var(--knob) var(--ease); }
 .fold.open svg { transform: rotate(90deg); }
 .fold .ct { margin-left: auto; }
+/* Cost and time: one quiet line under the activity, as prototypes/run-controls-prototype.html. */
+.costs { display: flex; flex-direction: column; gap: var(--space-2); }
+.costs .tbl th, .costs .tbl td { height: var(--grid-head-h); padding-left: 0; }
+.costs .tbl th:last-child, .costs .tbl td:last-child { padding-right: 0; }
+.costs .cost-whole, .costs .cost-total { font-weight: var(--weight-medium); }
+.costs .cost-total { display: inline-block; border-top: var(--hairline) solid var(--ink); padding-top: var(--space-1); }
+/* The lines a redo keeps, in its dialog. */
+.redo-kept .tbl td { height: var(--grid-row-h); padding-left: 0; }
+.redo-kept .tbl td:last-child { padding-right: 0; }
 @keyframes sweep { from { background-position: 120% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) {
   .feed .fl.act .tx { color: var(--ink); background: none; }
@@ -215,6 +224,8 @@ button.nyi:hover { background: var(--tint); }
 .ask { flex: none; padding: var(--space-4) var(--space-4) 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .compare { display: flex; flex-direction: column; gap: var(--space-6); }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+/* Four scores do not fit side by side in the middle column, so they sit two by two. */
+.stats.two { grid-template-columns: repeat(2, 1fr); }
 .stat { background: var(--tint); border-radius: var(--radius); padding: var(--space-4); }
 .stat b { display: block; font-weight: var(--weight-medium); font-size: var(--text-xl); line-height: var(--leading-xl); font-family: var(--font-mono); }
 .stat span { color: var(--muted); }

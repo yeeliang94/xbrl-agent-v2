@@ -49,6 +49,16 @@ def _title(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", (text or "").lower()))
 
 
+def words(text: str) -> str:
+    """Text as it is matched: lower-case words and numbers, nothing else."""
+    return _title(text)
+
+
+def note_key(number: str, title: str) -> tuple[str, str]:
+    """How a note is told apart, as `score` matches it: by its printed number, or by its title without one."""
+    return ("number", _number(number)) if _number(number) else ("title", _title(title))
+
+
 def _judge(entry: dict, fields: set[str]) -> str:
     if not fields:
         return NOT_PLACED

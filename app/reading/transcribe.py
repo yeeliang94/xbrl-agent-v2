@@ -168,6 +168,7 @@ class TranscriptionSummary:
     read: int = 0
     blank: int = 0
     failed: dict[int, str] = field(default_factory=dict)
+    skipped: int = 0   # pages not started because the reading was stopped
 
 
 def is_blank(png: bytes) -> bool:
@@ -310,16 +311,22 @@ async def transcribe_page(agent, model_id: str, pdf_path: str, page: int, total:
 async def transcribe_pages(agent, model_id: str, pdf_path: str, pages: list[int], total: int, *,
                            run_id: Optional[int] = None,
                            on_page: Callable[[PageResult], Awaitable[None]],
-                           concurrency: int = CONCURRENCY) -> TranscriptionSummary:
+                           concurrency: int = CONCURRENCY,
+                           should_stop: Callable[[], bool] = lambda: False) -> TranscriptionSummary:
     """Transcribe `pages` with `agent` (from `build_agent`), at most
     `concurrency` at once. `on_page` saves each result as it finishes. An
     unexpected error cancels the other pages, waits for them to stop, then
-    is raised (inside an ExceptionGroup)."""
+    is raised (inside an ExceptionGroup). Once `should_stop` says so, no
+    further page is started: the pages under way finish and are saved, and
+    the rest are counted in `summary.skipped`."""
     gate = asyncio.Semaphore(concurrency)
     summary = TranscriptionSummary()
 
     async def one(page: int) -> None:
         async with gate:
+            if should_stop():
+                summary.skipped += 1
+                return
             result = await transcribe_page(agent, model_id, pdf_path, page, total, run_id=run_id)
         if result.content is None:
             summary.failed[page] = result.error or "The page could not be read."

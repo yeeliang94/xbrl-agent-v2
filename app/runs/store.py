@@ -106,13 +106,10 @@ _RUN_SQL = (
     "SELECT r.id, c.name AS company, r.year, r.standard, r.level, r.status, r.updated_at, r.owner_email, "
     "d.filename, CASE WHEN r.status = 'failed' THEN (SELECT s.name FROM stages s WHERE s.run_id = r.id "
     "AND s.status = 'failed' AND s.name IN ('read', 'extract', 'notes') ORDER BY s.name = 'notes', s.id DESC "
-    "LIMIT 1) END AS failed_stage "
+    "LIMIT 1) WHEN r.status = 'stopped' AND EXISTS (SELECT 1 FROM stages s WHERE s.run_id = r.id "
+    "AND s.name = 'read' AND s.status = 'stopped') THEN 'read' END AS failed_stage "
     "FROM runs r LEFT JOIN companies c ON c.id = r.company_id "
     "LEFT JOIN documents d ON d.run_id = r.id")
-
-
-def list_runs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute(_RUN_SQL + " ORDER BY r.updated_at DESC, r.id DESC").fetchall()
 
 
 def run_row(conn: sqlite3.Connection, run_id: int) -> sqlite3.Row:
@@ -147,28 +144,24 @@ def run_detail(conn: sqlite3.Connection, run_id: int) -> dict:
             if run["status"] == run_status.FAILED and failed else None,
             "working_on": extract["working_on"] if extract and extract["status"] == "working" else None,
             "open_question_id": question["id"] if question else None,
+            "redo": _open_redo(conn, run_id),
             "stages": [{k: s[k] for k in ("name", "status", "started_at", "finished_at", "error")} for s in stages]}
+
+
+def _open_redo(conn: sqlite3.Connection, run_id: int) -> Optional[dict]:
+    """The statement being redone and the figures kept through it, until it is finished again (`RunDetail.redo`)."""
+    from app.catalog.lookup import run_family
+    from app.extraction import progress
+    from app.figures.redo import held
+
+    family = run_family(conn, run_id)
+    redo = progress.open_redo(conn, run_id, family.entity_scopes) if family else None
+    return {"statement": redo["statement"], "kept": held(conn, run_id, redo)} if redo else None
 
 
 # Deleting a run --------------------------------------------------------------
 
-NOT_DELETABLE = "Only a run waiting at setup, or one whose reading or extraction failed, can be deleted."
-BUSY = "This run still has work in progress, so it cannot be deleted yet."
-
-
-def delete_run(conn: sqlite3.Connection, run: sqlite3.Row) -> None:
-    """Delete a run waiting at setup, or whose reading or extraction failed,
-    with every row that belongs to it (the tables cascade from `runs`: figures,
-    comments and rounds too). Use inside `db.connect(immediate=True)`, then
-    `remove_run_files`. Raises RunRefused with one plain sentence."""
-    if run["status"] not in run_status.DELETABLE:
-        raise RunRefused(NOT_DELETABLE)
-    busy = conn.execute("SELECT 1 FROM jobs WHERE run_id = ? AND status IN ('queued', 'working', 'retry')",
-                        (run["id"],)).fetchone()
-    if busy is not None:
-        raise RunRefused(BUSY)
-    conn.execute("DELETE FROM runs WHERE id = ?", (run["id"],))
-
+# The rules for who may delete a run, and when, are in `deleting.py`.
 
 def run_folders(run_id: int) -> list[Path]:
     """The run's own folders, named from its number alone."""

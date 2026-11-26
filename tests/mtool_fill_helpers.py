@@ -33,8 +33,12 @@ def setup_of(template: Path) -> dict:
 
 def matching_run(template: Path) -> int:
     setup = setup_of(template)
-    return make_run(setup["statements"], standard=setup["standard"], level=setup["level"],
-                    first_statements=setup["first_statements"])
+    run_id = make_run(setup["statements"], standard=setup["standard"], level=setup["level"],
+                      first_statements=setup["first_statements"])
+    if template.stem.endswith("_RM000"):   # the run's unit is the template's level of rounding
+        with db.connect(immediate=True) as conn:
+            conn.execute("UPDATE run_setup SET unit = ? WHERE run_id = ?", ("RM'000", run_id))
+    return run_id
 
 
 def value_for(i: int) -> float:

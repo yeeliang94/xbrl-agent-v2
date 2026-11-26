@@ -42,6 +42,7 @@ from app.agents import loop
 from app.catalog.lookup import run_family
 from app.catalog.statements import StatementType
 from app.extraction import agent
+from app.figures import redo as figures_redo
 from app.jobs import queue
 from app.jobs.queue import Job
 from app.jobs.worker import handler
@@ -126,11 +127,12 @@ def targets(conn, run_id: int) -> list[str]:
 NOTHING = "Nothing is extracted: no statement is part of this run."
 
 
-def start(conn, run_id: int) -> Optional[int]:
+def start(conn, run_id: int, only: Optional[tuple[str, ...]] = None) -> Optional[int]:
     """Queue extraction in the caller's transaction. Returns the job id, or
-    None when the setup includes no statement."""
+    None when the setup includes no statement. `only` names the statements to
+    work on (a redo of one statement); the others are left as they are."""
     family = run_family(conn, run_id)
-    wanted = targets(conn, run_id)
+    wanted = [s for s in targets(conn, run_id) if only is None or s in only]
     stamp = db.now()
 
     def note(kind: str, message: str) -> None:
@@ -218,11 +220,17 @@ async def _one(run_id: int, job_id: Optional[int], statements: tuple[str, ...], 
             f"SELECT pages_json FROM run_statements WHERE run_id = ? AND statement IN "
             f"({', '.join('?' * len(statements))})", (run_id, *statements)) for p in json.loads(r["pages_json"])})
         filled = progress.finished_for(conn, run_id, entity)
+        redo = progress.open_redo(conn, run_id, entities)
+        redo = redo if redo and redo["statement"] in statements else None
+        kept = figures_redo.held(conn, run_id, redo)
     data = {"statement": statements[0], "statements": list(statements), "entity": entity}
     _event(run_id, job_id, "statement", f"Working on the {named}.", data, pages)
+    label = named[:1].upper() + named[1:] + (", redone" if redo else "")   # this agent run in the run's cost
     try:
         outcome, deps, bench = await agent.run_figures(run_id, statements, model_id, job_id=job_id, model=model,
                                                        entity=entity, filled=filled,
+                                                       kept=kept,
+                                                       label=label,
                                                        should_stop=lambda: stop_requested(run_id))
     except agent.CannotStart as exc:
         raise UnitFailed(str(exc)) from exc
@@ -252,7 +260,7 @@ async def _one(run_id: int, job_id: Optional[int], statements: tuple[str, ...], 
                "code_steps": outcome.code_tool_used, **usage}
     if done:
         words = progress.what(done, entity, entities, layouts)
-        message = (f"The {words} {'are' if len(done) > 1 else 'is'} filled"
+        message = (f"The {words} {'are' if len(done) > 1 else 'is'} {'redone' if redo else 'filled'}"
                    + (f", with {open_points} point(s) left open." if open_points else "."))
         with db.connect(immediate=True) as conn:
             progress.mark(conn, run_id, job_id, done, entity, message, details)

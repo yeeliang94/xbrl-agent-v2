@@ -10,12 +10,14 @@ export interface DialogProps {
   actions?: ReactNode;
   /** Wider, for a page picture. */
   wide?: boolean;
+  /** Shown at the right of the title, e.g. a status. */
+  titleAside?: ReactNode;
 }
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** One dialog for the whole app. Escape or a click outside closes it. */
-export function Dialog({ open, title, onClose, children, actions, wide = false }: DialogProps) {
+export function Dialog({ open, title, onClose, children, actions, wide = false, titleAside }: DialogProps) {
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,7 +69,14 @@ export function Dialog({ open, title, onClose, children, actions, wide = false }
         tabIndex={-1}
         onKeyDown={onKeyDown}
       >
-        <h2 id="dialog-title">{title}</h2>
+        {titleAside ? (
+          <div className="line dlg-title">
+            <h2 id="dialog-title">{title}</h2>
+            {titleAside}
+          </div>
+        ) : (
+          <h2 id="dialog-title">{title}</h2>
+        )}
         {children}
         {actions && <div className="dlg-actions">{actions}</div>}
       </div>

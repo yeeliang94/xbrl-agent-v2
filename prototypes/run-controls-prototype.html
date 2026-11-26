@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run controls</title>
+<style>
+/* Builds on review-prototype-v3/v4, polish-prototype and activity-prototype (approved).
+   Covers go-live packages A5, B1, B3, B4 and C3. All data is invented. */
+:root{
+  --bg:#EEEFF1;--panel:#FFFFFF;--tint:#F5F7F8;--line:#DFE3E6;--edge:#CBD1D6;--ink:#111111;--ink-hover:#2B2B2B;--muted:#6B7280;--faint:#B5BCC4;--skeleton:#E6E9EC;
+  --scrim:rgba(20,20,19,.36);
+  --nav:#000000;--nav-ink:#FFFFFF;--nav-muted:#9AA1A9;--nav-on:#1F1F1F;--nav-group:#6B7280;--nav-accent:#FE7C39;--nav-scroll:#3A3A3A;
+  --accent:#FD5108;--accent-text:#D64000;--accent-soft:#FFF5ED;--accent-mid:#FFE8D4;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;
+  --radius:12px;--radius-sm:8px;--pill:999px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --t-title:22px;--t-panel:16px;--t-body:14px;--t-small:12px;
+  --ease:cubic-bezier(.16,1,.3,1);--fast:.15s;
+}
+*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--edge) transparent}
+html,body{margin:0;height:100%}
+body{font-family:var(--sans);font-size:var(--t-body);line-height:20px;color:var(--ink);background:var(--bg);display:grid;grid-template-columns:232px minmax(0,1fr);height:100vh;min-width:1180px;-webkit-font-smoothing:antialiased}
+button,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;padding:0}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+h1,h2,h3,p{font-weight:500;margin:0}
+p{font-weight:400}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.sp{flex:1}
+
+/* sidebar */
+.nav{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding:var(--s4) var(--s3) 380px;overflow:auto;scrollbar-color:var(--nav-scroll) transparent}
+.brand{display:flex;gap:var(--s2);align-items:center;padding:var(--s2) var(--s3) var(--s4);font-weight:500}
+.brand i{width:14px;height:14px;border-radius:3px;background:var(--nav-accent)}
+.grp{color:var(--nav-group);font-size:var(--t-small);padding:var(--s5) var(--s3) var(--s1)}
+.nav button{display:flex;justify-content:space-between;width:100%;text-align:left;height:32px;align-items:center;padding:0 var(--s3);border-radius:var(--radius-sm);color:var(--nav-muted);transition:background var(--fast),color var(--fast);flex:none}
+.nav button:hover{color:var(--nav-ink)}
+.nav button.on{background:var(--nav-on);color:var(--nav-ink)}
+.nav .n{font-size:var(--t-small);color:var(--nav-accent)}
+.nav .spin{border-color:var(--nav-accent);border-top-color:transparent}
+
+/* page */
+main{display:flex;flex-direction:column;min-width:0;padding:0 var(--s5) var(--s5);overflow:hidden;position:relative}
+.head{height:80px;flex:none;display:flex;align-items:center;gap:var(--s3)}
+.head h1{font-size:var(--t-title);line-height:28px;letter-spacing:-.015em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:var(--s4)}
+.cols.one{grid-template-columns:minmax(0,880px)}
+.panel{background:var(--panel);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.wh{height:64px;flex:none;display:flex;align-items:center;gap:var(--s2);padding:0 var(--s5)}
+.wh h2{font-size:var(--t-panel);line-height:24px;white-space:nowrap}
+.wh .seg,.wh .btn{flex:none}
+.pb{flex:1;min-height:0;overflow:auto;padding:0 var(--s5) var(--s5)}
+
+/* one button family */
+.btn{height:36px;padding:0 var(--s4);border-radius:var(--pill);border:1px solid transparent;display:inline-flex;align-items:center;gap:var(--s2);white-space:nowrap;transition:transform .12s var(--ease),background var(--fast),color var(--fast)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.primary:hover{background:var(--ink-hover)}
+.btn.outline{border-color:var(--edge)}
+.btn.outline:hover{background:var(--tint)}
+.btn.quiet{padding:0 var(--s2);color:var(--muted)}
+.btn.quiet:hover{color:var(--ink)}
+.btn.sm{height:28px;padding:0 var(--s3)}
+.btn.quiet.sm{padding:0 var(--s2)}
+.btn:disabled{opacity:.4;cursor:default;transform:none}
+
+/* one segmented control, one switch */
+.seg{display:inline-flex;background:var(--tint);border-radius:var(--pill);padding:2px}
+.seg button{height:28px;padding:0 var(--s3);border-radius:var(--pill);color:var(--muted);transition:background var(--fast),color var(--fast);white-space:nowrap}
+.seg button.on{background:var(--panel);color:var(--ink)}
+.dlg .seg,.wh .seg{background:var(--bg)}
+.switch{width:36px;height:20px;border-radius:var(--pill);background:var(--edge);position:relative;flex:none;transition:background var(--fast)}
+.switch::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .18s var(--ease)}
+.switch.on{background:var(--ink)}
+.switch.on::after{transform:translateX(16px)}
+
+/* a status is a dot and a word; a failure is the one filled label */
+.st{display:inline-flex;align-items:center;gap:6px;height:22px;white-space:nowrap}
+.st i{width:6px;height:6px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--faint);flex:none}
+.st.ok i{background:var(--ink);box-shadow:none}
+.st.att i{background:var(--accent);box-shadow:none}
+.fail{display:inline-flex;align-items:center;height:22px;padding:0 var(--s2);border-radius:var(--pill);background:var(--accent-text);color:#fff;font-size:var(--t-small);white-space:nowrap;flex:none}
+.spin{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--accent);border-top-color:transparent;display:inline-block;flex:none;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.count{display:inline-block;min-width:20px;height:20px;line-height:20px;padding:0 6px;border-radius:var(--pill);background:var(--tint);font-size:var(--t-small);text-align:center;margin-left:var(--s1)}
+
+/* one table style: no row lines, hover tint, numbers right */
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:400;text-align:left;height:32px;padding:0 var(--s3);z-index:1}
+th.n,td.r{text-align:right}
+td{height:36px;padding:0 var(--s3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.v{overflow:visible;text-overflow:clip;text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+tbody tr.line{cursor:pointer}
+tbody tr.line td{transition:background var(--fast)}
+tbody tr.line:hover td{background:var(--tint)}
+tbody tr.line td:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+tbody tr.line td:last-child{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+tbody tr.sel td,tbody tr.sel:hover td{background:var(--accent-soft)}
+tr.hd td{font-weight:500;padding-top:var(--s5);height:auto;padding-bottom:var(--s1)}
+tr.tot td{font-weight:500}
+tr.rule td.v .val{display:block;border-top:1px solid var(--ink);padding-top:var(--s1);margin-top:calc(-1 * var(--s1))}
+.rowstat{color:var(--accent-text);margin-left:var(--s2)}
+.rowkept{color:var(--muted);margin-left:var(--s2)}
+tr.sk td.v .val{display:inline-block;width:72px;height:8px;border:0;padding:0;margin:0;border-radius:4px;font-size:0;color:transparent;vertical-align:middle;background:linear-gradient(90deg,var(--skeleton) 25%,var(--tint) 50%,var(--skeleton) 75%);background-size:200% 100%;animation:shim 1.2s linear infinite}
+tr.emp td.v .val{visibility:hidden}
+tr.pop .val{animation:pop .4s var(--ease)}
+@keyframes shim{to{background-position:-200% 0}}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.flat tbody tr td{padding-left:0}
+.flat td:last-child,.flat th:last-child{padding-right:0}
+.empty{color:var(--muted);padding:var(--s5) 0}
+
+/* a notice above the grid, as "Extraction stopped" today */
+.notice{display:flex;align-items:center;gap:var(--s3);padding:0 var(--s5) var(--s3);flex:none}
+
+/* side panel */
+.tabs{display:flex;gap:var(--s5);padding:0 var(--s5);height:64px;align-items:center;flex:none}
+.tabs button{color:var(--muted);height:64px;transition:color var(--fast);white-space:nowrap}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+.sb{flex:1;min-height:0;overflow:auto;padding:var(--s2) var(--s5) var(--s5);display:flex;flex-direction:column;gap:var(--s4)}
+.nyl{display:flex;flex-direction:column;gap:var(--s2)}
+.nyi{background:var(--tint);border-radius:var(--radius);padding:var(--s3) var(--s4);display:flex;justify-content:space-between;align-items:center;gap:var(--s3);text-align:left;width:100%;transition:background var(--fast)}
+.nyi:hover{background:#EEF1F3}
+.nyi span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv{display:grid;grid-template-columns:96px 1fr;gap:var(--s2) var(--s4)}
+.kv span:nth-child(odd){color:var(--muted)}
+.pgwrap{background:var(--bg);border-radius:var(--radius);padding:var(--s4)}
+.pgh{color:var(--muted);font-size:13px;padding-bottom:var(--s3)}
+.page{background:#fff;padding:var(--s5) 20px;font:400 11.5px/17px Georgia,"Times New Roman",serif;color:#222}
+.page p{margin-bottom:var(--s2)}
+.page mark{background:var(--accent-mid);color:inherit}
+textarea{width:100%;height:72px;border:0;background:var(--bg);border-radius:var(--radius);padding:var(--s2) var(--s3);resize:none;outline:none;display:block}
+textarea:focus{box-shadow:0 0 0 2px var(--ink)}
+.bar{display:flex;gap:var(--s2);align-items:center}
+.cm{background:var(--tint);border-radius:var(--radius);padding:var(--s3) var(--s4);display:flex;flex-direction:column;gap:var(--s1)}
+
+/* activity */
+.list{display:flex;flex-direction:column;gap:var(--s3)}
+.step{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:var(--s2);color:var(--muted)}
+.step .mk{height:20px;display:flex;align-items:center;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--edge)}
+.step.now{color:var(--ink)}
+.pages{grid-column:2/4;display:flex;flex-wrap:wrap;gap:var(--s1);margin-top:var(--s1)}
+.pg{height:24px;padding:0 var(--s2);border-radius:var(--pill);border:1px solid var(--edge);font-size:var(--t-small);color:var(--muted);white-space:nowrap}
+.agents{display:flex;flex-direction:column;gap:var(--s5)}
+.agent{display:flex;flex-direction:column;gap:var(--s3)}
+.ah{display:flex;align-items:center;gap:var(--s2);min-height:28px}
+.fold{display:flex;align-items:center;gap:var(--s2);text-align:left;flex:1;min-width:0}
+.fold .nm{font-weight:500}
+.chev{width:16px;height:16px;stroke:var(--muted);fill:none;stroke-width:1.6;transition:transform .18s var(--ease);flex:none}
+.open>.fold .chev,.open>.ah .chev{transform:rotate(90deg)}
+.costs{display:flex;flex-direction:column;gap:var(--s2)}
+.costs table td,.costs table th{height:32px}
+
+/* reading, as on the setup screen today */
+.sec{padding:var(--s5);gap:var(--s4)}
+.rline{display:flex;align-items:center;gap:var(--s4);min-height:36px}
+.prog{height:4px;border-radius:var(--pill);background:var(--bg);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--ink);transition:width .3s}
+
+/* one dialog */
+.scrim{position:fixed;inset:0;background:var(--scrim);display:grid;place-items:center;z-index:20;animation:fade .2s}
+.dlg{width:520px;max-height:90vh;overflow:auto;background:#fff;border-radius:var(--radius);padding:var(--s5);display:flex;flex-direction:column;gap:var(--s4);animation:pop .3s var(--ease)}
+.dlg.wide{width:880px}
+.dlg h2{font-size:var(--t-panel);line-height:24px}
+.dlg h3{font-size:var(--t-body);display:flex;align-items:center;height:32px}
+@keyframes fade{from{opacity:0}}
+.dline{display:flex;align-items:center;gap:var(--s4);min-height:36px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:var(--s6);align-items:start}
+.two td{white-space:normal}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s4)}
+.stat{background:var(--tint);border-radius:var(--radius);padding:var(--s4)}
+.stat b{display:block;font-weight:500;font-size:24px;line-height:32px;font-family:var(--mono)}
+.stat span{color:var(--muted)}
+
+.toast{position:absolute;left:50%;bottom:var(--s6);transform:translate(-50%,8px);opacity:0;background:var(--ink);color:#fff;border-radius:var(--pill);padding:var(--s2) var(--s4);transition:opacity 160ms,transform 160ms;pointer-events:none;z-index:5;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* prototype switcher: not part of the app */
+.proto{position:fixed;left:12px;bottom:12px;width:208px;background:#fff;color:var(--ink);border-radius:var(--radius);padding:var(--s3);display:flex;flex-direction:column;gap:2px;font-size:13px;z-index:30}
+.proto .ph{display:flex;align-items:center}
+.proto b{font-weight:500;padding:0 var(--s2);flex:1}
+.proto button{height:24px;padding:0 var(--s2);border-radius:var(--radius-sm);text-align:left;color:var(--muted)}
+.proto button:hover{color:var(--ink)}
+.proto button.f.on{color:var(--ink);font-weight:500}
+.proto button.s{padding-left:var(--s5)}
+.proto button.s.on{background:var(--tint);color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<main>
+  <div class="head" id="head"></div>
+  <div class="cols" id="cols"><section class="panel" id="work"></section><section class="panel" id="side"></section></div>
+  <div class="toast" id="toast"></div>
+</main>
+<div id="dialog"></div>
+<div class="proto" id="proto"></div>
+<script>
+/* ---------- invented data ---------- */
+const COMPANY='Seri Angkasa Trading Sdn. Bhd.';
+const ME='Aina Roslan', NOW='25 Nov, 14:32';
+const SOFP=[
+ {k:'hd',l:'Non-current assets'},
+ {k:'ln',l:'Property, plant and equipment',a:'4,812,330',b:'4,355,901',mine:'Edited'},
+ {k:'ln',l:'Right-of-use assets',a:'829,990',b:'1,183,317'},
+ {k:'ln',l:'Deferred tax assets',a:'296,082',b:'280,531'},
+ {k:'tot',l:'Total non-current assets',a:'5,938,402',b:'5,819,749'},
+ {k:'hd',l:'Current assets'},
+ {k:'ln',l:'Trade receivables',a:'3,214,866',b:'2,904,120',stat:'Does not tally'},
+ {k:'ln',l:'Amounts due from related companies',a:'2,729,209',b:'3,762,972',stat:'Unsure'},
+ {k:'ln',l:'Cash and bank balances',a:'10,255,059',b:'6,245,254',mine:'Confirmed'},
+ {k:'tot',l:'Total current assets',a:'16,199,134',b:'12,912,346'},
+ {k:'tot',l:'Total assets',a:'22,137,536',b:'18,732,095'},
+ {k:'hd',l:'Equity'},
+ {k:'ln',l:'Share capital',a:'5,000,000',b:'5,000,000',mine:'Confirmed'},
+ {k:'ln',l:'Retained earnings',a:'9,594,810',b:'7,281,660'},
+ {k:'tot',l:'Total equity',a:'14,594,810',b:'12,281,660'},
+ {k:'hd',l:'Current liabilities'},
+ {k:'ln',l:'Trade payables',a:'5,813,225',b:'6,450,435'},
+ {k:'ln',l:'Amounts due to related company',a:'1,729,501',b:'0'},
+ {k:'tot',l:'Total liabilities',a:'7,542,726',b:'6,450,435'},
+ {k:'tot',l:'Total equity and liabilities',a:'22,137,536',b:'18,732,095'},
+];
+const SOPL=[
+ {k:'ln',l:'Revenue',a:'31,408,220',b:'27,915,604'},
+ {k:'ln',l:'Cost of sales',a:'(22,960,145)',b:'(20,771,390)'},
+ {k:'tot',l:'Gross profit',a:'8,448,075',b:'7,144,214'},
+ {k:'ln',l:'Administrative expenses',a:'(4,902,611)',b:'(4,410,087)'},
+ {k:'ln',l:'Finance costs',a:'(88,412)',b:'(102,336)'},
+ {k:'tot',l:'Profit before tax',a:'3,457,052',b:'2,631,791'},
+ {k:'ln',l:'Tax expense',a:'(1,143,902)',b:'(826,440)'},
+ {k:'tot',l:'Profit for the year',a:'2,313,150',b:'1,805,351'},
+];
+const KEPT=SOFP.filter(r=>r.mine);
+const LINES=SOFP.filter(r=>r.k!=='hd').length;
+const CHECKS=[
+ {t:'Assets equal equity and liabilities',ok:false,on:'sofp',line:'Trade receivables',p:"The template's sub-sheet adds to 22,151,402, but total assets are 22,137,536. The 13,866 gap sits in trade receivables."},
+ {t:'Trade receivables agree with their note',ok:false,on:'sofp',line:'Trade receivables',p:'The note on page 35 gives 3,200,000 and the statement gives 3,214,866.'},
+ {t:'Profit flows to retained earnings',ok:true,on:'sofp'},
+ {t:'Closing cash agrees with the balance sheet',ok:true,on:'sofp'},
+ {t:'Revenue less cost of sales gives gross profit',ok:true},
+ {t:'Comprehensive income agrees with profit',ok:true},
+];
+const DIFFS=[['Trade receivables','3,214,866','3,200,000'],['Other payables','412,090','421,090'],['Finance costs','(88,412)','88,412'],['Deferred tax assets','296,082','Not in the workbook']];
+const MAP=[['1','Corporate information','Corporate information',22],['2.1','Basis of preparation','Accounting policies',23],['2.4','Significant judgements','Accounting policies',24],['11','Property, plant and equipment','List of notes',31],['14','Trade receivables','List of notes',35],['20','Related party disclosures','List of notes',40],['21','Capital commitments','List of notes',41]];
+const NOTES_TOTAL=31;
+const PARTS_OPEN=()=>[
+ {id:1,t:'Note 2.4, going concern paragraph',p:24,why:'No field in the chosen templates takes this paragraph.',x:['The financial statements have been prepared on the historical cost basis.','The directors have a reasonable expectation that the Company has adequate resources to continue in operation for the foreseeable future.']},
+ {id:2,t:'Note 14, receivables by currency table',p:35,why:'The field holds the note text. The table did not fit with it.',x:['Trade receivables are non-interest bearing and are generally on 30 to 90 day terms.','The currency profile of trade receivables is: Ringgit Malaysia 2,804,116; US Dollar 410,750.']},
+ {id:3,t:'Note 21, second paragraph',p:41,why:'The paragraph repeats note 20 word for word.',status:'accepted',who:'Daniel Yusof',when:'24 Nov, 16:05',x:['Capital expenditure approved and contracted for amounts to 1,240,000.','Related party balances are unsecured, interest free and repayable on demand.']},
+ {id:4,t:'Page 47, text after the last note',p:47,why:'The text belongs to no numbered note.',x:['The financial statements were authorised for issue by the Board of Directors.','A supplementary schedule of directors’ interests is set out on the following page.']},
+];
+const PARTS_CLEAN=()=>PARTS_OPEN().slice(1,3).map(p=>({...p,status:'accepted',who:p.who||ME,when:p.when||'25 Nov, 09:18'}));
+const COSTS=[['Reading the document',130,.18],['Financial position',402,.94],['Profit or loss',245,.61],['Comprehensive income',72,.14],['Cash flows',348,.83],['Changes in equity',260,.66],['Placing the notes',580,1.32],['Note figures',485,1.07],['Formatting the notes',273,.38]];
+const REDO_COST=['Financial position, redone',214,.52];
+const SHEETS=[['Financial position',46,'figures'],['Profit or loss',18,'figures'],['Comprehensive income',2,'figures'],['Cash flows',31,'figures'],['Changes in equity',24,'figures'],['Notes, corporate information',4,'notes'],['Notes, accounting policies',9,'notes'],['Notes, list of notes',18,'notes']];
+const NOT_WRITTEN=[{s:0,l:'Amounts due from related companies',r:'No place in this template'},{s:1,l:'Dividend income',r:'No value in the report'},{s:7,l:'Note 21, capital commitments',r:'Longer than mTool allows'}];
+const REDO_STEPS=[
+ {t:'Started redoing the financial position.'},
+ {t:'',kept:1},
+ {t:"I'm reading the statement of financial position.",p:[13,14]},
+ {t:"I'm entering the non-current and current assets.",p:[13]},
+ {t:"I'm entering equity and liabilities.",p:[14]},
+ {t:"I'm checking the totals against the printed page.",p:[13,14]},
+];
+const AGENTS=()=>[
+ {nm:'Placing the notes',time:'4:12',s:'live',steps:[{t:'Working on placing the notes.'},{t:"I'm reading notes 1 to 6 to decide which template each belongs to.",p:[22,23,24]},{t:"I'm placing the accounting policies, sub-section by sub-section.",p:[24,25,26]}]},
+ {nm:'Note figures',time:'3:58',s:'live',steps:[{t:'Working on the note figures.'},{t:"I'm entering the property, plant and equipment movement table.",p:[31,32]},{t:"I'm entering trade receivables and their ageing.",p:[35]}]},
+];
+const PAGE_KIND=p=>p<5?'directors’ report':p<9?'auditors’ report':p<13?'statement by directors':p<15?'statement of financial position':p<16?'statement of profit or loss':p<18?'changes in equity':p<20?'cash flows':'notes';
+
+/* ---------- state ---------- */
+const $=s=>document.querySelector(s);
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const st={feat:'redo',scene:'finished',tok:0};
+function reset(){
+  st.tok++;
+  Object.assign(st,{mode:'review',clean:false,page:'sofp',tab:'needs',dlg:null,redo:null,redone:false,keep:true,sel:null,why:null,
+    mapView:'map',part:null,parts:PARTS_OPEN(),costOpen:false,stepsOpen:false,sent:0,
+    fill:{step:'choose',on:SHEETS.map(()=>true)},read:{page:14,total:62,state:'reading'},agents:AGENTS(),agentOpen:{}});
+}
+const later=(ms,fn)=>{const t=st.tok;setTimeout(()=>{if(t===st.tok)fn()},ms)};
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),2800)}
+const redoing=()=>!!st.redo&&st.redo.phase==='working';
+const busy=()=>redoing()||(st.mode==='notesrun'&&st.agents.some(a=>a.s!=='stopped'));
+const checks=()=>CHECKS.map(c=>st.clean?{...c,ok:true}:c);
+const failedChecks=()=>checks().filter(c=>!c.ok);
+const openParts=()=>st.parts.filter(p=>!p.status);
+const waitingComments=()=>st.parts.filter(p=>p.status==='comment');
+const unsureOpen=()=>!st.clean&&!st.redone;
+function needs(){
+  const out=failedChecks().map(c=>({t:c.t,fail:true,act:'check',arg:CHECKS.findIndex(x=>x.t===c.t)}));
+  if(unsureOpen())out.push({t:'Amounts due from related companies',word:'Unsure',act:'line',arg:'Amounts due from related companies'});
+  openParts().forEach(p=>out.push({t:p.t,word:'Gap in source',act:'part',arg:p.id}));
+  return out;
+}
+const clock=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+const money=n=>'$'+n.toFixed(2);
+
+/* ---------- sidebar and header ---------- */
+function nav(){
+  const item=(id,l,n,spin)=>`<button data-act="go" data-arg="${id}" class="${st.page===id&&st.mode!=='reading'?'on':''}"><span>${l}</span>${spin?'<i class="spin"></i>':n?`<span class="n">${n}</span>`:''}</button>`;
+  let h=`<div class="brand"><i></i>XBRL Agent</div><button><span>Runs</span></button><button><span>Settings</span></button>`;
+  if(st.mode!=='reading'){
+    const sofpN=st.clean?0:(unsureOpen()?2:1);
+    h+=`<div class="grp">Run</div>${item('ready','Readiness')}
+    <div class="grp">Statements</div>${item('sofp','Financial position',sofpN,redoing())}${item('sopl','Profit or loss')}${item('checks','Checks',failedChecks().length)}${item('compare','Compare')}
+    <div class="grp">Notes</div>${item('map','Placement map',openParts().length,st.mode==='notesrun'&&busy())}`;
+  }
+  $('#nav').innerHTML=h;
+}
+function head(){
+  let acts='';
+  if(st.mode==='reading'){
+    const s=st.read.state;
+    acts=s==='reading'?'<button class="btn outline" data-act="readStop">Stop</button>':s==='stopping'?'<button class="btn outline" disabled>Stopping</button>':'<button class="btn primary" data-act="readRetry">Try again</button>';
+    $('#head').innerHTML=`<h1>annual-report-2025.pdf</h1>${acts}`;return;
+  }
+  const waiting=waitingComments().length;
+  if(busy())acts='<button class="btn outline" data-act="stopAll">Stop</button>';
+  else if(waiting)acts=`<button class="btn primary" data-act="sendComments">Send ${waiting} comment${waiting===1?'':'s'}</button>`;
+  else acts='<button class="btn primary" data-act="fillOpen">Prepare mTool file</button>';
+  $('#head').innerHTML=`<h1>${COMPANY}</h1><button class="btn quiet">Download traces</button>${acts}`;
+}
+
+/* ---------- work panel ---------- */
+function grid(rows,redoHere){
+  const rd=redoHere?st.redo:null;let ri=0;
+  let h=`<table><thead><tr><th>Line in report</th><th class="n" style="width:128px">This year</th><th class="n" style="width:128px">Last year</th></tr></thead><tbody>`;
+  for(const r of rows){
+    if(r.k==='hd'){h+=`<tr class="hd"><td colspan="3">${r.l}</td></tr>`;continue}
+    const cls=['line'];if(r.k==='tot')cls.push('tot','rule');if(st.sel===r.l)cls.push('sel');
+    let stat='',attr='';
+    if(rd&&rd.phase!=='done'){
+      if(rd.keep&&r.mine)stat='<span class="rowkept">Kept</span>';
+      else{const i=ri++;attr=` data-ri="${i}"`;if(i>=rd.filled)cls.push(rd.phase==='stopped'?'emp':'sk')}
+    }else if(redoHere&&r.stat&&!st.clean&&!(st.redone&&r.stat==='Unsure'))stat=`<span class="rowstat">${r.stat}</span>`;
+    h+=`<tr class="${cls.join(' ')}"${attr} data-act="line" data-arg="${r.l}"><td>${r.l}${stat}</td><td class="v"><span class="val">${r.a}</span></td><td class="v"><span class="val">${r.b}</span></td></tr>`;
+  }
+  return h+'</tbody></table>';
+}
+function statementHead(name,canRedo){
+  const rd=st.redo;
+  const state=canRedo&&redoing()?'<span class="st"><i class="spin"></i>Redoing</span>':'';
+  const redo=canRedo&&!rd||canRedo&&rd.phase==='done'?`<button class="btn quiet" data-act="redoAsk"${busy()?' disabled':''}>Redo statement</button>`:'';
+  return `<div class="wh"><h2>${name}</h2>${state}<span class="sp"></span>${redo}<span class="seg"><button class="on">Report</button><button>Template</button></span><span class="seg"><button class="on">All</button><button>Needs you</button></span></div>`;
+}
+function readingBody(){
+  const r=st.read,done=r.page-1;
+  const status=r.state==='stopped'?'<span class="st"><i></i>Reading stopped</span>':r.state==='stopping'?`<span class="st"><i class="spin"></i>Stopping after page ${r.page}</span>`:`<span class="st"><i class="spin"></i><span id="rlabel">${readLabel()}</span></span>`;
+  return `<div class="sec panel" style="overflow:visible"><div class="rline">${status}<span class="sp"></span><span class="mono muted" id="rclock">${r.state==='stopped'?done+' of '+r.total+' pages read':clock(60+done*4)}</span></div>
+   <div class="prog"><i id="rbar" style="width:${100*done/r.total}%"></i></div><div class="list" id="rfeed">${readFeed()}</div></div>`;
+}
+const readLabel=()=>st.read.page>st.read.total?'Mapping the document':`Reading page ${st.read.page} of ${st.read.total}`;
+function readFeed(){
+  const last=Math.min(st.read.page-1,st.read.total);let h='';
+  for(let p=Math.max(1,last-3);p<=last;p++)h+=`<div class="step"><span class="mk"><i class="dot"></i></span><span>Read page ${p}, ${PAGE_KIND(p)}</span><span class="mono">${clock(60+p*4)}</span></div>`;
+  return h;
+}
+function readyRows(){
+  const cs=checks(),bad=failedChecks().length,n=needs().length,parts=openParts().length,acc=st.parts.filter(p=>p.status==='accepted').length;
+  const total=COSTS.concat(st.redone?[REDO_COST]:[]).reduce((a,c)=>[a[0]+c[1],a[1]+c[2]],[0,0]);
+  const ok=w=>`<span class="st ok"><i></i>${w}</span>`,att=w=>`<span class="st att"><i></i>${w}</span>`;
+  return [
+   ['Checks','checks',bad?`<span class="fail">${bad} of ${cs.length} failed</span>`:ok(`${cs.length} of ${cs.length} passed`)],
+   ['Needs you','needs',n?att(`${n} open`):ok('Nothing open')],
+   ['Accountant’s workbook','compare',st.clean?ok('No differences'):att(`${DIFFS.length} differences`)],
+   ['Notes coverage','parts',parts?att(`${parts} part${parts===1?'':'s'} of the source open`):ok(`All ${NOTES_TOTAL} notes accounted for${acc?', '+acc+' accepted by a person':''}`)],
+   ['Cost and time','cost',`<span class="mono muted">${money(total[1])} · ${clock(total[0])}</span>`],
+  ];
+}
+function work(){
+  const w=$('#work'),reading=st.mode==='reading';
+  $('#cols').classList.toggle('one',reading);
+  $('#side').style.display=reading?'none':'';
+  w.style.background=reading?'none':'';
+  if(reading){w.innerHTML=readingBody();return}
+  const rd=st.redo;
+  if(st.page==='sofp'){
+    const stopped=rd&&rd.phase==='stopped'?`<div class="notice"><span class="st"><i></i>Redo stopped</span><button class="btn outline sm" data-act="redoResume">Try again</button></div>`:'';
+    w.innerHTML=statementHead('Financial position',true)+stopped+`<div class="pb">${grid(SOFP,true)}</div>`;
+  }else if(st.page==='sopl'){
+    w.innerHTML=statementHead('Profit or loss',false)+`<div class="pb">${grid(SOPL,false)}</div>`;
+  }else if(st.page==='checks'){
+    w.innerHTML=`<div class="wh"><h2>Checks</h2></div><div class="pb"><table><thead><tr><th>Check</th><th class="n" style="width:220px">Status</th></tr></thead><tbody>
+     ${checks().map((c,i)=>`<tr class="line" data-act="check" data-arg="${i}"><td>${c.t}</td><td class="r">${redoing()&&c.on==='sofp'?'<span class="st"><i class="spin"></i>Waiting for the redo</span>':c.ok?'<span class="st ok"><i></i>Passed</span>':'<span class="fail">Failed</span>'}</td></tr>`).join('')}</tbody></table></div>`;
+  }else if(st.page==='compare'){
+    w.innerHTML=`<div class="wh"><h2>Compare</h2><span class="sp"></span><span class="muted">accountant-workbook.xlsx</span></div><div class="pb">${st.clean?'<div class="empty">No differences</div>':`<table><thead><tr><th>Line</th><th class="n" style="width:128px">This run</th><th class="n" style="width:128px">Workbook</th></tr></thead><tbody>
+     ${DIFFS.map(d=>`<tr class="line"><td>${d[0]}</td><td class="v">${d[1]}</td><td class="v">${d[2]}</td></tr>`).join('')}</tbody></table>`}</div>`;
+  }else if(st.page==='ready'){
+    const rows=readyRows(),isReady=failedChecks().length+needs().length+openParts().length===0&&st.clean;
+    w.innerHTML=`<div class="wh"><h2>Readiness</h2><span class="sp"></span>${isReady?'<span class="st ok"><i></i>Ready to file</span>':'<span class="st att"><i></i>Not ready to file</span>'}</div>
+     <div class="pb"><table><tbody>${rows.map(r=>`<tr class="line" data-act="readyGo" data-arg="${r[1]}"><td style="width:30%">${r[0]}</td><td class="r">${r[2]}</td></tr>`).join('')}</tbody></table></div>`;
+  }else if(st.page==='map'){
+    const n=openParts().length;
+    const seg=`<span class="seg"><button data-act="mapView" data-arg="map" class="${st.mapView==='map'?'on':''}">Placed</button><button data-act="mapView" data-arg="parts" class="${st.mapView==='parts'?'on':''}">Not accounted for${n?`<span class="count">${n}</span>`:''}</button></span>`;
+    let body;
+    if(st.mapView==='map')body=`<table><thead><tr><th style="width:64px">Note</th><th>Title</th><th style="width:30%">Placed in</th><th class="n" style="width:72px">Page</th></tr></thead><tbody>
+      ${MAP.map(m=>`<tr class="line"><td class="mono">${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td><td class="r muted">${m[3]}</td></tr>`).join('')}</tbody></table>`;
+    else body=st.parts.length?`<table><thead><tr><th>Part of the source</th><th class="n" style="width:72px">Page</th><th style="width:56%">Sign-off</th></tr></thead><tbody>
+      ${st.parts.map(p=>`<tr class="line ${st.part===p.id?'sel':''}" data-act="part" data-arg="${p.id}"><td>${p.t}</td><td class="r muted">${p.p}</td><td>${partStatus(p)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">Every part of the source is accounted for</div>';
+    w.innerHTML=`<div class="wh"><h2>Placement map</h2><span class="sp"></span>${seg}</div><div class="pb">${body}</div>`;
+  }
+}
+function partStatus(p){
+  const by=p.who?`<span class="muted" style="margin-left:8px">${p.who}, ${p.when}</span>`:'';
+  if(p.status==='accepted')return `<span class="st ok"><i></i>Accepted</span> ${by}`;
+  if(p.status==='comment')return `<span class="st att"><i></i>Comment added</span> ${by}`;
+  if(p.status==='sent')return `<span class="st att"><i></i>Sent back</span> ${by}`;
+  return '<span class="st"><i></i>Open</span>';
+}
+
+/* ---------- side panel ---------- */
+const chev='<svg class="chev" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>';
+const pages=p=>p&&p.length?`<div class="pages">${p.map(n=>`<button class="pg">Page ${n}</button>`).join('')}</div>`:'';
+const step=(s,now,time)=>`<div class="step ${now?'now':''}"><span class="mk">${now?'<i class="spin"></i>':'<i class="dot"></i>'}</span><span>${s.t}</span><span class="mono">${now&&time?time:''}</span>${pages(s.p)}</div>`;
+function costFold(){
+  const rows=COSTS.concat(st.redone?[REDO_COST]:[]);
+  const tot=rows.reduce((a,c)=>[a[0]+c[1],a[1]+c[2]],[0,0]);
+  return `<div class="costs ${st.costOpen?'open':''}"><button class="fold" data-act="cost" aria-expanded="${st.costOpen}">${chev}<span>Cost and time</span></button>
+   ${st.costOpen?`<table><thead><tr><th>Agent</th><th class="n" style="width:72px">Time</th><th class="n" style="width:72px">Cost</th></tr></thead><tbody>
+    ${rows.map(c=>`<tr><td>${c[0]}</td><td class="v">${clock(c[1])}</td><td class="v">${money(c[2])}</td></tr>`).join('')}
+    <tr class="tot rule"><td>Whole run</td><td class="v"><span class="val">${clock(tot[0])}</span></td><td class="v"><span class="val">${money(tot[1])}</span></td></tr></tbody></table>`:''}</div>`;
+}
+function activity(){
+  const rd=st.redo;
+  if(rd&&rd.phase==='working'){
+    const shown=REDO_STEPS.slice(0,Math.min(REDO_STEPS.length,3+rd.steps)).filter(s=>!s.kept||rd.keep).map(s=>s.kept?{t:`Kept ${KEPT.length} lines you edited or confirmed.`}:s);
+    return `<div class="list">${shown.map((s,i)=>step(s,i===shown.length-1,clock(8+rd.filled*3))).join('')}</div>`;
+  }
+  if(st.mode==='notesrun'){
+    return `<div class="agents">${st.agents.map((a,i)=>{
+      const open=!!st.agentOpen[i],live=a.s!=='stopped';
+      const shown=open?a.steps:live?a.steps.slice(-1):[];
+      const word=a.s==='stopping'?' · Stopping':a.s==='stopped'?' · Stopped':'';
+      const ctl=a.s==='live'?`<button class="btn quiet sm" data-act="agentStop" data-arg="${i}">Stop</button>`:a.s==='stopped'?`<button class="btn outline sm" data-act="agentRetry" data-arg="${i}">Try again</button>`:'';
+      return `<div class="agent ${open?'open':''}"><div class="ah"><button class="fold" data-act="agentToggle" data-arg="${i}" aria-expanded="${open}">${chev}<span><span class="nm">${a.nm}</span><span class="muted">${word}</span></span></button><span class="mono muted">${a.time}</span>${ctl}</div>
+        ${shown.length?`<div class="list">${shown.map((s,j)=>step(s,live&&j===shown.length-1,'')).join('')}</div>`:''}</div>`}).join('')}</div>`;
+  }
+  const done=st.redone?`<div class="list">${step({t:`Financial position redone: ${LINES-(rd&&rd.keep?KEPT.length:0)} lines replaced${rd&&rd.keep?', '+KEPT.length+' kept':''}.`,p:[13,14]})}</div>`:'';
+  const stopped=rd&&rd.phase==='stopped'?`<div class="list">${step({t:'The redo of the financial position was stopped.'})}</div>`:'';
+  return `<div class="${st.stepsOpen?'open':''}"><button class="fold" data-act="steps" aria-expanded="${st.stepsOpen}">${chev}<span>Worked through 46 steps</span><span class="sp"></span><span class="mono muted">38:12</span></button></div>
+   ${st.stepsOpen?`<div class="list">${[{t:'Started the figures.'},{t:'Read the five statements and saved 121 figures.',p:[13,14,15]},{t:'Placed 31 notes and entered their figures.',p:[22,31,35]},{t:'Ran 6 checks.'}].map(s=>step(s)).join('')}</div>`:''}${done}${stopped}${costFold()}`;
+}
+function source(){
+  if(st.page==='map'&&st.part){
+    const p=st.parts.find(x=>x.id===st.part);
+    let foot;
+    if(p.status==='accepted')foot=`<div class="bar"><span class="st ok"><i></i>Accepted</span><span class="muted">${p.who}, ${p.when}</span><span class="sp"></span><button class="btn quiet sm" data-act="partUndo">Undo</button></div>`;
+    else if(p.status)foot=`<div class="cm"><span>${esc(p.comment)}</span><span class="muted">${p.who}, ${p.when}</span></div><div class="bar">${partStatus({status:p.status})}<span class="sp"></span>${p.status==='comment'?'<button class="btn quiet sm" data-act="partUndo">Remove</button>':''}</div>`;
+    else foot=`<textarea id="cm" placeholder="Comment for the agent"></textarea><div class="bar"><span class="sp"></span><button class="btn outline" data-act="partComment">Add comment</button><button class="btn outline" data-act="partAccept">Accept</button></div>`;
+    return `<h3>${p.t}</h3><p>${p.why}</p><div class="pgwrap"><div class="pgh">Page ${p.p}</div><div class="page"><p>${p.x[0]}</p><p><mark>${p.x[1]}</mark></p></div></div>${foot}`;
+  }
+  const r=SOFP.concat(SOPL).find(x=>x.l===st.sel);
+  if(!r)return st.why?`<p>${st.why}</p>`:'<div class="empty">Nothing selected</div>';
+  return `${st.why?`<p>${st.why}</p>`:''}<h3>${r.l}</h3><div class="kv"><span>This year</span><span class="mono">${r.a}</span><span>Last year</span><span class="mono">${r.b}</span>${r.mine?`<span>${r.mine}</span><span>${ME}, 24 Nov</span>`:''}</div>
+   <textarea placeholder="Comment for the agent"></textarea>`;
+}
+function side(){
+  if(st.mode==='reading')return;
+  const list=needs(),cms=st.parts.filter(p=>p.comment);
+  const t=(id,l,n)=>`<button data-act="tab" data-arg="${id}" class="${st.tab===id?'on':''}">${l}${n?`<span class="count">${n}</span>`:''}</button>`;
+  let body='';
+  if(st.tab==='needs')body=list.length?`<div class="nyl">${list.map(n=>`<button class="nyi" data-act="${n.act}" data-arg="${esc(n.arg)}"><span>${n.t}</span>${n.fail?'<span class="fail">Check failed</span>':`<span class="st att"><i></i>${n.word}</span>`}</button>`).join('')}</div>`:'<div class="empty">Nothing needs you</div>';
+  else if(st.tab==='source')body=source();
+  else if(st.tab==='comments')body=cms.length?cms.map(p=>`<div class="cm"><span>${p.t}</span><span>${esc(p.comment)}</span><span class="muted">${p.who}, ${p.when} · ${p.status==='sent'?'Sent':'Not sent yet'}</span></div>`).join(''):'<div class="empty">No comments</div>';
+  else body=activity();
+  $('#side').innerHTML=`<div class="tabs">${t('needs','Needs you',list.length)}${t('source','Source')}${t('comments','Comments',cms.length)}${t('activity','Activity')}</div><div class="sb">${body}</div>`;
+}
+
+/* ---------- dialogs ---------- */
+function fillLines(){
+  const f=st.fill,out=[];
+  SHEETS.forEach((s,i)=>{if(!f.on[i])out.push({l:`${s[0]}, ${s[1]} ${s[2]}`,r:'Sheet not chosen',n:s[1]})});
+  NOT_WRITTEN.forEach(x=>{if(f.on[x.s])out.push({...x,n:1})});
+  return out;
+}
+function dialog(){
+  const d=$('#dialog');
+  if(st.dlg==='redo'){
+    d.innerHTML=`<div class="scrim"><div class="dlg" role="dialog" aria-label="Redo financial position"><h2>Redo financial position</h2>
+     <div class="dline"><span>Keep the ${KEPT.length} lines you edited or confirmed</span><span class="sp"></span><button class="switch ${st.keep?'on':''}" role="switch" aria-checked="${st.keep}" aria-label="Keep the lines you edited or confirmed" data-act="keep"></button></div>
+     ${st.keep?`<table class="flat"><tbody>${KEPT.map(r=>`<tr><td>${r.l}</td><td class="r muted" style="width:120px">${r.mine}</td></tr>`).join('')}</tbody></table>`:''}
+     <div class="bar"><span class="sp"></span><button class="btn quiet" data-act="close">Cancel</button><button class="btn primary" data-act="redoGo">${st.keep?'Redo':'Redo and replace all'}</button></div></div></div>`;
+    return;
+  }
+  if(st.dlg==='fill'){
+    const f=st.fill,lines=fillLines(),picked=f.on.filter(Boolean).length;
+    const file=`<div class="dline"><span class="${f.step==='choose'?'muted':''}">${f.step==='choose'?'No template chosen':'mTool-MFRS-company-2025.xlsx'}</span><span class="sp"></span>${f.step==='checking'?'<span class="st"><i class="spin"></i>Checking the template</span>':f.step==='filling'?'<span class="st"><i class="spin"></i>Filling</span>':`<button class="btn outline sm" data-act="fillChoose">${f.step==='choose'?'Choose template':'Replace'}</button>`}</div>`;
+    if(f.step==='receipt'){
+      const fig=SHEETS.reduce((a,s,i)=>a+(f.on[i]&&s[2]==='figures'?s[1]:0),0)-NOT_WRITTEN.filter(x=>f.on[x.s]&&SHEETS[x.s][2]==='figures').length;
+      const notes=SHEETS.reduce((a,s,i)=>a+(f.on[i]&&s[2]==='notes'?s[1]:0),0)-NOT_WRITTEN.filter(x=>f.on[x.s]&&SHEETS[x.s][2]==='notes').length;
+      d.innerHTML=`<div class="scrim"><div class="dlg" role="dialog" aria-label="mTool file ready"><h2>mTool file ready</h2>
+       <div class="stats"><div class="stat"><b>${fig}</b><span>Written</span></div><div class="stat"><b>${lines.reduce((a,l)=>a+l.n,0)}</b><span>Not written</span></div><div class="stat"><b>${notes}</b><span>Notes</span></div></div>
+       ${lines.length?`<table class="flat"><tbody>${lines.map(l=>`<tr><td>${l.l}</td><td class="r muted" style="width:200px">${l.r}</td></tr>`).join('')}</tbody></table>`:''}
+       ${file}<div class="bar"><span class="sp"></span><button class="btn quiet" data-act="close">Close</button><button class="btn primary" data-act="close">Download</button></div></div></div>`;
+      return;
+    }
+    const preview=f.step==='preview'||f.step==='filling';
+    const locked=f.step==='filling';
+    d.innerHTML=`<div class="scrim"><div class="dlg ${preview?'wide':''}" role="dialog" aria-label="Prepare mTool file"><h2>Prepare mTool file</h2>${file}
+     ${preview?`<div class="two"><div><h3>Sheets to fill</h3><table class="flat"><tbody>${SHEETS.map((s,i)=>`<tr><td>${s[0]}</td><td class="r muted" style="width:96px">${s[1]} ${s[2]}</td><td class="r" style="width:52px"><button class="switch ${f.on[i]?'on':''}" role="switch" aria-checked="${f.on[i]}" aria-label="${s[0]}" data-act="sheet" data-arg="${i}"${locked?' disabled':''}></button></td></tr>`).join('')}</tbody></table></div>
+      <div><h3>Will not be written${lines.length?`<span class="count">${lines.length}</span>`:''}</h3>${lines.length?`<table class="flat"><tbody>${lines.map(l=>`<tr><td>${l.l}</td><td class="r muted" style="width:190px">${l.r}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:var(--s2) 0">Everything will be written</div>'}</div></div>`:''}
+     <div class="bar"><span class="sp"></span><button class="btn quiet" data-act="close">Cancel</button><button class="btn primary" data-act="fillGo"${!preview||locked||!picked?' disabled':''}>Fill template</button></div></div></div>`;
+    return;
+  }
+  d.innerHTML='';
+}
+
+/* ---------- prototype switcher ---------- */
+const FEATS=[
+ ['redo','Redo a statement',[['finished','Finished statement'],['confirm','Confirm'],['working','Being redone'],['done','Done']]],
+ ['stop','Stop reading',[['reading','Reading'],['stopping','Stopping'],['stopped','Stopped'],['agent','Stop one agent']]],
+ ['cost','Cost and time',[['closed','Hidden'],['open','Opened']]],
+ ['fill','Fill dialog',[['choose','No template yet'],['preview','Before the fill'],['off','A sheet left out'],['filling','Filling'],['receipt','After the fill']]],
+ ['notes','Notes sign-off',[['open','Open list'],['acted','Accepted and sent back']]],
+ ['ready','Readiness',[['not','Not ready'],['ready','Ready']]],
+];
+function proto(){
+  $('#proto').innerHTML=`<div class="ph"><b>Prototype</b><button data-act="protoHide">${st.hide?'Show':'Hide'}</button></div>`+(st.hide?[]:FEATS).map(f=>`<button class="f ${st.feat===f[0]?'on':''}" data-act="feat" data-arg="${f[0]}">${f[1]}</button>${st.feat===f[0]?f[2].map(s=>`<button class="s ${st.scene===s[0]?'on':''}" data-act="scene" data-arg="${s[0]}">${s[1]}</button>`).join(''):''}`).join('');
+}
+function startRedo(filled){
+  const total=LINES-(st.keep?KEPT.length:0);
+  st.redo={phase:'working',keep:st.keep,filled:filled||0,total,steps:Math.floor((filled||0)/4)};
+  st.redone=false;st.dlg=null;st.page='sofp';st.tab='activity';st.sel=null;st.why=null;
+  later(600,tickRedo);
+}
+function tickRedo(){
+  const rd=st.redo;if(!rd||rd.phase!=='working')return;
+  rd.filled++;
+  const tr=document.querySelector(`tr[data-ri="${rd.filled-1}"]`);if(tr){tr.classList.remove('sk');tr.classList.add('pop')}
+  if(rd.filled>=rd.total){rd.phase='done';st.redone=true;st.tab='needs';st.scene=st.feat==='redo'?'done':st.scene;draw();toast(`Financial position redone${rd.keep?'. '+KEPT.length+' lines kept':''}`);return}
+  if(rd.filled%4===0){rd.steps++;if(st.tab==='activity')side()}
+  later(450,tickRedo);
+}
+function tickRead(){
+  const r=st.read;if(st.mode!=='reading'||r.state!=='reading'||r.page>r.total)return;
+  r.page++;
+  const l=$('#rlabel');if(l){l.textContent=readLabel();$('#rbar').style.width=100*(r.page-1)/r.total+'%';$('#rclock').textContent=clock(60+(r.page-1)*4);$('#rfeed').innerHTML=readFeed()}
+  later(700,tickRead);
+}
+function scene(feat,name){
+  reset();st.feat=feat;st.scene=name;
+  if(feat==='redo'){
+    if(name==='confirm')st.dlg='redo';
+    if(name==='working')startRedo(4);
+    if(name==='done'){st.redo={phase:'done',keep:true,filled:99,total:LINES-KEPT.length,steps:9};st.redone=true;st.tab='activity'}
+  }else if(feat==='stop'){
+    if(name==='agent'){st.mode='notesrun';st.page='map';st.tab='activity'}
+    else{st.mode='reading';st.read.state=name;if(name==='reading')later(700,tickRead)}
+  }else if(feat==='cost'){st.tab='activity';st.costOpen=name==='open'}
+  else if(feat==='fill'){st.dlg='fill';st.fill.step=name==='off'?'preview':name;if(name==='off'){st.fill.on[3]=false;st.fill.on[7]=false}}
+  else if(feat==='notes'){
+    st.page='map';st.mapView='parts';st.part=1;st.tab='source';
+    if(name==='acted'){Object.assign(st.parts[0],{status:'accepted',who:ME,when:NOW});Object.assign(st.parts[1],{status:'sent',who:ME,when:NOW,comment:'Put the currency table under the note text, as a table.'});st.part=2}
+  }else if(feat==='ready'){st.page='ready';st.clean=name==='ready';if(st.clean)st.parts=PARTS_CLEAN()}
+  draw();
+}
+
+/* ---------- actions ---------- */
+const ACT={
+  feat:a=>scene(a,FEATS.find(f=>f[0]===a)[2][0][0]),
+  scene:a=>scene(st.feat,a),
+  go:a=>{st.page=a;st.sel=null;st.why=null;st.part=null;if(a==='map'&&st.feat!=='notes')st.mapView='map';if(st.tab==='source')st.tab='needs';draw()},
+  tab:a=>{st.tab=a;side()},
+  line:a=>{if(redoing()&&st.page==='sofp')return;st.sel=a;st.why=null;st.tab='source';draw()},
+  check:a=>{const c=checks()[+a];if(c.ok)return;st.page='sofp';st.sel=c.line;st.why=c.p;st.tab='source';draw()},
+  part:a=>{st.page='map';st.mapView='parts';st.part=+a;st.tab='source';draw()},
+  mapView:a=>{st.mapView=a;st.part=null;if(st.tab==='source')st.tab='needs';draw()},
+  partAccept:()=>{const p=st.parts.find(x=>x.id===st.part);Object.assign(p,{status:'accepted',who:ME,when:NOW});draw()},
+  partComment:()=>{const t=$('#cm');if(!t.value.trim()){t.focus();return}const p=st.parts.find(x=>x.id===st.part);Object.assign(p,{status:'comment',comment:t.value.trim(),who:ME,when:NOW});draw()},
+  partUndo:()=>{const p=st.parts.find(x=>x.id===st.part);delete p.status;delete p.comment;delete p.who;delete p.when;draw()},
+  sendComments:()=>{const n=waitingComments().length;waitingComments().forEach(p=>p.status='sent');draw();toast(`${n} comment${n===1?'':'s'} sent to the agent`)},
+  readyGo:a=>{if(a==='needs'){st.tab='needs';side();return}if(a==='cost'){st.tab='activity';st.costOpen=true;side();return}if(a==='parts'){st.page='map';st.mapView='parts';st.part=null}else st.page=a;st.tab='needs';draw()},
+  cost:()=>{st.costOpen=!st.costOpen;side()},
+  steps:()=>{st.stepsOpen=!st.stepsOpen;side()},
+  redoAsk:()=>{st.keep=true;st.dlg='redo';dialog()},
+  keep:()=>{st.keep=!st.keep;dialog()},
+  redoGo:()=>{st.tok++;startRedo(0);if(st.feat==='redo')st.scene='working';draw()},
+  redoResume:()=>{st.redo.phase='working';st.tab='activity';draw();later(450,tickRedo)},
+  stopAll:()=>{if(redoing()){st.tok++;st.redo.phase='stopped';st.tab='needs';draw();return}st.agents.forEach(a=>a.s='stopped');draw()},
+  close:()=>{st.dlg=null;dialog()},
+  protoHide:()=>{st.hide=!st.hide;proto()},
+  fillOpen:()=>{st.dlg='fill';st.fill={step:'choose',on:SHEETS.map(()=>true)};dialog()},
+  fillChoose:()=>{st.fill.step='checking';dialog();later(900,()=>{st.fill.step='preview';dialog()})},
+  sheet:a=>{st.fill.on[+a]=!st.fill.on[+a];dialog()},
+  fillGo:()=>{st.fill.step='filling';dialog();later(1600,()=>{st.fill.step='receipt';dialog()})},
+  readStop:()=>{st.tok++;st.read.state='stopping';draw();later(1400,()=>{st.read.state='stopped';if(st.feat==='stop')st.scene='stopped';draw()})},
+  readRetry:()=>{st.read.state='reading';if(st.feat==='stop')st.scene='reading';draw();later(700,tickRead)},
+  agentToggle:a=>{st.agentOpen[a]=!st.agentOpen[a];side()},
+  agentStop:a=>{const g=st.agents[+a];g.s='stopping';side();later(1200,()=>{g.s='stopped';draw()})},
+  agentRetry:a=>{st.agents[+a].s='live';draw()},
+};
+document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el||el.disabled)return;const f=ACT[el.dataset.act];if(f)f(el.dataset.arg)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&st.dlg){st.dlg=null;dialog()}});
+function draw(){nav();head();work();side();dialog();proto()}
+scene('redo','finished');
+</script>
+</body>
+</html>

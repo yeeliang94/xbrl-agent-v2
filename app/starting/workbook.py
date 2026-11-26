@@ -37,6 +37,7 @@ from typing import Optional
 
 from app.catalog.fields import run_fields
 from app.catalog.lookup import RunFamily
+from app.runs import units
 from app.scope.fields import statement_words
 from app.scoring.workbook_read import NothingMatches, read_filled_workbook
 from app.workbook.mtool_layout import has_taxonomy_names
@@ -45,7 +46,7 @@ from app.workbook.xlsx_cells import Cells, col_to_idx, read_workbook, resolve_sh
 
 Key = tuple[str, str, str, str]   # concept_uuid, period, entity_scope, dimension_key
 
-UNIT_WORDS = {"RM": "RM", "RM'000": "RM'000 (thousands)"}
+UNIT_WORDS = {"RM": "RM", "RM'000": "RM'000 (thousands)", "RM'000,000": "RM'000,000 (millions)"}
 _MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
            "November", "December")
 
@@ -115,11 +116,11 @@ def facts(cells_by_sheet: dict[str, Cells]) -> dict:
     it says nothing this code knows."""
     submission = (_filing_value(cells_by_sheet, "TypeOfSubmission") or "").upper()
     nature = (_filing_value(cells_by_sheet, "NatureOfFinancialStatements") or "").lower()
-    rounding = (_filing_value(cells_by_sheet, "LevelOfRoundingUsedInFinancialStatements") or "").lower()
+    rounding = _filing_value(cells_by_sheet, "LevelOfRoundingUsedInFinancialStatements")
     return {
         "standard": "MPERS" if "MPERS" in submission else "MFRS" if "MFRS" in submission else None,
         "level": "Group" if "consolidated" in nature else "Company" if "separate" in nature else None,
-        "unit": "RM" if "actual" in rounding else "RM'000" if "thousand" in rounding else None,
+        "unit": units.from_rounding(rounding),
         "year_end": _iso(_filing_value(cells_by_sheet, "CompanyCurrentFinancialYearEndDate")),
     }
 

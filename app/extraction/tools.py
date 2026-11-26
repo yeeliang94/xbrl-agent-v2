@@ -246,6 +246,12 @@ def _writes(deps: FiguresDeps, entry: FigureSave, concept_uuid: str, section: st
     return out
 
 
+# A redo keeps what a person settled (the person chose so when asking for it): the write is not made, and the
+# agent is told why and what it can do instead.
+KEPT_BY_PERSON = ("A person edited or confirmed this figure and chose to keep it through this redo, so it stays "
+                  "as it is; leave a comment if the report disagrees with it.")
+
+
 def save_figures(ctx: RunContext[FiguresDeps], figures: list[FigureSave], note: Optional[str] = None) -> str:
     """Save figures by field id, both years in one entry. Saving a field again replaces it.
     Each figure is judged on its own: a refused one does not stop the others.
@@ -285,6 +291,8 @@ def save_for(deps: FiguresDeps, figures: list[FigureSave], note: Optional[str] =
         current = _saved(deps, entity)
         kept = [p for p in planned if p[1] == "PY" and comparatives.is_kept(current.get((p[2].concept_uuid, "PY")))]
         planned = [p for p in planned if p not in kept]
+        held = [p for p in planned if entity == deps.entity and (p[2].concept_uuid, p[1]) in deps.kept_by_person]
+        planned = [p for p in planned if p not in held]
         with db.connect(immediate=True) as conn:
             results = store.save_figures(conn, deps.run_id, [w for _, _, w in planned], _actor(deps)) if planned \
                 else []
@@ -294,6 +302,8 @@ def save_for(deps: FiguresDeps, figures: list[FigureSave], note: Optional[str] =
             if kept:   # after the readings are recorded: the comparatives check reads them
                 store.recalculate(conn, deps.run_id)
         by_field: dict[str, list[str]] = {}
+        for fid, period, _write in held:
+            by_field.setdefault(fid, []).append(f"{period} not saved. {KEPT_BY_PERSON}")
         for (fid, _period, _write), answer in zip(kept, compared):
             by_field.setdefault(fid, []).append(f"PY not saved: last year's figure is kept from the starting "
                                                 f"workbook. {answer}")
@@ -375,6 +385,9 @@ def clear_for(deps: FiguresDeps, figures: list[FigureClear], note: Optional[str]
                 continue
             for period in ("CY", "PY") if entry.period == "both" else (entry.period,):
                 row = saved.get((f.concept_uuid, period))
+                if (entity or deps.entity) == deps.entity and (f.concept_uuid, period) in deps.kept_by_person:
+                    out.append(f"- {f.id} {f.name}: {period} not cleared. {KEPT_BY_PERSON}")
+                    continue
                 if row is None or (row["value"] is None and row["stated_value"] is None):
                     out.append(f"- {f.id} {f.name}: nothing is saved for {period}.")
                     continue

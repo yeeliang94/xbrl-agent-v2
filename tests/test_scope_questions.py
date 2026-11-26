@@ -251,9 +251,9 @@ def test_the_setup_gives_a_question_card_for_each_unsure_suggestion(signed_in):
                          [])
     questions = signed_in.get(f"/api/runs/{run_id}/setup").json()["setup"]["questions"]
     unit = next(q for q in questions if q["field"] == "unit")
-    assert unit["question"] == "Are the amounts in RM or RM thousands?" and unit["pages"] == [2]
+    assert unit["question"] == "Are the amounts in RM, RM thousands or RM millions?" and unit["pages"] == [2]
     assert [(c["value"], c["label"], c["suggested"]) for c in unit["choices"]] == [
-        ("RM", "RM", True), ("RM'000", "RM thousands", False)]
+        ("RM", "RM", True), ("RM'000", "RM thousands", False), ("RM'000,000", "RM millions", False)]
     assert unit["reason"] == "No unit is printed." and all(c["effect"] for c in unit["choices"])
     layout = next(q for q in questions if q["field"] == "layout")
     assert layout["statement"] == "SOPL"   # the fake map is unsure of profit or loss's layout

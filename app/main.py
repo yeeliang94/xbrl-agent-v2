@@ -36,13 +36,13 @@ from app.scoring import routes as scoring_routes
 from app.settings import routes as settings_routes
 from app.utils.paths import PROJECT_ROOT, safe_path
 from app.utils.runtime import on_azure
+from app.utils.version import VERSION, deployed_commit as _deployed_commit
 
 load_dotenv(PROJECT_ROOT / ".env")  # a real environment variable wins over .env
 factory.ensure_certificate_trust()
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.1.0"
 WEB_DIST = PROJECT_ROOT / "web" / "dist"
 
 
@@ -97,6 +97,7 @@ def create_app(*, start_worker: bool = True) -> FastAPI:
     app.include_router(admin_routes.router)
     app.include_router(settings_routes.router)
     app.include_router(runs_routes.router)
+    app.include_router(__import__("app.runs.control_routes", fromlist=["router"]).router)   # redo, cost
     app.include_router(documents_routes.router)
     app.include_router(reading_routes.router)
     app.include_router(figures_routes.router)
@@ -110,6 +111,8 @@ def create_app(*, start_worker: bool = True) -> FastAPI:
     app.include_router(records_routes.router)
     app.include_router(__import__("app.reports.routes", fromlist=["router"]).router)   # step 10
     app.include_router(__import__("app.starting.routes", fromlist=["router"]).router)   # step 10d
+    app.include_router(__import__("app.issues.routes", fromlist=["router"]).router)   # go-live A2
+    app.include_router(__import__("app.housekeeping.routes", fromlist=["router"]).router)   # go-live A7: connection test
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def api_not_found(rest: str):
@@ -120,15 +123,6 @@ def create_app(*, start_worker: bool = True) -> FastAPI:
         return _serve_browser_app(rest)
 
     return app
-
-
-def _deployed_commit():
-    """The commit `scripts/package.py azure` wrote into the package, so "what is live?" has an
-    answer. None when the app runs from a checkout."""
-    try:
-        return (PROJECT_ROOT / "version.txt").read_text(encoding="utf-8").strip() or None
-    except OSError:
-        return None
 
 
 def _serve_browser_app(rest: str):

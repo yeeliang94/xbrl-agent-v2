@@ -20,3 +20,6 @@
 }
 .dlg-actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-2); }
 .dlg.wide { width: var(--dialog-wide-w); max-height: 90vh; overflow: auto; }
+/* Pushes the buttons after it to the right, leaving the ones before it on the left. */
+.dlg-actions .spacer { flex: 1; }
+.dlg-title > h2 { flex: 1; }

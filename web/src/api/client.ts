@@ -63,6 +63,12 @@ export async function uploadFile<T>(path: string, file: File): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** Sends a multipart form: text fields and, when there is one, a file. */
+export async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const response = await send("POST", path, form);
+  return (await response.json()) as T;
+}
+
 /** Fetches a file and hands it to the browser to save. */
 export async function downloadFile(path: string, filename: string): Promise<void> {
   const response = await send("GET", path);

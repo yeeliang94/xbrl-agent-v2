@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { api, type MapNote } from "../../api";
+import { useState, type ReactNode } from "react";
+import { api, type MapNote, type SourceKind } from "../../api";
 import { Button } from "../../components/Button";
+import { copyLine } from "../../components/PagePicture";
 import { Icon, IconButton } from "../../components/IconButton";
 import { Panel } from "../../components/Panel";
 import { Segmented } from "../../components/Segmented";
@@ -8,7 +9,7 @@ import { Table, type Column } from "../../components/Table";
 import { TextInput } from "../../components/TextInput";
 import { Unsure } from "./Unsure";
 import "../../components/PagePicture.css";
-import { addNote, pagesText, parsePages, parseStatementPages, statementName, type StatementRow } from "./setupModel";
+import { addNote, notesCount, pagesText, parsePages, parseStatementPages, statementName, type StatementRow } from "./setupModel";
 
 export function SourcePanel() {
   return (
@@ -18,7 +19,7 @@ export function SourcePanel() {
 
 /** A statement's page picture, drawn upright by the server, and the Reader's reason.
  * "Other page" lets the person set the statement's pages by number. */
-export function StatementPanel({ runId, row, pageCount, onPages }: { runId: number; row: StatementRow; pageCount: number; onPages: (pages: number[]) => void }) {
+export function StatementPanel({ runId, row, pageCount, kind, onPages }: { runId: number; row: StatementRow; pageCount: number; kind?: SourceKind; onPages: (pages: number[]) => void }) {
   const [shown, setShown] = useState(row.pages[0] ?? null);
   const [editing, setEditing] = useState(false);
   const [typed, setTyped] = useState("");
@@ -53,6 +54,7 @@ export function StatementPanel({ runId, row, pageCount, onPages }: { runId: numb
       )}
       {page !== null && (
         <div className="pgwrap">
+          {copyLine(kind) && <p className="copy">{copyLine(kind)}</p>}
           <img className="page-picture" src={api.pageImage(runId, page)} alt={`${name}, page ${page}`} />
         </div>
       )}
@@ -84,8 +86,18 @@ export function StatementPanel({ runId, row, pageCount, onPages }: { runId: numb
   );
 }
 
-/** The notes list the person may edit: remove a note, or add one (a number already listed is replaced). */
-export function NotesPanel({ notes, points, pageCount, onChange }: { notes: MapNote[]; points: string[]; pageCount: number; onChange: (notes: MapNote[]) => void }) {
+/** The notes list the person may edit: remove a note, or add one (a number already listed is replaced).
+ * An Excel run's notes say their sheet (`sheetOf`) where another run's say their pages. */
+export function NotesPanel({ notes, points, pageCount, kind, sheetOf, sheets, onChange }: {
+  notes: MapNote[];
+  points: string[];
+  pageCount: number;
+  kind?: SourceKind;
+  sheetOf?: (note: MapNote) => string;
+  /** An Excel run: the notes' sheets, each of which the person may stop using. */
+  sheets?: ReactNode;
+  onChange: (notes: MapNote[]) => void;
+}) {
   const [number, setNumber] = useState("");
   const [title, setTitle] = useState("");
   const [pages, setPages] = useState("");
@@ -115,7 +127,7 @@ export function NotesPanel({ notes, points, pageCount, onChange }: { notes: MapN
           </>
         ),
     },
-    { key: "pages", header: "Pages", align: "right", muted: true, nowrap: true, render: (n) => <span className="mono">{pagesText(n)}</span> },
+    { key: "pages", header: sheetOf ? "Sheet" : "Pages", align: "right", muted: true, nowrap: true, render: (n) => <span className="mono">{sheetOf ? sheetOf(n) : pagesText(n)}</span> },
     {
       key: "remove",
       header: "",
@@ -131,8 +143,10 @@ export function NotesPanel({ notes, points, pageCount, onChange }: { notes: MapN
     <Panel className="sec">
       <div className="line">
         <h2>Notes</h2>
-        <span className="meta">{notes.length} notes</span>
+        <span className="meta">{notesCount(notes.length)}</span>
       </div>
+      {kind === "word" && <p className="meta">{copyLine(kind)}</p>}
+      {sheets}
       {points.map((point) => (
         <p key={point}>{point}</p>
       ))}

@@ -169,7 +169,7 @@ def test_model_list_on_the_gateway(client, monkeypatch):
 
 def test_run_list_is_empty_at_first(client):
     _sign_in(client, admin=False)
-    assert client.get("/api/runs").json() == {"runs": []}
+    assert client.get("/api/runs").json() == {"runs": [], "total": 0, "page": 0, "per_page": 25}
 
 
 def test_run_list_shape(client):
@@ -186,7 +186,7 @@ def test_run_list_shape(client):
         "id": 1, "company": "Acme Berhad", "year": 2025, "standard": "MFRS", "level": "Group",
         "status": "in_review", "updated_at": stamp, "owner_name": "ana", "owner_email": "ana@firm.com",
         "filename": None, "failed_stage": None,
-    }]}
+    }], "total": 1, "page": 0, "per_page": 25}
 
 
 def test_a_layout_the_standard_does_not_have_is_refused_when_the_run_is_created():

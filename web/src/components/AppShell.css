@@ -101,3 +101,4 @@
 .nav button.nav-link span.nav-split { display: flex; min-width: 0; overflow: hidden; }
 .nav-split > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-split > span:last-child { flex: none; white-space: nowrap; }
+.version { padding: 0 var(--space-3); color: var(--nav-group); font-size: var(--text-sm); }

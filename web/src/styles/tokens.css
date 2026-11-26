@@ -109,6 +109,13 @@
   --progress-h: 4px;
   --note-no-w: 64px;
   --note-page-w: 72px;
+  /* A sheet of an Excel run (source-file-prototype.html) */
+  --sheet-rn-w: 30px;
+  --sheet-row-h: 26px;
+  --sheet-head-h: 24px;
+  --sheet-col-min: 72px;
+  --sheet-col-max: 280px;
+  --text-xs: 11px;
 
   /* A note drawn on mTool's A4 page (prototypes/review-prototype-v4.html .a4).
      The paper's own colours are those of a printed page. */
@@ -136,6 +143,22 @@
   --field-select-min-w: 112px;
   /* A report field's value column (prototypes/step-10-prototype.html .ftbl) */
   --report-value-w: 320px;
+  --form-w: 360px;
+  --opt-name-w: 80px;
+  --radio-on: 5px;
+  /* Run list (prototypes/runs-and-setup-prototype.html) */
+  --runs-tools-h: 68px;
+  --runs-foot-h: 60px;
+  --runs-search-w: 300px;
+  --runs-file-w: 14%;
+  --runs-year-w: 64px;
+  --runs-filing-w: 136px;
+  --runs-status-w: 104px;
+  --runs-updated-w: 112px;
+  --runs-owner-w: 64px;
+  --runs-delete-w: 44px;
+  --dialog-select-w: 160px;
+  --toast-rise: 8px;
 
   /* Type */
   /* The computer's own font: Segoe UI on Windows, San Francisco on a Mac.

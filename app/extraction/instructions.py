@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+from app.runs import units
+
 WORKBENCH_ON = (
     "You also have a code workbench: the provider's code sandbox, for calculation. Nothing from the document "
     "is in it, so type in the numbers you work on. It is a workbench only: figures are saved through "
@@ -171,7 +173,7 @@ Finishing. Before you finish, run run_checks after your last change, and report_
 printed line of each statement you fill. When you fill several statements, finish each fully: every \
 printed line of each one is accounted for. Then finish with a short summary of what you saved. If something cannot be \
 resolved because of what the report shows, list each open point in unresolved with its reason: an honest \
-finish is better than a forced figure. Tool results tell you when your steps run low; leave yourself room \
+finish is better than a forced figure. Tool results tell you when your steps or your time run low; leave yourself room \
 to check and report.
 """
 
@@ -225,11 +227,12 @@ def first_message(*, statement_name: str, company: str, year_end: str, standard:
                   page_count: int, statement_pages: list[int], other_statements: list[str],
                   notes: list[dict], outline_text: str, saved: Optional[list[str]] = None,
                   answers: Optional[list[dict]] = None, several: Optional[list[tuple[str, list[int]]]] = None,
-                  both_entities: bool = False, starting: Optional[list[str]] = None) -> str:
+                  both_entities: bool = False, starting: Optional[list[str]] = None,
+                  held: Optional[list[str]] = None) -> str:
     """The run's opening message: the confirmed document map, then the outline. `several` lists (name, pages)
     when one run fills several statements; `both_entities` when the report prints Group and Company columns."""
     pages = ", ".join(str(p) for p in statement_pages)
-    unit_words = "RM thousands" if unit == "RM'000" else "RM"
+    unit_words = units.unit_words(unit)
     plural = "s" if len(statement_pages) > 1 else ""
     out = [
         f"Fill the {statement_name} of {company}, year ended {year_end}: {standard}, {level} figures only. "
@@ -258,6 +261,12 @@ def first_message(*, statement_name: str, company: str, year_end: str, standard:
         out.append("No notes list was confirmed at setup; find the notes from the pages.")
     out += answers_block(answers or [])
     out += starting_block(starting or [])
+    if held:
+        out.append("A person asked for this statement to be filled again, and chose to keep these figures, which "
+                   "they edited or confirmed. They stay exactly as they are, and a save or clear on one of them is "
+                   "not made. Fill the rest around them; where the report disagrees with one, leave a comment for "
+                   "the person:")
+        out += [f"- {line}" for line in held]
     if saved:
         out.append(f"Figures already saved for {'these statements' if several else 'this statement'}, from an "
                    "earlier attempt; check them rather than starting again:")

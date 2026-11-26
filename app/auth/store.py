@@ -193,19 +193,45 @@ def add_audit(
     )
 
 
+# The audit screen's "Action" filter. An action belongs to the group whose prefix it starts with.
+AUDIT_GROUPS = {
+    "users": ("user_", "password_", "role_"),
+    "settings": ("setting_",),
+    "runs": ("run_", "drafts_"),
+    "issues": ("issue_",),
+}
+
+
+def _audit_where(before_id: Optional[int], actor: Optional[str], group: Optional[str]) -> tuple[str, list]:
+    clauses, params = [], []
+    if before_id is not None:
+        clauses.append("e.id < ?")
+        params.append(before_id)
+    if actor:
+        clauses.append("e.actor_email = ?")
+        params.append(normalize_email(actor))
+    if group:
+        prefixes = AUDIT_GROUPS.get(group, ())
+        if not prefixes:
+            clauses.append("0")
+        else:
+            clauses.append("(" + " OR ".join("substr(e.action, 1, ?) = ?" for _ in prefixes) + ")")
+            for prefix in prefixes:
+                params += [len(prefix), prefix]
+    return (" WHERE " + " AND ".join(clauses)) if clauses else "", params
+
+
 def list_audit(
-    conn: sqlite3.Connection, *, limit: int = 50, before_id: Optional[int] = None
+    conn: sqlite3.Connection, *, limit: int = 50, before_id: Optional[int] = None, offset: int = 0,
+    actor: Optional[str] = None, group: Optional[str] = None,
 ) -> list[dict]:
+    """Audit rows, newest first, optionally for one person and one group of actions."""
+    where, params = _audit_where(before_id, actor, group)
     sql = (
         "SELECT e.*, a.name AS actor_name, t.name AS target_name FROM audit_log e "
         "LEFT JOIN users a ON a.email = e.actor_email LEFT JOIN users t ON t.email = e.target"
+        + where + " ORDER BY e.id DESC LIMIT ? OFFSET ?"
     )
-    params: list = []
-    if before_id is not None:
-        sql += " WHERE e.id < ?"
-        params.append(before_id)
-    sql += " ORDER BY e.id DESC LIMIT ?"
-    params.append(limit)
     return [
         {
             "id": r["id"],
@@ -217,5 +243,17 @@ def list_audit(
             "target_name": r["target_name"] or "",
             "detail": json.loads(r["detail_json"]) if r["detail_json"] else None,
         }
-        for r in conn.execute(sql, params)
+        for r in conn.execute(sql, [*params, limit, max(0, offset)])
     ]
+
+
+def count_audit(conn: sqlite3.Connection, *, actor: Optional[str] = None, group: Optional[str] = None) -> int:
+    where, params = _audit_where(None, actor, group)
+    return int(conn.execute("SELECT COUNT(*) FROM audit_log e" + where, params).fetchone()[0])
+
+
+def audit_people(conn: sqlite3.Connection) -> list[dict]:
+    """Everyone who has a row in the audit log, for the screen's "Person" filter."""
+    return [{"email": r["actor_email"], "name": r["name"] or ""} for r in conn.execute(
+        "SELECT DISTINCT e.actor_email, u.name FROM audit_log e LEFT JOIN users u ON u.email = e.actor_email "
+        "ORDER BY COALESCE(NULLIF(u.name, ''), e.actor_email)")]

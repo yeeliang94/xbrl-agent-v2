@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, errorMessage, type Check, type FigurePlace, type RunStatus, type StatementCode, type User } from "../../api";
+import { api, errorMessage, type Check, type FigurePlace, type NoteDifference, type RunStatus, type StatementCode, type User } from "../../api";
 import { Button } from "../../components/Button";
 import { QuestionCard } from "../../components/QuestionCard";
 import { PageDialog } from "../../components/PagePicture";
 import { Status } from "../../components/Status";
 import { ActivityTab } from "./ActivityTab";
+import { CostFold } from "./CostFold";
+import { RedoDialog } from "./RedoDialog";
+import { navigate } from "../../router";
+import { statementName } from "../setup/setupModel";
 import { checkStatement, ChecksView } from "./ChecksView";
+import { CompareNoteSide } from "./CompareNoteSide";
 import { CompareView } from "./CompareView";
 import { GuidanceView } from "./GuidanceView";
 import { CommentsTab, liveComments } from "./CommentsTab";
@@ -58,6 +63,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   const [tab, setTab] = useState<Tab | null>(null);
   const [traces, setTraces] = useState(false);
   const [filling, setFilling] = useState(false);
+  const [redoAsked, setRedoAsked] = useState(false);
   const [page, setPage] = useState<number | null>(null);
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -67,6 +73,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   const [reportField, setReportField] = useState<string | null>(null);
   const [mapNote, setMapNote] = useState<number | null>(null);
   const [reportText, setReportText] = useState(false);
+  const [compareNote, setCompareNote] = useState<NoteDifference | null>(null);
   const code = isStatement(section) ? section : null;
   const data = useRunData(runId, code, order);
   const { run, statements, statement, checks, needs, comments, rounds, report, events, question, questions } = data;
@@ -109,6 +116,16 @@ export function RunPage({ runId }: { runId: number; user: User }) {
     else if (was === "ready" || was === "extracting") setTab("needs");
   }, [run]);
 
+  // A run whose reading a person stopped has no run screen yet: reading is tried again from the setup page.
+  const readStopped = run?.status === "stopped" && (run.stages ?? []).some((s) => s.name === "read" && s.status === "stopped");
+  useEffect(() => {
+    if (readStopped) navigate({ name: "setup", runId });
+  }, [readStopped, runId]);
+  // The statement the agent is filling again, and the figures a person chose to keep through it.
+  const redoOf = run?.redo ?? null;
+  const redoing = extracting && redoOf !== null;
+  const keptFigures = useMemo(() => new Set(redoOf?.kept ?? []), [redoOf]);
+
   function openSection(next: Section) {
     setSection(next);
     setSelection(null);
@@ -116,6 +133,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
     setArrival(null);
     setReportField(null);
     setReportText(false);
+    setCompareNote(null);
     if (!busy && next !== "guidance" && next !== "compare") setTab(next === "checks" ? "needs" : "source");
   }
 
@@ -348,9 +366,16 @@ export function RunPage({ runId }: { runId: number; user: User }) {
   } else if (shownTab === "comments") {
     body = <CommentsTab runId={runId} comments={comments} rounds={rounds} report={report} working={roundWorking} onOpen={open} onChanged={data.refresh} layouts={layouts} />;
   } else if (shownTab === "activity") {
-    body = <ActivityTab events={events} busy={busy} waiting={asking} questions={questions} onPage={setPage} />;
+    body = (
+      <>
+        <ActivityTab events={events} busy={busy} waiting={asking} questions={questions} onPage={setPage} />
+        {!busy && <CostFold runId={runId} />}
+      </>
+    );
   } else if (isReport(section)) {
     body = <ReportSide runId={runId} field={openField} busy={busy} onOpenText={() => setReportText(true)} onChanged={async () => void (await Promise.all([reports.reload(), data.refresh()]))} />;
+  } else if (section === "compare") {
+    body = compareNote && <CompareNoteSide runId={runId} note={compareNote} onClose={() => setCompareNote(null)} onOpenNote={(id) => showNote({ kind: "note", id })} />;
   } else if (section === "placement") {
     body = <PlacementSide note={notes.notes.find((n) => n.id === mapNote) ?? null} notes={notes.notes} fields={mapFields} placement={placement} busy={busy} working={notesWorking} onOpenNote={(id) => showNote({ kind: "note", id })} />;
   } else if (section === "notes" && noteView) {
@@ -412,7 +437,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
           {stopped && (
             <div className="work-failure">
               <div className="bar">
-                <Status kind="neutral">Extraction stopped</Status>
+                <Status kind="neutral">{redoOf ? "Redo stopped" : "Extraction stopped"}</Status>
                 {run.status === "in_review" && (
                   <Button size="small" disabled={acting} onClick={retry}>
                     Try again
@@ -462,7 +487,16 @@ export function RunPage({ runId }: { runId: number; user: User }) {
           ) : section === "guidance" ? (
             <GuidanceView runId={runId} />
           ) : section === "compare" ? (
-            <CompareView runId={runId} layouts={layouts} onOpen={open} />
+            <CompareView
+              runId={runId}
+              layouts={layouts}
+              onOpen={open}
+              note={compareNote}
+              onNote={(next) => {
+                setCompareNote(next);
+                if (next && !busy) setTab("source");
+              }}
+            />
           ) : section === "checks" ? (
             <ChecksView checks={checks} group={run.level === "Group"} busy={extracting} onOpen={openCheck} />
           ) : (
@@ -479,6 +513,9 @@ export function RunPage({ runId }: { runId: number; user: User }) {
               onSelect={select}
               onClear={clear}
               busy={busy}
+              onRedo={code && (busy || run.status === "in_review") ? () => setRedoAsked(true) : undefined}
+              redoing={redoing && redoOf?.statement === code}
+              kept={keptFigures}
             />
           )}
         </section>
@@ -488,6 +525,7 @@ export function RunPage({ runId }: { runId: number; user: User }) {
       </div>
       <TracesDialog runId={runId} open={traces} onClose={() => setTraces(false)} />
       <FillDialog runId={runId} open={filling} onClose={() => setFilling(false)} />
+      {code && <RedoDialog runId={runId} statement={code} name={statementName(code, layouts[code])} open={redoAsked} onClose={() => setRedoAsked(false)} onStarted={data.refresh} />}
       <PageDialog runId={runId} page={page} onClose={() => setPage(null)} />
     </>
   );

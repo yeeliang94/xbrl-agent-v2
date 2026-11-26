@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Comment, Statement, StatementRow } from "../../api";
+import { Icon, IconButton } from "../../components/IconButton";
 import { Segmented } from "../../components/Segmented";
+import { Status } from "../../components/Status";
 import { Switch } from "../../components/Switch";
 import {
   cellPlace,
@@ -44,10 +46,16 @@ export interface StatementGridProps {
   /** Escape in the grid. */
   onClear: () => void;
   busy: boolean;
+  /** Opens the question before this statement is filled again. Without it there is no Redo button. */
+  onRedo?: () => void;
+  /** The agent is filling this statement again. */
+  redoing?: boolean;
+  /** The figures kept through the redo, by id: their lines say so while it runs. */
+  kept?: Set<number>;
 }
 
 /** The statement as a grid. Template order hides the empty fields unless asked. */
-export function StatementGrid({ statement, order, filter, onOrder, onFilter, comments, changed, selection, arrival = null, onSelect, onClear, busy }: StatementGridProps) {
+export function StatementGrid({ statement, order, filter, onOrder, onFilter, comments, changed, selection, arrival = null, onSelect, onClear, busy, onRedo, redoing = false, kept }: StatementGridProps) {
   const name = statement ? statementName(statement.statement, statement.variant) : "";
   const body = useRef<HTMLDivElement>(null);
   const [empties, setEmpties] = useState(false);
@@ -67,7 +75,13 @@ export function StatementGrid({ statement, order, filter, onOrder, onFilter, com
   const head = (
     <div className="wh">
       <h2>{name}</h2>
+      {redoing && <Status kind="working">Redoing</Status>}
       <span className="spacer" />
+      {onRedo && !redoing && (
+        <IconButton label="Redo statement" disabled={busy} onClick={onRedo}>
+          <Icon name="redo" />
+        </IconButton>
+      )}
       {order === "template" && filter === "all" && (
         <span className="switch-with-label">
           Empty fields
@@ -112,7 +126,11 @@ export function StatementGrid({ statement, order, filter, onOrder, onFilter, com
             cellMarked={(row, column) => marks.cell(cellPlace(statement, row, column))}
             lineMarked={(row) => marks.line(row.concept_uuid, lineEntity(statement, row))}
             lineSelected={(row) => selection?.kind === "line" && selection.concept_uuid === row.concept_uuid && selection.entity_scope === lineEntity(statement, row)}
-            status={(row) => rowStatus(statement, row, changed)}
+            status={(row) =>
+              redoing && kept && Object.values(row.cells).some((c) => c.figure_id !== null && kept.has(c.figure_id))
+                ? { kind: "neutral", word: "Kept" }
+                : rowStatus(statement, row, changed)
+            }
             faint={(row) => order === "template" && !hasValue(row)}
             onLine={(row) => onSelect({ kind: "line", statement: statement.statement, concept_uuid: row.concept_uuid, entity_scope: lineEntity(statement, row) })}
             onCell={(row, column) => onSelect({ kind: "cell", ...cellPlace(statement, row, column) })}
